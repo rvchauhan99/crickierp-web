@@ -1,18 +1,46 @@
-import { SelectHTMLAttributes } from "react";
+import { SelectHTMLAttributes, forwardRef } from "react";
 import { cn } from "@/lib/cn";
 
-type Props = SelectHTMLAttributes<HTMLSelectElement>;
+type Props = SelectHTMLAttributes<HTMLSelectElement> & {
+  error?: boolean;
+  errorMessage?: string;
+  placeholder?: string;
+};
 
-export function Select({ className, children, ...props }: Props) {
-  return (
-    <select
-      className={cn(
-        "w-full rounded-[10px] border border-border bg-surface-card px-3 py-2 text-sm outline-none focus:border-brand-primary",
-        className,
-      )}
-      {...props}
-    >
-      {children}
-    </select>
-  );
-}
+/**
+ * Select — native select with brand focus ring, error state, and placeholder option.
+ */
+export const Select = forwardRef<HTMLSelectElement, Props>(
+  ({ className, error, errorMessage, placeholder, children, ...props }, ref) => {
+    return (
+      <div className="w-full">
+        <select
+          ref={ref}
+          className={cn(
+            "h-9 w-full rounded-md border bg-white px-3 text-sm text-gray-800",
+            "transition-colors outline-none",
+            "focus:border-[var(--brand-primary)] focus:ring-1 focus:ring-[var(--brand-primary)]/20",
+            error
+              ? "border-[var(--danger)] focus:border-[var(--danger)] focus:ring-[var(--danger)]/20"
+              : "border-[var(--border)]",
+            "disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400",
+            className
+          )}
+          {...props}
+        >
+          {placeholder && (
+            <option value="" disabled>
+              {placeholder}
+            </option>
+          )}
+          {children}
+        </select>
+        {error && errorMessage && (
+          <p className="mt-1 text-xs text-[var(--danger)]">{errorMessage}</p>
+        )}
+      </div>
+    );
+  }
+);
+
+Select.displayName = "Select";

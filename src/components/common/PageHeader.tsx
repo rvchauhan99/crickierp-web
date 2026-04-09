@@ -1,17 +1,33 @@
+import { ReactNode } from "react";
+import { cn } from "@/lib/cn";
+
 type Props = {
   title: string;
   description?: string;
-  actions?: React.ReactNode;
+  actions?: ReactNode;
+  breadcrumb?: ReactNode;
+  className?: string;
 };
 
-export function PageHeader({ title, description, actions }: Props) {
+/**
+ * PageHeader — standardized page title + subtitle + action buttons strip.
+ * Matches solar-web listing header pattern.
+ */
+export function PageHeader({ title, description, actions, breadcrumb, className }: Props) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground">{title}</h1>
-        {description ? <p className="mt-1 text-sm text-text-secondary">{description}</p> : null}
+    <div className={cn("flex flex-col gap-0.5", className)}>
+      {breadcrumb && (
+        <div className="mb-1 text-xs text-gray-400">{breadcrumb}</div>
+      )}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-lg font-semibold tracking-tight text-[#1b365d]">{title}</h1>
+          {description && (
+            <p className="mt-0.5 text-sm text-gray-500">{description}</p>
+          )}
+        </div>
+        {actions && <div className="flex items-center gap-2 flex-wrap">{actions}</div>}
       </div>
-      {actions}
     </div>
   );
 }

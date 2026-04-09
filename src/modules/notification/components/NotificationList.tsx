@@ -41,24 +41,27 @@ export function NotificationList() {
       }
       filters={
         <FilterToolbar
-          search={search}
-          fromDate={fromDate}
-          toDate={toDate}
-          onChange={(next) => {
-            if (next.search !== undefined) {
-              setSearch(next.search);
-              setState({ search: next.search, page: 1 });
+          config={[
+            { key: "search", label: "Search by title / description", type: "search" },
+            { key: "fromDate", label: "From Date", type: "date" },
+            { key: "toDate", label: "To Date", type: "date" },
+          ]}
+          values={{ search, fromDate, toDate }}
+          onChange={(key, value) => {
+            if (key === "search") {
+              setSearch(value);
+              setState({ search: value, page: 1 });
             }
-            if (next.fromDate !== undefined) {
-              setFromDate(next.fromDate);
-              setState({ fromDate: next.fromDate, page: 1 });
+            if (key === "fromDate") {
+              setFromDate(value);
+              setState({ fromDate: value, page: 1 });
             }
-            if (next.toDate !== undefined) {
-              setToDate(next.toDate);
-              setState({ toDate: next.toDate, page: 1 });
+            if (key === "toDate") {
+              setToDate(value);
+              setState({ toDate: value, page: 1 });
             }
           }}
-          onReset={() => {
+          onClear={() => {
             setSearch("");
             setFromDate("");
             setToDate("");

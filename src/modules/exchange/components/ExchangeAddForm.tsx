@@ -51,16 +51,6 @@ export function ExchangeAddForm() {
       <FormContainer
         title="Add Exchange"
         description="Create a new exchange entry with opening balance and status."
-        actions={
-          <FormActions>
-            <Button onClick={onSubmit} disabled={saving}>
-              {saving ? "Saving..." : "Save"}
-            </Button>
-            <Button variant="secondary" onClick={() => setForm(initialState)} disabled={saving}>
-              Cancel
-            </Button>
-          </FormActions>
-        }
       >
         <FormGrid>
           <div>
@@ -112,6 +102,14 @@ export function ExchangeAddForm() {
             </Select>
           </div>
         </FormGrid>
+        <FormActions>
+          <Button onClick={onSubmit} disabled={saving}>
+            {saving ? "Saving..." : "Save"}
+          </Button>
+          <Button variant="secondary" onClick={() => setForm(initialState)} disabled={saving}>
+            Cancel
+          </Button>
+        </FormActions>
       </FormContainer>
       {message ? <p className="text-sm text-brand-accent">{message}</p> : null}
     </div>

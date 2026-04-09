@@ -1,14 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { NAV_ITEMS } from "@/lib/constants/navigation";
-import { Input } from "@/components/ui/Input";
 import { AppNavNode } from "@/types/navigation";
 import { cn } from "@/lib/cn";
-import { ProfileMenu } from "@/components/layout/ProfileMenu";
 import { useNotifications } from "@/context/NotificationContext";
+import { useAuth } from "@/context/AuthContext";
+import {
+  IconChevronDown,
+  IconChevronRight,
+  IconChevronLeft,
+  IconSettings,
+  IconLogout,
+  IconSearch,
+  IconBell,
+  IconMaximize,
+  IconX,
+} from "@tabler/icons-react";
+
+// ─────────── Helpers ───────────
 
 function getNodeGlyph(node: AppNavNode): string {
   const source = (node.label || node.id || "x").trim();
@@ -22,7 +34,8 @@ function getDepthPadding(depth: number): string {
 function nodeMatches(node: AppNavNode, query: string): boolean {
   const q = query.toLowerCase();
   const selfMatch =
-    node.label.toLowerCase().includes(q) || (node.keywords ?? []).some((key) => key.toLowerCase().includes(q));
+    node.label.toLowerCase().includes(q) ||
+    (node.keywords ?? []).some((key) => key.toLowerCase().includes(q));
   if (selfMatch) return true;
   return (node.children ?? []).some((child) => nodeMatches(child, query));
 }
@@ -38,6 +51,20 @@ function getFirstHref(node: AppNavNode): string {
   return "#";
 }
 
+function flattenNodes(nodes: AppNavNode[], parents: string[] = []): Array<AppNavNode & { fullPath: string }> {
+  let result: Array<AppNavNode & { fullPath: string }> = [];
+  for (const node of nodes) {
+    const fullPath = [...parents, node.label].join(" › ");
+    result.push({ ...node, fullPath });
+    if (node.children?.length) {
+      result = result.concat(flattenNodes(node.children, [...parents, node.label]));
+    }
+  }
+  return result;
+}
+
+// ─────────── TreeNode ───────────
+
 function TreeNode({
   node,
   pathname,
@@ -51,115 +78,118 @@ function TreeNode({
   onNavigate?: () => void;
   depth?: number;
 }) {
+  const hasChildren = (node.children ?? []).length > 0;
   const hasActiveChild = (node.children ?? []).some((child) => nodeHasPath(child, pathname));
-  const [open, setOpen] = useState(depth === 0 || hasActiveChild);
-  const isActive = nodeHasPath(node, pathname);
+  const [open, setOpen] = useState(hasActiveChild);
+  const isActive = node.href === pathname || hasActiveChild;
 
-  if (node.children?.length) {
+  const activeClass = "bg-[#142847] text-white border-[#1d4ed8]";
+  const inactiveClass = "text-blue-100 hover:bg-[#142847] hover:text-white border-transparent";
+
+  if (hasChildren) {
     if (collapsed) {
       return (
         <Link
           href={getFirstHref(node)}
           className={cn(
-            "block rounded-md border-l-4 px-1.5 py-1.5 text-sm font-medium transition-all duration-200",
-            isActive
-              ? "border-brand-accent bg-sidebar-active font-semibold text-brand-primary"
-              : "border-transparent hover:bg-sidebar-hover",
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-md border-l-4 transition-all duration-200",
+            isActive ? activeClass : inactiveClass
           )}
           title={node.label}
           onClick={onNavigate}
         >
-          <span className="flex min-w-0 items-center justify-center gap-2">
-            <span
-              className={cn(
-                "inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md text-[9px] font-semibold",
-                isActive ? "bg-brand-primary/15 text-brand-primary" : "bg-white text-text-secondary",
-              )}
-            >
-              {getNodeGlyph(node)}
-            </span>
-            <span className="sr-only">{node.label}</span>
+          <span className={cn(
+            "inline-flex h-[18px] w-[18px] items-center justify-center rounded text-[9px] font-bold",
+            isActive ? "bg-blue-400/20 text-white" : "bg-white/10 text-blue-200"
+          )}>
+            {getNodeGlyph(node)}
           </span>
         </Link>
       );
     }
 
     return (
-      <div className="space-y-1">
+      <div>
         <button
+          type="button"
+          onClick={() => setOpen((p) => !p)}
           className={cn(
-            "flex w-full items-center justify-between rounded-md border-l-4 px-3 py-1.5 text-left text-sm font-medium transition-all duration-200",
-            isActive
-              ? "border-brand-accent bg-sidebar-active text-brand-primary"
-              : "border-transparent hover:bg-sidebar-hover",
-            collapsed && "justify-center px-1.5",
+            "flex w-full items-center gap-2 rounded-md border-l-4 px-3 py-1.5 text-sm font-medium transition-colors",
+            isActive ? activeClass : inactiveClass
           )}
-          style={collapsed ? undefined : { paddingLeft: getDepthPadding(depth) }}
-          onClick={() => setOpen((prev) => !prev)}
-          title={collapsed ? node.label : undefined}
+          style={{ paddingLeft: getDepthPadding(depth) }}
         >
-          <span className="flex min-w-0 items-center gap-2">
-            <span
-              className={cn(
-                "inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md text-[9px] font-semibold",
-                isActive ? "bg-brand-primary/15 text-brand-primary" : "bg-white text-text-secondary",
-              )}
-            >
-              {getNodeGlyph(node)}
-            </span>
-            <span className={cn("truncate", collapsed && "sr-only")}>{node.label}</span>
+          <span className={cn(
+            "inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded text-[9px] font-bold",
+            isActive ? "bg-blue-400/20 text-white" : "bg-white/10 text-blue-200"
+          )}>
+            {getNodeGlyph(node)}
           </span>
-          {!collapsed ? (
-            <span className="relative h-4 w-4 shrink-0">
-              <span
-                className={cn(
-                  "absolute inset-0 text-xs transition-all duration-200",
-                  open ? "rotate-0 opacity-100" : "-rotate-90 opacity-0",
-                )}
-              >
-                ▾
-              </span>
-              <span
-                className={cn(
-                  "absolute inset-0 text-xs transition-all duration-200",
-                  open ? "rotate-90 opacity-0" : "rotate-0 opacity-100",
-                )}
-              >
-                ▸
-              </span>
-            </span>
-          ) : null}
+          <span className="flex-1 text-left truncate">{node.label}</span>
+          <div className="relative h-4 w-4 shrink-0">
+            <IconChevronDown
+              className={cn(
+                "absolute inset-0 h-4 w-4 transition-all duration-300 ease-in-out",
+                open ? "rotate-0 opacity-100" : "-rotate-90 opacity-0"
+              )}
+            />
+            <IconChevronRight
+              className={cn(
+                "absolute inset-0 h-4 w-4 transition-all duration-300 ease-in-out",
+                open ? "rotate-90 opacity-0" : "rotate-0 opacity-100"
+              )}
+            />
+          </div>
         </button>
         <div
           className={cn(
-            "ml-[19px] overflow-hidden border-l border-border/80 pl-2 transition-all duration-300 ease-in-out",
-            open && !collapsed ? "max-h-[1200px] opacity-100" : "max-h-0 opacity-0",
+            "overflow-hidden transition-all duration-300 ease-in-out",
+            open ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0"
           )}
         >
-          {open && !collapsed ? (
-            <div className="space-y-1">
-              {node.children.map((child, index) => (
-                <div
-                  key={child.id}
-                  className={cn(
-                    "transition-all duration-300 ease-in-out",
-                    open ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0",
-                  )}
-                  style={{ transitionDelay: open ? `${index * 25}ms` : "0ms" }}
-                >
-                  <TreeNode
-                    node={child}
-                    pathname={pathname}
-                    collapsed={collapsed}
-                    onNavigate={onNavigate}
-                    depth={depth + 1}
-                  />
-                </div>
-              ))}
-            </div>
-          ) : null}
+          <div className="mt-1 ml-[19px] border-l border-white/10 pl-2">
+            {node.children!.map((child, index) => (
+              <div
+                key={child.id}
+                className={cn(
+                  "transition-all duration-300 ease-in-out",
+                  open ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0"
+                )}
+                style={{ transitionDelay: open ? `${index * 30}ms` : "0ms" }}
+              >
+                <TreeNode
+                  node={child}
+                  pathname={pathname}
+                  collapsed={collapsed}
+                  onNavigate={onNavigate}
+                  depth={depth + 1}
+                />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
+    );
+  }
+
+  if (collapsed) {
+    return (
+      <Link
+        href={node.href ?? "#"}
+        className={cn(
+          "flex h-10 w-10 shrink-0 items-center justify-center rounded-md border-l-4 transition-all duration-200",
+          isActive ? activeClass : inactiveClass
+        )}
+        title={node.label}
+        onClick={onNavigate}
+      >
+        <span className={cn(
+          "inline-flex h-[18px] w-[18px] items-center justify-center rounded text-[9px] font-bold",
+          isActive ? "bg-blue-400/20 text-white" : "bg-white/10 text-blue-200"
+        )}>
+          {getNodeGlyph(node)}
+        </span>
+      </Link>
     );
   }
 
@@ -167,30 +197,125 @@ function TreeNode({
     <Link
       href={node.href ?? "#"}
       className={cn(
-        "block rounded-md border-l-4 px-3 py-1.5 text-sm font-medium transition-all duration-200",
-        isActive
-          ? "border-brand-accent bg-sidebar-active font-semibold text-brand-primary"
-          : "border-transparent hover:bg-sidebar-hover",
-        collapsed && "px-1.5",
+        "flex items-center gap-2 rounded-md border-l-4 px-3 py-1.5 text-sm font-medium transition-colors",
+        isActive ? activeClass : inactiveClass
       )}
-      style={collapsed ? undefined : { paddingLeft: getDepthPadding(depth) }}
-      title={collapsed ? node.label : undefined}
+      style={{ paddingLeft: getDepthPadding(depth) }}
       onClick={onNavigate}
     >
-      <span className="flex min-w-0 items-center gap-2">
-        <span
-          className={cn(
-            "inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md text-[9px] font-semibold",
-            isActive ? "bg-brand-primary/15 text-brand-primary" : "bg-white text-text-secondary",
-          )}
-        >
-          {getNodeGlyph(node)}
-        </span>
-        <span className={cn("truncate", collapsed && "sr-only")}>{node.label}</span>
+      <span className={cn(
+        "inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded text-[9px] font-bold",
+        isActive ? "bg-blue-400/20 text-white" : "bg-white/10 text-blue-200"
+      )}>
+        {getNodeGlyph(node)}
       </span>
+      <span className="truncate">{node.label}</span>
     </Link>
   );
 }
+
+// ─────────── UserProfile ───────────
+
+function UserProfile({ collapsed, onLogout }: { collapsed: boolean; onLogout: () => void }) {
+  const { user } = useAuth();
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const initial = (user?.fullName?.[0] || "U").toUpperCase();
+  const name = user?.fullName ?? "User";
+  const email = user?.role ?? "";
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  if (collapsed) {
+    return (
+      <div ref={ref} className="relative flex justify-center">
+        <button
+          type="button"
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-[#1d4ed8] text-white text-xs font-semibold hover:bg-[#1e40af] transition-colors"
+          title={name}
+          onClick={() => setOpen((p) => !p)}
+        >
+          {initial}
+        </button>
+        {open && (
+          <div className="absolute bottom-full left-full mb-1 ml-2 w-48 rounded-lg border border-[#0f1f3a] bg-[#1b365d] shadow-xl z-50">
+            <div className="p-3 border-b border-white/10">
+              <p className="text-sm font-semibold text-white truncate">{name}</p>
+              <p className="text-xs text-blue-300 truncate">{email}</p>
+            </div>
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-blue-100 hover:bg-[#142847] hover:text-white transition-colors"
+              onClick={() => { router.push("/user-profile"); setOpen(false); }}
+            >
+              <IconSettings className="h-4 w-4" />
+              <span>Profile</span>
+            </button>
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-900/30 hover:text-red-300 transition-colors rounded-b-lg"
+              onClick={() => { onLogout(); setOpen(false); }}
+            >
+              <IconLogout className="h-4 w-4" />
+              <span>Logout</span>
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        className="flex w-full items-center gap-2 rounded-md p-2 hover:bg-[#142847] transition-colors"
+        onClick={() => setOpen((p) => !p)}
+      >
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#1d4ed8] text-white text-xs font-semibold">
+          {initial}
+        </div>
+        <div className="min-w-0 flex-1 text-left">
+          <p className="truncate text-sm font-medium text-blue-100">{name}</p>
+          <p className="truncate text-xs text-blue-300/70">{email}</p>
+        </div>
+        <IconChevronDown className="h-4 w-4 shrink-0 text-blue-300/70" />
+      </button>
+      {open && (
+        <div className="absolute bottom-full left-0 right-0 mb-1 rounded-lg border border-[#0f1f3a] bg-[#1b365d] shadow-xl z-50">
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-blue-100 hover:bg-[#142847] hover:text-white transition-colors rounded-t-lg"
+            onClick={() => { router.push("/user-profile"); setOpen(false); }}
+          >
+            <IconSettings className="h-4 w-4" />
+            <span>Profile</span>
+          </button>
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-900/30 hover:text-red-300 transition-colors rounded-b-lg"
+            onClick={() => { onLogout(); setOpen(false); }}
+          >
+            <IconLogout className="h-4 w-4" />
+            <span>Logout</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────── SidebarTree (main export) ───────────
 
 type Props = {
   open: boolean;
@@ -212,8 +337,39 @@ export function SidebarTree({
   onOpenNotifications,
 }: Props) {
   const pathname = usePathname();
-  const [menuSearch, setMenuSearch] = useState("");
+  const { logout } = useAuth();
   const { unreadCount } = useNotifications();
+  const [menuSearch, setMenuSearch] = useState("");
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
+  const flatItems = useMemo(() => flattenNodes(NAV_ITEMS), []);
+
+  const searchResults = useMemo(() => {
+    const q = menuSearch.trim().toLowerCase();
+    if (!q) return [];
+    return flatItems
+      .filter(
+        (item) =>
+          item.label?.toLowerCase().includes(q) ||
+          item.fullPath?.toLowerCase().includes(q) ||
+          item.href?.toLowerCase().includes(q)
+      )
+      .slice(0, 15);
+  }, [menuSearch, flatItems]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (
+        menuSearch.trim() &&
+        searchContainerRef.current &&
+        !searchContainerRef.current.contains(e.target as Node)
+      ) {
+        setMenuSearch("");
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuSearch]);
 
   useEffect(() => {
     if (!open) return;
@@ -231,26 +387,92 @@ export function SidebarTree({
 
   const visibleNodes = collapsed ? NAV_ITEMS : filteredNodes;
 
-  const navContent = (
-    <>
+  const handleLogout = () => {
+    logout();
+  };
+
+  const sidebarContent = (
+    <div className="flex h-full flex-col overflow-y-auto px-3 py-4 [scrollbar-width:thin]">
+      {/* User Profile */}
       <div className="mb-4">
-        <p className="text-lg font-bold text-brand-primary">{collapsed ? "CE" : "crickierp"}</p>
-        {!collapsed ? <p className="text-xs text-text-secondary">Client Admin Panel</p> : null}
+        <UserProfile collapsed={collapsed} onLogout={handleLogout} />
       </div>
-      {!collapsed ? <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-text-secondary">General</p> : null}
 
-      {!collapsed ? (
-        <Input
-          placeholder="Search menus..."
-          value={menuSearch}
-          onChange={(event) => setMenuSearch(event.target.value)}
-          className="mb-3 bg-white"
-        />
-      ) : null}
+      {/* Search (expanded only) */}
+      {!collapsed && (
+        <div ref={searchContainerRef} className="relative mb-4">
+          <div className="relative">
+            <IconSearch className="absolute top-1/2 left-3 z-10 h-4 w-4 -translate-y-1/2 text-blue-300/70" />
+            <input
+              type="text"
+              placeholder="Search menus..."
+              className="w-full rounded-md border border-white/10 bg-white/5 py-1.5 pl-9 pr-3 text-sm text-blue-100 placeholder:text-blue-300/50 focus:border-blue-400/40 focus:outline-none focus:ring-1 focus:ring-blue-400/40"
+              value={menuSearch}
+              onChange={(e) => setMenuSearch(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Escape") setMenuSearch(""); }}
+            />
+          </div>
+          {menuSearch.trim() && (
+            <div
+              data-sidebar-search-dropdown
+              className="absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-y-auto rounded-lg border border-[#0f1f3a] bg-[#0f1f3a] shadow-xl"
+              role="listbox"
+            >
+              {searchResults.length > 0 ? (
+                <ul className="p-1">
+                  {searchResults.map((item, index) => (
+                    <li key={`${item.fullPath}-${index}`} role="option">
+                      <Link
+                        href={item.href ?? "#"}
+                        className="flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-white hover:bg-[#1b365d] transition-colors"
+                        onClick={() => { setMenuSearch(""); onClose(); }}
+                      >
+                        <span className="inline-flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded bg-white/10 text-[9px] font-bold">
+                          {getNodeGlyph(item)}
+                        </span>
+                        <span className="truncate">{item.fullPath}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="px-3 py-3 text-sm text-blue-300/80">No menu matches</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
-      <div className="scrollbar-thin flex-1 space-y-1 overflow-y-auto pr-1">
+      {/* Notifications button */}
+      <button
+        type="button"
+        onClick={() => { onOpenNotifications(); onClose(); }}
+        className={cn(
+          "mb-2 flex items-center gap-2 rounded-md border-l-4 border-transparent px-3 py-1.5 text-sm font-medium text-blue-100 hover:bg-[#142847] hover:text-white transition-colors",
+          collapsed ? "h-10 w-10 shrink-0 justify-center px-1.5" : "w-full"
+        )}
+        title={collapsed ? "Notifications" : undefined}
+      >
+        <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
+          <IconBell className="h-5 w-5" />
+          {unreadCount > 0 && (
+            <span className="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-0.5 text-[9px] font-medium text-white">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
+        </span>
+        {!collapsed && <span className="flex-1 truncate">Notifications</span>}
+      </button>
+
+      {/* Navigation */}
+      <nav className="mb-6 flex-1 space-y-1">
+        {!collapsed && menuSearch.trim() === "" && (
+          <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-blue-400/60">
+            Navigation
+          </p>
+        )}
         {visibleNodes.length === 0 ? (
-          <p className="rounded-lg border border-border bg-white p-3 text-sm text-text-secondary">
+          <p className="rounded-md border border-white/10 bg-white/5 p-3 text-sm text-blue-300/60">
             No menu result found.
           </p>
         ) : (
@@ -264,72 +486,75 @@ export function SidebarTree({
             />
           ))
         )}
-      </div>
+      </nav>
 
-      <div className="mt-3 space-y-2 border-t border-border pt-3">
+      {/* Bottom actions */}
+      <div className="mt-auto flex items-center justify-end gap-1 border-t border-white/10 pt-2">
         <button
-          className="flex w-full items-center justify-between gap-2 rounded-lg border border-border bg-surface-card px-3 py-2 text-left text-sm transition-colors hover:bg-sidebar-hover"
-          onClick={() => {
-            onOpenNotifications();
-            onClose();
-          }}
-          title={collapsed ? "Notifications" : undefined}
-        >
-          <span className={cn(collapsed && "mx-auto")}>{collapsed ? "NT" : "Notifications"}</span>
-          {!collapsed && unreadCount > 0 ? (
-            <span className="rounded-full bg-danger px-1.5 py-0.5 text-[10px] font-semibold text-white">
-              {unreadCount > 99 ? "99+" : unreadCount}
-            </span>
-          ) : null}
-        </button>
-        <button
-          className="w-full rounded-lg border border-border bg-surface-card px-3 py-2 text-left text-sm transition-colors hover:bg-sidebar-hover"
+          type="button"
+          className="hidden h-8 w-8 items-center justify-center rounded-md text-blue-200 hover:bg-[#142847] hover:text-white transition-colors lg:flex"
           onClick={onToggleFullscreen}
-          title={collapsed ? (isFullscreen ? "Exit Fullscreen" : "Fullscreen") : undefined}
+          aria-label="Full screen"
+          title="Full screen (Ctrl+Shift+F)"
         >
-          {collapsed ? "FS" : isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+          <IconMaximize className="h-4 w-4" />
         </button>
         <button
-          className="hidden w-full rounded-lg border border-border bg-surface-card px-3 py-2 text-left text-sm transition-colors hover:bg-sidebar-hover md:block"
+          type="button"
+          className="hidden h-8 w-8 items-center justify-center rounded-md text-blue-200 hover:bg-[#142847] hover:text-white transition-colors lg:flex"
           onClick={onToggleCollapse}
-          title={collapsed ? "Expand Sidebar" : undefined}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
-          {collapsed ? "EXP" : "Collapse Sidebar"}
+          {collapsed ? (
+            <IconChevronRight className="h-4 w-4" />
+          ) : (
+            <IconChevronLeft className="h-4 w-4" />
+          )}
         </button>
-        {!collapsed ? <ProfileMenu /> : <div className="rounded-lg border border-border bg-surface-card px-3 py-2 text-center text-xs font-semibold">PR</div>}
       </div>
-    </>
+    </div>
   );
 
   return (
     <>
+      {/* Desktop sidebar */}
       <aside
         className={cn(
-          "app-sidebar hidden h-screen shrink-0 flex-col border-r border-border bg-sidebar-bg px-3 py-4 transition-all duration-300 md:flex",
-          collapsed ? "w-20" : "w-80",
+          "app-sidebar hidden h-full w-full flex-col border-r border-[#0f1f3a] transition-all duration-300 ease-in-out md:flex",
         )}
       >
-        {navContent}
+        {sidebarContent}
       </aside>
+
+      {/* Mobile overlay */}
       <div
         className={cn(
-          "fixed inset-0 z-30 bg-slate-900/25 transition-opacity md:hidden",
-          open ? "opacity-100" : "pointer-events-none opacity-0",
+          "fixed inset-0 z-[var(--z-overlay)] bg-slate-900/40 transition-opacity md:hidden",
+          open ? "opacity-100" : "pointer-events-none opacity-0"
         )}
         onClick={onClose}
       />
+
+      {/* Mobile drawer */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex w-80 flex-col border-r border-border bg-sidebar-bg px-3 py-4 transition-transform duration-300 md:hidden",
-          open ? "translate-x-0" : "-translate-x-full",
+          "app-sidebar fixed inset-y-0 left-0 z-[var(--z-sidebar)] flex w-72 flex-col border-r border-[#0f1f3a] transition-transform duration-300 md:hidden",
+          open ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <div className="mb-2 flex justify-end">
-          <button className="rounded-md border border-border px-2 py-1 text-xs" onClick={onClose}>
-            Close
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+          <span className="text-base font-bold text-white">CrickERP</span>
+          <button
+            type="button"
+            className="flex h-8 w-8 items-center justify-center rounded-md text-blue-200 hover:bg-[#142847] transition-colors"
+            onClick={onClose}
+            aria-label="Close menu"
+          >
+            <IconX className="h-4 w-4" />
           </button>
         </div>
-        {navContent}
+        {sidebarContent}
       </aside>
     </>
   );

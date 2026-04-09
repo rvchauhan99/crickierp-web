@@ -53,48 +53,54 @@ export function ExchangeListView({ rows }: Props) {
       density="compact"
       filters={
         <FilterToolbar
-          search={search}
-          fromDate={fromDate}
-          toDate={toDate}
-          onChange={(next) => {
-            if (next.search !== undefined) {
-              setSearch(next.search);
-              setState({ search: next.search, page: 1 });
-              setPage(1);
+          config={[
+            { key: "search", label: "Search by Name / Provider", type: "search" },
+            { key: "fromDate", label: "From Date", type: "date" },
+            { key: "toDate", label: "To Date", type: "date" },
+          ]}
+          values={{ search, fromDate, toDate }}
+          onChange={(key, value) => {
+            if (key === "search") {
+              setSearch(value);
+              setState({ search: value, page: 1 });
             }
-            if (next.fromDate !== undefined) {
-              setFromDate(next.fromDate);
-              setState({ fromDate: next.fromDate, page: 1 });
-              setPage(1);
+            if (key === "fromDate") {
+              setFromDate(value);
+              setState({ fromDate: value, page: 1 });
             }
-            if (next.toDate !== undefined) {
-              setToDate(next.toDate);
-              setState({ toDate: next.toDate, page: 1 });
-              setPage(1);
+            if (key === "toDate") {
+              setToDate(value);
+              setState({ toDate: value, page: 1 });
             }
+            setPage(0); // reset page, Note new PaginatedTable is 0-indexed
           }}
-          onReset={() => {
+          onClear={() => {
             setSearch("");
             setFromDate("");
             setToDate("");
-            setPage(1);
+            setPage(0);
             setState({ search: "", fromDate: "", toDate: "", page: 1 });
           }}
         />
       }
-      footer={
-        <PaginationControls
-          page={page}
-          total={filtered.length}
-          pageSize={pageSize}
-          onPageChange={(nextPage) => {
-            setPage(nextPage);
-            setState({ page: nextPage });
-          }}
-        />
-      }
     >
-      <PaginatedTable columns={columns} rows={pageRows} />
+      <PaginatedTable
+        columns={columns}
+        rows={pageRows}
+        page={page === 0 ? 0 : page - 1}
+        pageSize={pageSize}
+        total={filtered.length}
+        onPageChange={(nextPage) => {
+          // nextPage is 0-indexed from component, we map to 1-indexed for state if needed, but lets just store what hook needs
+          const apiPage = nextPage + 1;
+          setPage(apiPage);
+          setState({ page: apiPage });
+        }}
+        onPageSizeChange={(newSize) => {
+          setState({ pageSize: newSize, page: 1 });
+          setPage(1);
+        }}
+      />
     </ListingPageContainer>
   );
 }

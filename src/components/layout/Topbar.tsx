@@ -1,5 +1,8 @@
 "use client";
 
+import Link from "next/link";
+import { IconMenu2, IconMaximize, IconMinimize } from "@tabler/icons-react";
+
 type Props = {
   onOpenSidebar: () => void;
   isFullscreen: boolean;
@@ -8,23 +11,33 @@ type Props = {
 
 export function Topbar({ onOpenSidebar, isFullscreen, onToggleFullscreen }: Props) {
   return (
-    <header className="sticky top-0 z-20 flex h-12 items-center justify-between border-b border-border bg-topbar-bg px-3 md:hidden">
+    <header className="sticky top-0 z-[var(--z-topbar)] flex h-14 items-center justify-between border-b border-[var(--border)] bg-white px-4 shadow-sm md:hidden">
       <button
-        className="rounded-md border border-border bg-surface-card px-2 py-1 text-xs transition-colors hover:bg-sidebar-hover"
+        type="button"
+        className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border)] bg-white hover:bg-gray-50 transition-colors"
         onClick={onOpenSidebar}
         aria-label="Open sidebar"
       >
-        Menu
+        <IconMenu2 className="h-5 w-5 text-gray-700" />
       </button>
-      <div className="flex items-center gap-2">
-        <button
-          className="rounded-md border border-border bg-surface-card px-2 py-1 text-xs transition-colors hover:bg-sidebar-hover"
-          onClick={onToggleFullscreen}
-          aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-        >
-          {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-        </button>
-      </div>
+
+      <Link href="/dashboard" className="flex items-center gap-1.5">
+        <span className="text-base font-bold text-[var(--brand-primary)]">CrickERP</span>
+      </Link>
+
+      <button
+        type="button"
+        className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border)] bg-white hover:bg-gray-50 transition-colors"
+        onClick={onToggleFullscreen}
+        aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+        title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+      >
+        {isFullscreen ? (
+          <IconMinimize className="h-5 w-5 text-gray-700" />
+        ) : (
+          <IconMaximize className="h-5 w-5 text-gray-700" />
+        )}
+      </button>
     </header>
   );
 }
