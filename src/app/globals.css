@@ -1,0 +1,114 @@
+@import "tailwindcss";
+@import "../styles/tokens.css";
+
+:root {
+  --background: #f4f7fb;
+  --surface-card: #ffffff;
+  --foreground: #0b1a33;
+  --text-secondary: #4b5d7a;
+  --border: #d8e1ee;
+  --brand-primary: #1d4ed8;
+  --brand-primary-hover: #1e40af;
+  --brand-accent: #0f9d58;
+  --warning: #c27803;
+  --danger: #c62828;
+  --sidebar-bg: #eef3fa;
+  --sidebar-active: #d7e6ff;
+  --sidebar-hover: #e5edf9;
+  --topbar-bg: #ffffff;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface-card: var(--surface-card);
+  --color-text-secondary: var(--text-secondary);
+  --color-border: var(--border);
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-primary-hover: var(--brand-primary-hover);
+  --color-brand-accent: var(--brand-accent);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-sidebar-bg: var(--sidebar-bg);
+  --color-sidebar-active: var(--sidebar-active);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-size: 14px;
+}
+
+* {
+  border-color: var(--border);
+}
+
+.card {
+  border: 1px solid var(--border);
+  background: var(--surface-card);
+  border-radius: var(--radius-md);
+  box-shadow: 0 1px 2px rgba(9, 30, 66, 0.06);
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #c8d5ea;
+  border-radius: 999px;
+}
+
+.fade-in {
+  animation: fadeIn 180ms ease-out;
+}
+
+.slide-in-right {
+  animation: slideInRight 220ms ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.pulse-soft {
+  animation: pulseSoft 1.8s ease-in-out infinite;
+}
+
+@keyframes pulseSoft {
+  0% {
+    box-shadow: 0 0 0 0 rgba(198, 40, 40, 0.25);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(198, 40, 40, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(198, 40, 40, 0);
+  }
+}
