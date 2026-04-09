@@ -256,7 +256,7 @@ function UserProfile({ collapsed, onLogout }: { collapsed: boolean; onLogout: ()
             <button
               type="button"
               className="flex w-full items-center gap-2 px-3 py-2 text-sm text-blue-100 hover:bg-[#142847] hover:text-white transition-colors"
-              onClick={() => { router.push("/user-profile"); setOpen(false); }}
+              onClick={() => { router.push("/profile"); setOpen(false); }}
             >
               <IconSettings className="h-4 w-4" />
               <span>Profile</span>
@@ -296,7 +296,7 @@ function UserProfile({ collapsed, onLogout }: { collapsed: boolean; onLogout: ()
           <button
             type="button"
             className="flex w-full items-center gap-2 px-3 py-2 text-sm text-blue-100 hover:bg-[#142847] hover:text-white transition-colors rounded-t-lg"
-            onClick={() => { router.push("/user-profile"); setOpen(false); }}
+            onClick={() => { router.push("/profile"); setOpen(false); }}
           >
             <IconSettings className="h-4 w-4" />
             <span>Profile</span>
@@ -320,7 +320,6 @@ function UserProfile({ collapsed, onLogout }: { collapsed: boolean; onLogout: ()
 type Props = {
   open: boolean;
   collapsed?: boolean;
-  isFullscreen?: boolean;
   onClose: () => void;
   onToggleCollapse: () => void;
   onToggleFullscreen: () => void;
@@ -330,13 +329,13 @@ type Props = {
 export function SidebarTree({
   open,
   collapsed = false,
-  isFullscreen = false,
   onClose,
   onToggleCollapse,
   onToggleFullscreen,
   onOpenNotifications,
 }: Props) {
   const pathname = usePathname();
+  const router = useRouter();
   const { logout } = useAuth();
   const { unreadCount } = useNotifications();
   const [menuSearch, setMenuSearch] = useState("");
@@ -388,7 +387,9 @@ export function SidebarTree({
   const visibleNodes = collapsed ? NAV_ITEMS : filteredNodes;
 
   const handleLogout = () => {
-    logout();
+    logout().finally(() => {
+      router.replace("/login");
+    });
   };
 
   const sidebarContent = (
@@ -421,7 +422,7 @@ export function SidebarTree({
               {searchResults.length > 0 ? (
                 <ul className="p-1">
                   {searchResults.map((item, index) => (
-                    <li key={`${item.fullPath}-${index}`} role="option">
+                    <li key={`${item.fullPath}-${index}`} role="option" aria-selected={item.href === pathname}>
                       <Link
                         href={item.href ?? "#"}
                         className="flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-white hover:bg-[#1b365d] transition-colors"

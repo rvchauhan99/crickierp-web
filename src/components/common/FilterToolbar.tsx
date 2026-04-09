@@ -1,6 +1,5 @@
 "use client";
 
-import { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { IconSearch, IconCalendar, IconX } from "@tabler/icons-react";
 

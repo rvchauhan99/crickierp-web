@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { SidebarTree } from "@/components/layout/SidebarTree";
 import { NotificationPanel } from "@/components/layout/NotificationPanel";
@@ -38,15 +37,11 @@ import { PropsWithChildren } from "react";
 export function DashboardLayout({ children }: PropsWithChildren) {
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() =>
-    getStoredSidebarCollapsed()
-  );
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(getStoredSidebarCollapsed);
   const [sidebarHoverExpanded, setSidebarHoverExpanded] = useState(false);
-  const [focusFullscreen, setFocusFullscreen] = useState(() =>
-    getStoredFocusFullscreen()
-  );
+  const [focusFullscreen, setFocusFullscreen] = useState(getStoredFocusFullscreen);
   const [docFullscreen, setDocFullscreen] = useState(false);
-  const [nativeFsSupported, setNativeFsSupported] = useState(false);
+  const nativeFsSupported = typeof document !== "undefined" && !!document.fullscreenEnabled;
 
   const isFloatingHover = sidebarCollapsed && sidebarHoverExpanded;
   const layoutSidebarExpanded = !sidebarCollapsed;
@@ -69,10 +64,6 @@ export function DashboardLayout({ children }: PropsWithChildren) {
   };
 
   useEffect(() => {
-    if (focusFullscreen) setSidebarOpen(false);
-  }, [focusFullscreen]);
-
-  useEffect(() => {
     if (!focusFullscreen && typeof document !== "undefined" && document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});
     }
@@ -83,12 +74,6 @@ export function DashboardLayout({ children }: PropsWithChildren) {
     sync();
     document.addEventListener("fullscreenchange", sync);
     return () => document.removeEventListener("fullscreenchange", sync);
-  }, []);
-
-  useEffect(() => {
-    setNativeFsSupported(
-      typeof document !== "undefined" && !!document.fullscreenEnabled
-    );
   }, []);
 
   useEffect(() => {
@@ -169,10 +154,12 @@ export function DashboardLayout({ children }: PropsWithChildren) {
           <SidebarTree
             open={sidebarOpen}
             collapsed={sidebarCollapsed && !sidebarHoverExpanded}
-            isFullscreen={focusFullscreen}
             onClose={() => setSidebarOpen(false)}
             onToggleCollapse={handleToggleCollapse}
-            onToggleFullscreen={() => persistFocusFullscreen(true)}
+            onToggleFullscreen={() => {
+              setSidebarOpen(false);
+              persistFocusFullscreen(true);
+            }}
             onOpenNotifications={() => setNotificationOpen(true)}
           />
         </div>
@@ -222,7 +209,10 @@ export function DashboardLayout({ children }: PropsWithChildren) {
             <button
               type="button"
               className="ml-auto flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border)] bg-white hover:bg-gray-50 transition-colors"
-              onClick={() => persistFocusFullscreen(true)}
+              onClick={() => {
+                setSidebarOpen(false);
+                persistFocusFullscreen(true);
+              }}
               aria-label="Full screen"
               title="Full screen"
             >

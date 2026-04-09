@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { ListingPageContainer } from "@/components/common/ListingPageContainer";
 import { FilterToolbar } from "@/components/common/FilterToolbar";
 import { PaginatedTable, TableColumn } from "@/components/common/PaginatedTable";
-import { PaginationControls } from "@/components/common/PaginationControls";
 import { Badge } from "@/components/ui/Badge";
 import { Exchange } from "@/types/exchange";
 import { useListingQueryState } from "@/hooks/useListingQueryState";

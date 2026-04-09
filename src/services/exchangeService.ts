@@ -14,8 +14,8 @@ const mockRows: Exchange[] = [
 
 export async function listExchanges(): Promise<Exchange[]> {
   try {
-    const response = await apiClient.get<Exchange[]>("/exchange");
-    return response.data;
+    const response = await apiClient.get("/exchange");
+    return response.data?.data ?? [];
   } catch {
     return mockRows;
   }
@@ -23,8 +23,8 @@ export async function listExchanges(): Promise<Exchange[]> {
 
 export async function createExchange(input: ExchangeCreateInput): Promise<Exchange> {
   try {
-    const response = await apiClient.post<Exchange>("/exchange", input);
-    return response.data;
+    const response = await apiClient.post("/exchange", input);
+    return response.data?.data;
   } catch {
     return {
       id: `EX-${Math.floor(Math.random() * 10000)}`,

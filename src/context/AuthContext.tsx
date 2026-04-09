@@ -1,42 +1,80 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { authService } from "@/services/authService";
+import {
+  clearSessionStore,
+  getSessionUser,
+  hydrateSessionStore,
+  setAccessToken,
+  setSessionUser,
+} from "@/services/sessionStore";
 
 type AuthUser = {
   id: string;
   fullName: string;
   role: string;
+  permissions?: string[];
+  email?: string;
 };
 
 type AuthContextValue = {
   user: AuthUser | null;
   isAuthenticated: boolean;
-  login: (username: string) => void;
-  logout: () => void;
+  isBootstrapping: boolean;
+  login: (user: AuthUser, accessToken?: string) => void;
+  logout: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>({
-    id: "u-admin",
-    fullName: "Admin",
-    role: "admin",
-  });
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
+
+  useEffect(() => {
+    hydrateSessionStore();
+    const cached = getSessionUser();
+    if (cached) {
+      setUser(cached);
+    }
+    authService
+      .me()
+      .then((res) => {
+        if (res?.data) {
+          setUser(res.data);
+          setSessionUser(res.data);
+        }
+      })
+      .catch(() => {
+        clearSessionStore();
+        setUser(null);
+      })
+      .finally(() => {
+        setIsBootstrapping(false);
+      });
+  }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       isAuthenticated: Boolean(user),
-      login: (username: string) =>
-        setUser({
-          id: "u-admin",
-          fullName: username || "Admin",
-          role: "admin",
-        }),
-      logout: () => setUser(null),
+      isBootstrapping,
+      login: (userObj: AuthUser, accessToken?: string) => {
+        setUser(userObj);
+        setSessionUser(userObj);
+        if (accessToken) setAccessToken(accessToken);
+      },
+      logout: async () => {
+        try {
+          await authService.logout();
+        } finally {
+          clearSessionStore();
+          setUser(null);
+        }
+      },
     }),
-    [user],
+    [isBootstrapping, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

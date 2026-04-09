@@ -8,41 +8,107 @@ import { FieldLabel } from "@/components/common/FieldLabel";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/context/AuthContext";
+import { authService } from "@/services/authService";
+import { getApiErrorMessage } from "@/lib/apiError";
+import Link from "next/link";
 
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  
+  // 2FA state
+  const [requires2Fa, setRequires2Fa] = useState(false);
+  const [tempToken, setTempToken] = useState("");
+  const [code, setCode] = useState("");
 
-  function onSubmit() {
-    login(username || "Admin");
-    router.push("/dashboard");
+  async function onSubmit() {
+    setError("");
+    setLoading(true);
+    try {
+      if (requires2Fa) {
+        if (!code || code.length !== 6) {
+          setError("Please enter a valid 6-digit code");
+          setLoading(false);
+          return;
+        }
+        const res = await authService.verify2Fa(tempToken, code);
+        if (res?.data?.user) {
+          login(res.data.user, res.data.accessToken);
+          router.push("/dashboard");
+        }
+      } else {
+        const res = await authService.login(username, password);
+        if (res?.data?.require_2fa) {
+          setRequires2Fa(true);
+          setTempToken(res.data.tempToken);
+        } else if (res?.data?.user) {
+          login(res.data.user, res.data.accessToken);
+          router.push("/dashboard");
+        }
+      }
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, "Failed to login"));
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
         <FormContainer title="Sign in" description="CrickiERP admin login">
-          <FormGrid>
-            <div className="md:col-span-2">
-              <FieldLabel>Username</FieldLabel>
-              <Input placeholder="Enter username" value={username} onChange={(event) => setUsername(event.target.value)} />
-            </div>
-            <div className="md:col-span-2">
-              <FieldLabel>Password</FieldLabel>
-              <Input
-                type="password"
-                placeholder="Enter password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-              />
-            </div>
-          </FormGrid>
-          <div className="pt-2">
-            <Button className="w-full" onClick={onSubmit} disabled={!username.trim() || !password.trim()}>
-              Login
+          {error && <div className="mb-4 text-sm text-red-500 font-medium">{error}</div>}
+          
+          {!requires2Fa ? (
+            <FormGrid>
+              <div className="md:col-span-2">
+                <FieldLabel>Username / Email</FieldLabel>
+                <Input placeholder="Enter username" value={username} onChange={(event) => setUsername(event.target.value)} disabled={loading} />
+              </div>
+              <div className="md:col-span-2">
+                <div className="flex justify-between">
+                  <FieldLabel>Password</FieldLabel>
+                  <Link href="/forgot-password" className="text-xs text-blue-600 hover:text-blue-800">
+                    Forgot password?
+                  </Link>
+                </div>
+                <Input
+                  type="password"
+                  placeholder="Enter password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  disabled={loading}
+                />
+              </div>
+            </FormGrid>
+          ) : (
+            <FormGrid>
+              <div className="md:col-span-2">
+                <FieldLabel>Two-Factor Authentication Code</FieldLabel>
+                <Input
+                  placeholder="Enter 6-digit code"
+                  value={code}
+                  maxLength={6}
+                  onChange={(event) => setCode(event.target.value)}
+                  disabled={loading}
+                />
+              </div>
+            </FormGrid>
+          )}
+
+          <div className="pt-4">
+            <Button className="w-full" onClick={onSubmit} disabled={loading || (!requires2Fa && (!username.trim() || !password.trim()))}>
+              {loading ? "Please wait..." : (requires2Fa ? "Verify Code" : "Login")}
             </Button>
+            {requires2Fa && (
+              <Button variant="outline" className="w-full mt-2" onClick={() => setRequires2Fa(false)} disabled={loading}>
+                Back
+              </Button>
+            )}
           </div>
         </FormContainer>
       </div>
