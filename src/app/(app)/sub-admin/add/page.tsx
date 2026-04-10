@@ -9,8 +9,7 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { userService } from "@/services/userService";
-
-type PermissionRow = { key: string };
+import { PermissionGrid, Permission } from "@/components/sub-admin/PermissionGrid";
 
 export default function SubAdminAddPage() {
   const { user } = useAuth();
@@ -20,20 +19,16 @@ export default function SubAdminAddPage() {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("sub_admin");
   const [permissions, setPermissions] = useState<string[]>([]);
-  const [allPermissions, setAllPermissions] = useState<string[]>([]);
+  const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
     userService
       .listPermissions()
-      .then((res) => setAllPermissions((res?.data ?? []).map((item: PermissionRow) => item.key)))
+      .then((res) => setAllPermissions(res?.data ?? []))
       .catch(() => setAllPermissions([]));
   }, []);
-
-  const togglePermission = (key: string) => {
-    setPermissions((prev) => (prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key]));
-  };
 
   const submit = async () => {
     setLoading(true);
@@ -91,7 +86,15 @@ export default function SubAdminAddPage() {
               title="role"
               className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
               value={role}
-              onChange={(e) => setRole(e.target.value)}
+              onChange={(e) => {
+                const newRole = e.target.value;
+                setRole(newRole);
+                if (newRole === "admin") {
+                  setPermissions(allPermissions.map(p => p.key));
+                } else {
+                  setPermissions([]);
+                }
+              }}
               disabled={user?.role !== "superadmin"}
             >
               {user?.role === "superadmin" && <option value="admin">Admin</option>}
@@ -101,18 +104,20 @@ export default function SubAdminAddPage() {
               <p className="text-xs text-muted-foreground mt-1">You can only create Sub Admins.</p>
             )}
           </div>
-          <div className="col-span-2">
-            <FieldLabel>Permissions</FieldLabel>
-            <div className="grid grid-cols-2 gap-2 rounded-md border p-3 max-h-48 overflow-auto">
-              {allPermissions.map((key) => (
-                <label key={key} className="text-sm flex items-center gap-2">
-                  <input type="checkbox" checked={permissions.includes(key)} onChange={() => togglePermission(key)} />
-                  <span>{key}</span>
-                </label>
-              ))}
-            </div>
+          
+          <div className="col-span-2 mt-4">
+            <PermissionGrid
+              allPermissions={allPermissions}
+              selectedPermissions={permissions}
+              onChange={setPermissions}
+              disabled={role === "admin"}
+            />
+            {role === "admin" && (
+              <p className="text-xs text-blue-600 mt-2 italic">Admins automatically receive all permissions.</p>
+            )}
           </div>
         </FormGrid>
+
         <div className="pt-4">
           <Button
             onClick={submit}

@@ -81,7 +81,7 @@ function SearchBar({
       <IconSearch className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none" />
       <input
         type="text"
-        className="h-9 w-full rounded-md border border-[var(--border)] bg-white py-1.5 pl-9 pr-3 text-sm placeholder:text-gray-400 focus:border-[var(--brand-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]"
+        className="h-9 w-full rounded-md border border-[var(--border)] bg-white py-1.5 pl-9 pr-3 text-sm placeholder:text-gray-400 transition-all focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-[var(--brand-primary)]/10"
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -146,7 +146,7 @@ function PaginationBar({
           </button>
         </div>
         <select
-          className="h-8 rounded-md border border-[var(--border)] bg-white px-2 text-xs focus:border-[var(--brand-primary)] focus:outline-none"
+          className="h-8 rounded-md border border-[var(--border)] bg-white px-2 text-xs transition-all focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-[var(--brand-primary)]/10"
           value={pageSize}
           onChange={(e) => onPageSizeChange(Number(e.target.value))}
         >
@@ -276,7 +276,7 @@ export function PaginatedTable<T = Record<string, unknown>>({
                         <div className="flex items-center gap-1">
                           <input
                             type="text"
-                            className="h-7 w-full min-w-0 rounded border border-[var(--border)] bg-white px-2 text-xs focus:border-[var(--brand-primary)] focus:outline-none"
+                            className="h-7 w-full min-w-0 rounded border border-[var(--border)] bg-white px-2 text-xs transition-all focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-[var(--brand-primary)]/10"
                             value={value}
                             onChange={(e) => onFilterChange?.(filterKey, e.target.value)}
                             placeholder=""
@@ -286,7 +286,7 @@ export function PaginatedTable<T = Record<string, unknown>>({
                       )}
                       {col.filterType === "select" && (
                         <select
-                          className="h-7 w-full min-w-0 rounded border border-[var(--border)] bg-white px-1.5 text-xs focus:border-[var(--brand-primary)] focus:outline-none"
+                          className="h-7 w-full min-w-0 rounded border border-[var(--border)] bg-white px-1.5 text-xs transition-all focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-[var(--brand-primary)]/10"
                           value={value || "__all__"}
                           onChange={(e) => {
                             const v = e.target.value === "__all__" ? "" : e.target.value;
@@ -302,7 +302,7 @@ export function PaginatedTable<T = Record<string, unknown>>({
                       {col.filterType === "date" && (
                         <input
                           type="date"
-                          className="h-7 w-full min-w-0 rounded border border-[var(--border)] bg-white px-2 text-xs focus:border-[var(--brand-primary)] focus:outline-none"
+                          className="h-7 w-full min-w-0 rounded border border-[var(--border)] bg-white px-2 text-xs transition-all focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-[var(--brand-primary)]/10"
                           value={value}
                           onChange={(e) => onFilterChange?.(filterKey, e.target.value)}
                         />
@@ -310,7 +310,7 @@ export function PaginatedTable<T = Record<string, unknown>>({
                       {col.filterType === "number" && (
                         <input
                           type="number"
-                          className="h-7 w-full min-w-0 rounded border border-[var(--border)] bg-white px-2 text-xs focus:border-[var(--brand-primary)] focus:outline-none"
+                          className="h-7 w-full min-w-0 rounded border border-[var(--border)] bg-white px-2 text-xs transition-all focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-[var(--brand-primary)]/10"
                           value={value}
                           onChange={(e) => onFilterChange?.(filterKey, e.target.value)}
                         />

@@ -86,7 +86,7 @@ export function PaginationControls({
         {/* Per page */}
         {onPageSizeChange && (
           <select
-            className="h-8 rounded-md border border-[var(--border)] bg-white px-2 text-xs text-gray-700 focus:border-[var(--brand-primary)] focus:outline-none sm:w-[120px]"
+            className="h-8 rounded-md border border-[var(--border)] bg-white px-2 text-xs text-gray-700 transition-all focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-[var(--brand-primary)]/10 sm:w-[120px]"
             value={pageSize}
             onChange={(e) => onPageSizeChange(Number(e.target.value))}
             aria-label="Rows per page"

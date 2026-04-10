@@ -29,7 +29,7 @@ export function SearchInput({
       <input
         type="text"
         placeholder={placeholder}
-        className="h-9 w-full rounded-md border border-[var(--border)] bg-white py-1.5 pl-9 pr-9 text-sm text-gray-800 placeholder:text-gray-400 transition-colors outline-none focus:border-[var(--brand-primary)] focus:ring-1 focus:ring-[var(--brand-primary)]/20"
+        className="h-9 w-full rounded-md border border-[var(--border)] bg-white py-1.5 pl-9 pr-9 text-sm text-gray-800 placeholder:text-gray-400 transition-all outline-none focus:border-[var(--brand-primary)] focus:ring-4 focus:ring-[var(--brand-primary)]/10"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         {...props}

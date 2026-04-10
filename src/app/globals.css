@@ -227,9 +227,7 @@ input[type="checkbox"]:checked {
   color: #fff;
 }
 
-/* ─────────── Focus outline ─────────── */
+/* ─────────── Focus outline: reset to allow component-level styling ─────────── */
 :focus-visible {
-  outline: 2px solid var(--brand-primary);
-  outline-offset: 2px;
-  border-radius: 4px;
+  outline: none;
 }

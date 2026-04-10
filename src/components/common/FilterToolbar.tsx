@@ -42,7 +42,7 @@ export function FilterToolbar({ config, values, onChange, onClear, className }: 
               <input
                 type="text"
                 placeholder={item.label}
-                className="h-9 w-full rounded-md border border-[var(--border)] bg-white py-1.5 pl-9 pr-3 text-sm placeholder:text-gray-400 focus:border-[var(--brand-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]/20"
+                className="h-9 w-full rounded-md border border-[var(--border)] bg-white py-1.5 pl-9 pr-3 text-sm placeholder:text-gray-400 transition-all focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-[var(--brand-primary)]/10"
                 value={value}
                 onChange={(e) => onChange(item.key, e.target.value)}
               />
@@ -57,7 +57,7 @@ export function FilterToolbar({ config, values, onChange, onClear, className }: 
               <input
                 type={item.type === "datetime" ? "datetime-local" : "date"}
                 placeholder={item.label}
-                className="h-9 w-full rounded-md border border-[var(--border)] bg-white py-1.5 pl-9 pr-3 text-sm text-gray-700 focus:border-[var(--brand-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]/20"
+                className="h-9 w-full rounded-md border border-[var(--border)] bg-white py-1.5 pl-9 pr-3 text-sm text-gray-700 transition-all focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-[var(--brand-primary)]/10"
                 value={value}
                 onChange={(e) => onChange(item.key, e.target.value)}
               />
@@ -69,7 +69,7 @@ export function FilterToolbar({ config, values, onChange, onClear, className }: 
           return (
             <div key={item.key} className="min-w-[160px] max-w-[220px]">
               <select
-                className="h-9 w-full rounded-md border border-[var(--border)] bg-white px-3 text-sm text-gray-700 focus:border-[var(--brand-primary)] focus:outline-none"
+                className="h-9 w-full rounded-md border border-[var(--border)] bg-white px-3 text-sm text-gray-700 transition-all focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-[var(--brand-primary)]/10"
                 value={value === "" || value == null ? FILTER_ALL : value}
                 onChange={(e) =>
                   onChange(item.key, e.target.value === FILTER_ALL ? "" : e.target.value)
@@ -92,7 +92,7 @@ export function FilterToolbar({ config, values, onChange, onClear, className }: 
             <input
               type={item.type === "number" ? "number" : "text"}
               placeholder={item.label}
-              className="h-9 w-full rounded-md border border-[var(--border)] bg-white px-3 text-sm placeholder:text-gray-400 focus:border-[var(--brand-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]/20"
+              className="h-9 w-full rounded-md border border-[var(--border)] bg-white px-3 text-sm placeholder:text-gray-400 transition-all focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-[var(--brand-primary)]/10"
               value={value}
               onChange={(e) => onChange(item.key, e.target.value)}
             />
