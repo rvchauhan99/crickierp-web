@@ -2,19 +2,15 @@
 
 import { useMemo, useState } from "react";
 import { useNotifications } from "@/context/NotificationContext";
-import { FilterToolbar } from "@/components/common/FilterToolbar";
 import { ListingPageContainer } from "@/components/common/ListingPageContainer";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { NotificationItem } from "@/components/layout/NotificationItem";
-import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { NotificationEmptyState } from "@/modules/notification/components/NotificationEmptyState";
 
 export function NotificationList() {
   const { items, markOneRead, markAllRead } = useNotifications();
-  const { state, setState } = useListingQueryState();
-  const [search, setSearch] = useState(state.search);
-  const [fromDate, setFromDate] = useState(state.fromDate);
-  const [toDate, setToDate] = useState(state.toDate);
+  const [search, setSearch] = useState("");
 
   const rows = useMemo(() => {
     if (!search.trim()) return items;
@@ -24,6 +20,7 @@ export function NotificationList() {
         item.title.toLowerCase().includes(q) || item.description.toLowerCase().includes(q),
     );
   }, [items, search]);
+
   const todayBoundary = new Date();
   todayBoundary.setHours(0, 0, 0, 0);
   const todayItems = rows.filter((item) => new Date(item.createdAt).getTime() >= todayBoundary.getTime());
@@ -40,34 +37,14 @@ export function NotificationList() {
         </Button>
       }
       filters={
-        <FilterToolbar
-          config={[
-            { key: "search", label: "Search by title / description", type: "search" },
-            { key: "fromDate", label: "From Date", type: "date" },
-            { key: "toDate", label: "To Date", type: "date" },
-          ]}
-          values={{ search, fromDate, toDate }}
-          onChange={(key, value) => {
-            if (key === "search") {
-              setSearch(value);
-              setState({ search: value, page: 1 });
-            }
-            if (key === "fromDate") {
-              setFromDate(value);
-              setState({ fromDate: value, page: 1 });
-            }
-            if (key === "toDate") {
-              setToDate(value);
-              setState({ toDate: value, page: 1 });
-            }
-          }}
-          onClear={() => {
-            setSearch("");
-            setFromDate("");
-            setToDate("");
-            setState({ search: "", fromDate: "", toDate: "", page: 1 });
-          }}
-        />
+        <div className="flex items-center gap-2">
+          <Input
+            className="max-w-[320px]"
+            placeholder="Search by title / description"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
       }
     >
       <div className="space-y-2">

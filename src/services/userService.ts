@@ -14,8 +14,27 @@ export const userService = {
     const res = await apiClient.post("/users", payload);
     return res.data;
   },
-  list: async () => {
-    const res = await apiClient.get("/users");
+  list: async (params?: Record<string, any>) => {
+    const res = await apiClient.get("/users", { params });
+    return res.data;
+  },
+  exportUsers: async (params?: Record<string, any>) => {
+    const res = await apiClient.get("/users/export", {
+      params,
+      responseType: "blob",
+    });
+    return res.data;
+  },
+  update: async (id: string, payload: Partial<CreateUserPayload> & { status?: string }) => {
+    const res = await apiClient.put(`/users/${id}`, payload);
+    return res.data;
+  },
+  deleteUser: async (id: string) => {
+    const res = await apiClient.delete(`/users/${id}`);
+    return res.data;
+  },
+  setUserPassword: async (id: string, payload: { new_password: string }) => {
+    const res = await apiClient.post(`/users/${id}/reset-password`, payload);
     return res.data;
   },
   listPermissions: async () => {

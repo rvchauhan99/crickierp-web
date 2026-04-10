@@ -19,6 +19,7 @@ interface PermissionGridProps {
   selectedPermissions: string[];
   onChange: (permissions: string[]) => void;
   disabled?: boolean;
+  density?: "comfortable" | "compact";
 }
 
 const MODULE_ORDER = [
@@ -40,7 +41,9 @@ export function PermissionGrid({
   selectedPermissions,
   onChange,
   disabled = false,
+  density = "comfortable",
 }: PermissionGridProps) {
+  const isCompact = density === "compact";
   // Group permissions by module and sort them
   const groupedPermissions = useMemo(() => {
     const grouped = allPermissions.reduce((acc, permission) => {
@@ -113,16 +116,16 @@ export function PermissionGrid({
   const allSelected = allPermissions.length > 0 && selectedPermissions.length === allPermissions.length;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between pb-2 border-b">
+    <div className={cn(isCompact ? "space-y-4" : "space-y-6")}>
+      <div className={cn("flex items-center justify-between border-b", isCompact ? "pb-1.5" : "pb-2")}>
         <div className="flex flex-col">
           <h3 className="text-sm font-semibold text-gray-900">Access Permissions</h3>
           <p className="text-xs text-gray-500">Configure feature-level access for this administrative user.</p>
         </div>
-        <div className="flex gap-2">
+        <div className={cn("flex", isCompact ? "gap-1.5" : "gap-2")}>
           <Button
             variant="outline"
-            size="sm"
+            size={isCompact ? "xs" : "sm"}
             onClick={() => toggleAll(true)}
             disabled={disabled || allSelected}
             type="button"
@@ -131,7 +134,7 @@ export function PermissionGrid({
           </Button>
           <Button
             variant="outline"
-            size="sm"
+            size={isCompact ? "xs" : "sm"}
             onClick={() => toggleAll(false)}
             disabled={disabled || selectedPermissions.length === 0}
             type="button"
@@ -141,7 +144,12 @@ export function PermissionGrid({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div
+        className={cn(
+          "grid grid-cols-1 md:grid-cols-2",
+          isCompact ? "lg:grid-cols-4 gap-3" : "lg:grid-cols-3 gap-4"
+        )}
+      >
         {Object.entries(groupedPermissions).map(([module, permissions]) => {
           const fullySelected = isModuleFullySelected(module);
           const partiallySelected = isModulePartiallySelected(module);
@@ -149,9 +157,10 @@ export function PermissionGrid({
           return (
             <Card key={module} className={cn(
               "flex flex-col h-full transition-all border shadow-sm hover:shadow-md",
+              isCompact ? "p-3" : "p-4",
               fullySelected ? "border-[var(--brand-primary)] ring-1 ring-[var(--brand-primary)]/10 bg-[var(--brand-primary)]/[0.02]" : "border-[var(--border)]"
             )}>
-              <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
+              <div className={cn("flex items-center justify-between border-b border-gray-100", isCompact ? "mb-2.5 pb-2" : "mb-4 pb-3")}>
                 <h4 className="font-bold text-gray-800 uppercase tracking-tighter text-xs">
                   {module.replace(/_/g, " ")}
                 </h4>
@@ -165,7 +174,7 @@ export function PermissionGrid({
                   title={`Toggle all ${module} permissions`}
                 />
               </div>
-              <div className="grid grid-cols-1 gap-3 flex-grow">
+              <div className={cn("grid grid-cols-1 flex-grow", isCompact ? "gap-2" : "gap-3")}>
                 {permissions.map((permission) => (
                   <Checkbox
                     key={permission.key}

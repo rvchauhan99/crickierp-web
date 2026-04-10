@@ -19,7 +19,7 @@ export const Checkbox = forwardRef<HTMLInputElement, Props>(
             className={cn(
               "peer h-4 w-4 rounded border border-[var(--border)] bg-white appearance-none transition-all",
               "checked:bg-[var(--brand-primary)] checked:border-[var(--brand-primary)]",
-              "focus-visible:ring-4 focus-visible:ring-[var(--brand-primary)]/10 outline-none",
+              "focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]/20 focus-visible:ring-offset-0 outline-none",
               "disabled:cursor-not-allowed disabled:bg-gray-100 disabled:border-gray-200"
             )}
             {...props}
@@ -34,7 +34,7 @@ export const Checkbox = forwardRef<HTMLInputElement, Props>(
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        {label && <span className="text-sm text-gray-700 group-disabled:text-gray-400 group-hover:text-gray-900 transition-colors uppercase font-medium tracking-wide">{label}</span>}
+        {label && <span className="text-sm font-medium text-gray-700 transition-colors group-hover:text-gray-900 group-disabled:text-gray-400">{label}</span>}
       </label>
     );
   }

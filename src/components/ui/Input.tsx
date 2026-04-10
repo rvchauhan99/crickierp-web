@@ -1,5 +1,6 @@
 import { InputHTMLAttributes, forwardRef } from "react";
 import { cn } from "@/lib/cn";
+import { formControlFocus, formControlFocusError } from "@/lib/formControlClasses";
 
 type Props = InputHTMLAttributes<HTMLInputElement> & {
   error?: boolean;
@@ -7,7 +8,7 @@ type Props = InputHTMLAttributes<HTMLInputElement> & {
 };
 
 /**
- * Input — base form input with brand focus ring and error state.
+ * Input — base form input with brand focus border and error state.
  */
 export const Input = forwardRef<HTMLInputElement, Props>(
   ({ className, error, errorMessage, ...props }, ref) => {
@@ -16,19 +17,17 @@ export const Input = forwardRef<HTMLInputElement, Props>(
         <input
           ref={ref}
           className={cn(
-            "h-9 w-full rounded-md border bg-white px-3 text-sm text-gray-800 placeholder:text-gray-400",
-            "transition-all outline-none",
-            "focus:border-[var(--brand-primary)] focus:ring-4 focus:ring-[var(--brand-primary)]/10",
-            error
-              ? "border-[var(--danger)] focus:border-[var(--danger)] focus:ring-[var(--danger)]/20"
-              : "border-[var(--border)]",
+            "h-10 w-full rounded-md border bg-white px-3 text-[15px] font-medium text-gray-800 placeholder:font-normal placeholder:text-gray-400",
+            "transition-[border-color,box-shadow] outline-none",
+            error ? formControlFocusError : formControlFocus,
+            error ? "border-[var(--danger)]" : "border-[var(--border)]",
             "disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400",
             className
           )}
           {...props}
         />
         {error && errorMessage && (
-          <p className="mt-1 text-xs text-[var(--danger)]">{errorMessage}</p>
+          <p className="mt-1 text-sm text-[var(--danger)]">{errorMessage}</p>
         )}
       </div>
     );

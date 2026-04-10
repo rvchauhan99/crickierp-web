@@ -1,5 +1,6 @@
 import { SelectHTMLAttributes, forwardRef } from "react";
 import { cn } from "@/lib/cn";
+import { formControlFocus, formControlFocusError } from "@/lib/formControlClasses";
 
 type Props = SelectHTMLAttributes<HTMLSelectElement> & {
   error?: boolean;
@@ -8,7 +9,7 @@ type Props = SelectHTMLAttributes<HTMLSelectElement> & {
 };
 
 /**
- * Select — native select with brand focus ring, error state, and placeholder option.
+ * Select — native select with brand focus border, error state, and placeholder option.
  */
 export const Select = forwardRef<HTMLSelectElement, Props>(
   ({ className, error, errorMessage, placeholder, children, ...props }, ref) => {
@@ -17,12 +18,10 @@ export const Select = forwardRef<HTMLSelectElement, Props>(
         <select
           ref={ref}
           className={cn(
-            "h-9 w-full rounded-md border bg-white px-3 text-sm text-gray-800",
-            "transition-all outline-none",
-            "focus:border-[var(--brand-primary)] focus:ring-4 focus:ring-[var(--brand-primary)]/10",
-            error
-              ? "border-[var(--danger)] focus:border-[var(--danger)] focus:ring-[var(--danger)]/20"
-              : "border-[var(--border)]",
+            "h-10 w-full rounded-md border bg-white px-3 text-[15px] font-medium text-gray-800",
+            "transition-[border-color,box-shadow] outline-none",
+            error ? formControlFocusError : formControlFocus,
+            error ? "border-[var(--danger)]" : "border-[var(--border)]",
             "disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400",
             className
           )}
@@ -36,7 +35,7 @@ export const Select = forwardRef<HTMLSelectElement, Props>(
           {children}
         </select>
         {error && errorMessage && (
-          <p className="mt-1 text-xs text-[var(--danger)]">{errorMessage}</p>
+          <p className="mt-1 text-sm text-[var(--danger)]">{errorMessage}</p>
         )}
       </div>
     );

@@ -6,6 +6,7 @@ import { FormContainer } from "@/components/common/FormContainer";
 import { FormGrid } from "@/components/common/FormGrid";
 import { FieldLabel } from "@/components/common/FieldLabel";
 import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { userService } from "@/services/userService";
@@ -82,9 +83,8 @@ export default function SubAdminAddPage() {
           </div>
           <div className="col-span-2">
             <FieldLabel>Role</FieldLabel>
-            <select
+            <Select
               title="role"
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
               value={role}
               onChange={(e) => {
                 const newRole = e.target.value;
@@ -99,26 +99,27 @@ export default function SubAdminAddPage() {
             >
               {user?.role === "superadmin" && <option value="admin">Admin</option>}
               <option value="sub_admin">Sub Admin</option>
-            </select>
+            </Select>
             {user?.role !== "superadmin" && (
-              <p className="text-xs text-muted-foreground mt-1">You can only create Sub Admins.</p>
+              <p className="mt-1 text-sm text-muted-foreground">You can only create Sub Admins.</p>
             )}
           </div>
           
-          <div className="col-span-2 mt-4">
+          <div className="col-span-2 mt-2">
             <PermissionGrid
               allPermissions={allPermissions}
               selectedPermissions={permissions}
               onChange={setPermissions}
               disabled={role === "admin"}
+              density="compact"
             />
             {role === "admin" && (
-              <p className="text-xs text-blue-600 mt-2 italic">Admins automatically receive all permissions.</p>
+              <p className="mt-1.5 text-sm italic text-blue-600">Admins automatically receive all permissions.</p>
             )}
           </div>
         </FormGrid>
 
-        <div className="pt-4">
+        <div className="pt-3">
           <Button
             onClick={submit}
             disabled={loading || !fullName || !email || !username || !password}

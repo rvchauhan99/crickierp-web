@@ -28,11 +28,11 @@ const variants: Record<Variant, string> = {
 };
 
 const sizes: Record<Size, string> = {
-  xs:   "h-6 px-2 text-xs rounded-md gap-1",
-  sm:   "h-8 px-3 text-sm rounded-md gap-1.5",
-  md:   "h-9 px-4 text-sm rounded-lg gap-2",
-  lg:   "h-10 px-5 text-sm rounded-lg gap-2 font-medium",
-  icon: "h-9 w-9 rounded-lg",
+  xs:   "h-7 px-2.5 text-xs rounded-md gap-1 font-medium",
+  sm:   "h-9 px-3 text-sm rounded-md gap-1.5 font-medium",
+  md:   "h-10 px-4 text-sm rounded-lg gap-2 font-medium",
+  lg:   "h-11 px-5 text-base rounded-lg gap-2 font-semibold",
+  icon: "h-10 w-10 rounded-lg",
 };
 
 export function Button({

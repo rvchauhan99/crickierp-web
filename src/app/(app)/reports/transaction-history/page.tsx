@@ -1,60 +1,85 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { ListingPageContainer } from "@/components/common/ListingPageContainer";
+import PaginatedTableReference from "@/components/common/PaginatedTableReference";
+import PaginationControlsReference from "@/components/common/PaginationControlsReference";
+import { tableColumnPresets } from "@/lib/tableStylePresets";
 import { reportService } from "@/services/reportService";
-import { AuditRow } from "@/types/financial";
+import type { AuditRow } from "@/types/financial";
 
 export default function TransactionHistoryPage() {
-  const [rows, setRows] = useState<AuditRow[]>([]);
   const [search, setSearch] = useState("");
+  const [activeSearch, setActiveSearch] = useState("");
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
 
-  const load = () => {
-    reportService
-      .transactionHistory({ search, page: 1, pageSize: 50 })
-      .then((res) => setRows(res?.data ?? []))
-      .catch(() => setRows([]));
-  };
+  const fetcher = useCallback(
+    async (params: Record<string, unknown>) => {
+      return reportService.transactionHistory({
+        search: activeSearch,
+        page: params.page as number,
+        pageSize: params.limit as number,
+      });
+    },
+    [activeSearch]
+  );
 
-  useEffect(() => {
-    reportService
-      .transactionHistory({ search: "", page: 1, pageSize: 50 })
-      .then((res) => setRows(res?.data ?? []))
-      .catch(() => setRows([]));
-  }, []);
+  const filterParams = useMemo(() => ({ search: activeSearch }), [activeSearch]);
+
+  const columns = useMemo(
+    () => [
+      { field: "action", label: "Action", render: (row: AuditRow) => row.action, ...tableColumnPresets.nameCol },
+      { field: "entity", label: "Entity", render: (row: AuditRow) => row.entity, ...tableColumnPresets.nameCol },
+      { field: "entityId", label: "Entity ID", render: (row: AuditRow) => row.entityId || "-" },
+      { field: "requestId", label: "Request ID", render: (row: AuditRow) => row.requestId || "-", minWidth: 180, wrap: true },
+    ],
+    []
+  );
 
   return (
-    <div className="space-y-3">
-      <h1 className="text-2xl font-semibold">Reports / Transaction History</h1>
-      <div className="flex gap-2">
-        <input
-          className="h-9 px-3 border rounded-md text-sm"
-          placeholder="Search action/entity/requestId"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <button className="h-9 px-3 border rounded-md text-sm" onClick={load}>Search</button>
-      </div>
-      <div className="overflow-x-auto border rounded-md">
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-50">
-            <tr>
-              <th className="p-2 text-left">Action</th>
-              <th className="p-2 text-left">Entity</th>
-              <th className="p-2 text-left">Entity ID</th>
-              <th className="p-2 text-left">Request ID</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row._id} className="border-t">
-                <td className="p-2">{row.action}</td>
-                <td className="p-2">{row.entity}</td>
-                <td className="p-2">{row.entityId}</td>
-                <td className="p-2">{row.requestId || "-"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <ListingPageContainer
+      title="Reports / Transaction History"
+      fullWidth
+      density="compact"
+      filters={
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            className="max-w-[320px]"
+            placeholder="Search action / entity / requestId"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <Button variant="secondary" onClick={() => { setActiveSearch(search); setPage(1); }}>
+            Search
+          </Button>
+        </div>
+      }
+    >
+      <PaginatedTableReference
+        columns={columns}
+        fetcher={fetcher}
+        filterParams={filterParams}
+        height="calc(100vh - 220px)"
+        showSearch={false}
+        showPagination={false}
+        onTotalChange={setTotalCount}
+        page={page}
+        limit={limit}
+        onPageChange={(zeroBased) => setPage(zeroBased + 1)}
+        onRowsPerPageChange={setLimit}
+        compactDensity
+      />
+      <PaginationControlsReference
+        page={page - 1}
+        rowsPerPage={limit}
+        totalCount={totalCount}
+        onPageChange={(zeroBased) => setPage(zeroBased + 1)}
+        onRowsPerPageChange={setLimit}
+        rowsPerPageOptions={[20, 50, 100]}
+      />
+    </ListingPageContainer>
   );
 }

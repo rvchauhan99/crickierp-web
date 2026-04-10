@@ -8,6 +8,7 @@ export const NAV_ITEMS: AppNavNode[] = [
     children: [
       { id: "sub-admin-add", label: "Add", href: "/sub-admin/add", keywords: ["create", "user"] },
       { id: "sub-admin-list", label: "List", href: "/sub-admin/list", keywords: ["manage"] },
+      { id: "sub-admin-edit", label: "Edit", href: "/sub-admin/edit", keywords: ["update", "password", "permissions"] },
     ],
   },
   {

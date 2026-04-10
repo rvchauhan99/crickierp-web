@@ -248,7 +248,7 @@ function UserProfile({ collapsed, onLogout }: { collapsed: boolean; onLogout: ()
           {initial}
         </button>
         {open && (
-          <div className="absolute bottom-full left-full mb-1 ml-2 w-48 rounded-lg border border-[#0f1f3a] bg-[#1b365d] shadow-xl z-50">
+          <div className="absolute top-0 left-full ml-2 w-48 rounded-lg border border-[#0f1f3a] bg-[#1b365d] shadow-xl z-50">
             <div className="p-3 border-b border-white/10">
               <p className="text-sm font-semibold text-white truncate">{name}</p>
               <p className="text-xs text-blue-300 truncate">{email}</p>
@@ -292,7 +292,7 @@ function UserProfile({ collapsed, onLogout }: { collapsed: boolean; onLogout: ()
         <IconChevronDown className="h-4 w-4 shrink-0 text-blue-300/70" />
       </button>
       {open && (
-        <div className="absolute bottom-full left-0 right-0 mb-1 rounded-lg border border-[#0f1f3a] bg-[#1b365d] shadow-xl z-50">
+        <div className="absolute top-full left-0 right-0 mt-1 rounded-lg border border-[#0f1f3a] bg-[#1b365d] shadow-xl z-50">
           <button
             type="button"
             className="flex w-full items-center gap-2 px-3 py-2 text-sm text-blue-100 hover:bg-[#142847] hover:text-white transition-colors rounded-t-lg"
@@ -393,21 +393,21 @@ export function SidebarTree({
   };
 
   const sidebarContent = (
-    <div className="flex h-full flex-col overflow-y-auto px-3 py-4 [scrollbar-width:thin]">
-      {/* User Profile */}
-      <div className="mb-4">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 py-4">
+      {/* User Profile — outside scroll so profile dropdown (above) is not clipped */}
+      <div className="mb-4 shrink-0">
         <UserProfile collapsed={collapsed} onLogout={handleLogout} />
       </div>
 
       {/* Search (expanded only) */}
       {!collapsed && (
-        <div ref={searchContainerRef} className="relative mb-4">
+        <div ref={searchContainerRef} className="relative mb-4 shrink-0">
           <div className="relative">
             <IconSearch className="absolute top-1/2 left-3 z-10 h-4 w-4 -translate-y-1/2 text-blue-300/70" />
             <input
               type="text"
               placeholder="Search menus..."
-              className="w-full rounded-md border border-white/10 bg-white/5 py-1.5 pl-9 pr-3 text-sm text-blue-100 placeholder:text-blue-300/50 focus:border-blue-400/40 focus:outline-none focus:ring-1 focus:ring-blue-400/40"
+              className="w-full rounded-md border border-white/10 bg-white/5 py-1.5 pl-9 pr-3 text-sm text-blue-100 placeholder:text-blue-300/50 transition-[border-color,box-shadow] outline-none focus:border-blue-400/40 focus:ring-0 focus-visible:border-blue-400/40 focus-visible:ring-0"
               value={menuSearch}
               onChange={(e) => setMenuSearch(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Escape") setMenuSearch(""); }}
@@ -449,8 +449,8 @@ export function SidebarTree({
         type="button"
         onClick={() => { onOpenNotifications(); onClose(); }}
         className={cn(
-          "mb-2 flex items-center gap-2 rounded-md border-l-4 border-transparent px-3 py-1.5 text-sm font-medium text-blue-100 hover:bg-[#142847] hover:text-white transition-colors",
-          collapsed ? "h-10 w-10 shrink-0 justify-center px-1.5" : "w-full"
+          "mb-2 flex shrink-0 items-center gap-2 rounded-md border-l-4 border-transparent px-3 py-1.5 text-sm font-medium text-blue-100 hover:bg-[#142847] hover:text-white transition-colors",
+          collapsed ? "h-10 w-10 justify-center px-1.5" : "w-full"
         )}
         title={collapsed ? "Notifications" : undefined}
       >
@@ -465,32 +465,34 @@ export function SidebarTree({
         {!collapsed && <span className="flex-1 truncate">Notifications</span>}
       </button>
 
-      {/* Navigation */}
-      <nav className="mb-6 flex-1 space-y-1">
-        {!collapsed && menuSearch.trim() === "" && (
-          <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-blue-400/60">
-            Navigation
-          </p>
-        )}
-        {visibleNodes.length === 0 ? (
-          <p className="rounded-md border border-white/10 bg-white/5 p-3 text-sm text-blue-300/60">
-            No menu result found.
-          </p>
-        ) : (
-          visibleNodes.map((node) => (
-            <TreeNode
-              key={node.id}
-              node={node}
-              pathname={pathname}
-              collapsed={collapsed}
-              onNavigate={onClose}
-            />
-          ))
-        )}
-      </nav>
+      {/* Navigation — only this region scrolls */}
+      <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb]:bg-white/20">
+        <nav className="mb-6 space-y-1">
+          {!collapsed && menuSearch.trim() === "" && (
+            <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-blue-400/60">
+              Navigation
+            </p>
+          )}
+          {visibleNodes.length === 0 ? (
+            <p className="rounded-md border border-white/10 bg-white/5 p-3 text-sm text-blue-300/60">
+              No menu result found.
+            </p>
+          ) : (
+            visibleNodes.map((node) => (
+              <TreeNode
+                key={node.id}
+                node={node}
+                pathname={pathname}
+                collapsed={collapsed}
+                onNavigate={onClose}
+              />
+            ))
+          )}
+        </nav>
+      </div>
 
       {/* Bottom actions */}
-      <div className="mt-auto flex items-center justify-end gap-1 border-t border-white/10 pt-2">
+      <div className="flex shrink-0 items-center justify-end gap-1 border-t border-white/10 pt-2">
         <button
           type="button"
           className="hidden h-8 w-8 items-center justify-center rounded-md text-blue-200 hover:bg-[#142847] hover:text-white transition-colors lg:flex"
@@ -522,7 +524,7 @@ export function SidebarTree({
       {/* Desktop sidebar */}
       <aside
         className={cn(
-          "app-sidebar hidden h-full w-full flex-col border-r border-[#0f1f3a] transition-all duration-300 ease-in-out md:flex",
+          "app-sidebar hidden h-full min-h-0 w-full flex-col border-r border-[#0f1f3a] transition-all duration-300 ease-in-out md:flex",
         )}
       >
         {sidebarContent}
@@ -540,11 +542,11 @@ export function SidebarTree({
       {/* Mobile drawer */}
       <aside
         className={cn(
-          "app-sidebar fixed inset-y-0 left-0 z-[var(--z-sidebar)] flex w-72 flex-col border-r border-[#0f1f3a] transition-transform duration-300 md:hidden",
+          "app-sidebar fixed inset-y-0 left-0 z-[var(--z-sidebar)] flex min-h-0 w-72 flex-col border-r border-[#0f1f3a] transition-transform duration-300 md:hidden",
           open ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+        <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3">
           <span className="text-base font-bold text-white">CrickERP</span>
           <button
             type="button"

@@ -1,7 +1,7 @@
 import { PropsWithChildren } from "react";
 import { cn } from "@/lib/cn";
 
-type BadgeVariant = "default" | "primary" | "success" | "warning" | "danger" | "info" | "outline";
+export type BadgeVariant = "default" | "primary" | "success" | "warning" | "danger" | "info" | "outline";
 
 type Props = PropsWithChildren<{
   variant?: BadgeVariant;
