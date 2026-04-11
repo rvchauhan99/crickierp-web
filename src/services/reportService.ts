@@ -13,4 +13,9 @@ export const reportService = {
     const res = await apiClient.get("/history", { params });
     return res.data;
   },
+  /** Entity dropdown options for Transaction History (requires `reports.transaction_history`). */
+  transactionHistoryEntities: async () => {
+    const res = await apiClient.get("/reports/audit-entities");
+    return res.data as { success?: boolean; data?: string[] };
+  },
 };

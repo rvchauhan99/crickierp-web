@@ -273,7 +273,6 @@ export function PlayerListClient() {
         filterKey: "createdAt_from",
         filterKeyTo: "createdAt_to",
         operatorKey: "createdAt_op",
-        defaultFilterOperator: "inRange",
         ...tableColumnPresets.dateCol,
         render: (row: PlayerRow) => (row.createdAt ? new Date(row.createdAt).toLocaleString() : "—"),
       },

@@ -207,10 +207,13 @@ export async function exchangeActionApprove(depositId: string, playerId: string,
   return response.data?.data;
 }
 
-export async function exchangeActionReject(depositId: string, remark: string) {
+export async function exchangeActionReject(
+  depositId: string,
+  input: { reasonId: string; remark?: string },
+) {
   const response = await apiClient.post<{ success: boolean; data: unknown }>(
     `/deposit/${depositId}/exchange-action`,
-    { action: "reject", remark },
+    { action: "reject", reasonId: input.reasonId, remark: input.remark },
   );
   return response.data?.data;
 }

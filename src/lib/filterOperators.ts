@@ -15,8 +15,8 @@ export const TEXT_OPERATORS: FilterOperatorOption[] = [
 ];
 
 export const DATE_OPERATORS: FilterOperatorOption[] = [
-  { value: "inRange", label: "In range" },
   { value: "equals", label: "Equals" },
+  { value: "inRange", label: "In range" },
   { value: "before", label: "Before" },
   { value: "after", label: "After" },
 ];
@@ -38,7 +38,7 @@ export function getOperatorsForFilterType(type: FilterTypeWithOperators): Filter
 }
 
 export function getDefaultOperator(type: FilterTypeWithOperators): string {
-  if (type === "date") return "inRange";
+  if (type === "date") return "equals";
   if (type === "number") return "equals";
   return "contains";
 }

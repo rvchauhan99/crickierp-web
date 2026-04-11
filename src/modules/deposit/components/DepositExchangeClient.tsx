@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   IconCheck,
@@ -32,12 +32,13 @@ import {
   listDepositsNormalized,
 } from "@/services/depositService";
 import { depositStatusApiParam, depositStatusColumnSelectValue } from "@/modules/deposit/depositListingStatusFilter";
-import { listPlayersNormalized } from "@/services/playerService";
+import { getPlayerById, listPlayersNormalized } from "@/services/playerService";
 import type { DepositRow } from "@/types/deposit";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { userService } from "@/services/userService";
 import { getApiErrorMessage } from "@/lib/apiError";
+import { REASON_TYPES } from "@/lib/constants/reasonTypes";
 
 const COLUMN_FILTER_KEYS = [
   "utr",
@@ -82,6 +83,11 @@ function formatDate(iso?: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleString();
+}
+
+function bonusAmountFromPercent(depositAmount: number, percent: number): string {
+  const v = Math.round(((depositAmount * percent) / 100) * 100) / 100;
+  return String(v);
 }
 
 type ExchangeUserRow = {
@@ -193,7 +199,10 @@ export function DepositExchangeClient() {
   const [selectedDeposit, setSelectedDeposit] = useState<DepositRow | null>(null);
   const [playerId, setPlayerId] = useState("");
   const [bonus, setBonus] = useState("0");
+  const [playerBonusPercent, setPlayerBonusPercent] = useState<number | null>(null);
+  const bonusManuallyAdjustedRef = useRef(false);
   const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectReasonId, setRejectReasonId] = useState("");
   const [rejectRemark, setRejectRemark] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [cachedUsers, setCachedUsers] = useState<Record<string, string>>({});
@@ -220,6 +229,11 @@ export function DepositExchangeClient() {
     return () => {
       active = false;
     };
+  }, []);
+
+  const handlePlayerIdChange = useCallback((id: string) => {
+    bonusManuallyAdjustedRef.current = false;
+    setPlayerId(id);
   }, []);
 
   const loadPlayerOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
@@ -292,9 +306,11 @@ export function DepositExchangeClient() {
   }, []);
 
   const clearActionForm = useCallback(() => {
+    bonusManuallyAdjustedRef.current = false;
     setSelectedDeposit(null);
     setPlayerId("");
     setBonus("0");
+    setPlayerBonusPercent(null);
   }, []);
 
   const handleResetFilters = useCallback(() => {
@@ -375,16 +391,20 @@ export function DepositExchangeClient() {
 
   const confirmReject = useCallback(async () => {
     if (!selectedDeposit) return;
-    const remark = rejectRemark.trim();
-    if (!remark) {
-      toast.error("Remark is required.");
+    if (!rejectReasonId.trim()) {
+      toast.error("Select a rejection reason.");
       return;
     }
+    const remark = rejectRemark.trim();
     setActionLoading(selectedDeposit.id);
     try {
-      await exchangeActionReject(selectedDeposit.id, remark);
+      await exchangeActionReject(selectedDeposit.id, {
+        reasonId: rejectReasonId.trim(),
+        remark: remark || undefined,
+      });
       toast.success("Deposit rejected.");
       setRejectOpen(false);
+      setRejectReasonId("");
       setRejectRemark("");
       setTableKey((k) => k + 1);
       clearActionForm();
@@ -393,14 +413,43 @@ export function DepositExchangeClient() {
     } finally {
       setActionLoading(null);
     }
-  }, [selectedDeposit, rejectRemark, clearActionForm]);
+  }, [selectedDeposit, rejectReasonId, rejectRemark, clearActionForm]);
 
   const handleRowClick = useCallback((row: unknown) => {
     const r = row as DepositRow;
+    bonusManuallyAdjustedRef.current = false;
     setSelectedDeposit(r);
     setPlayerId("");
     setBonus("0");
+    setPlayerBonusPercent(null);
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const deposit = selectedDeposit;
+    const pid = playerId.trim();
+    if (!deposit || deposit.status !== "pending" || !pid) {
+      setPlayerBonusPercent(null);
+      return;
+    }
+
+    void getPlayerById(pid)
+      .then((p) => {
+        if (cancelled) return;
+        const pct = Number(p.bonusPercentage ?? 0);
+        setPlayerBonusPercent(Number.isFinite(pct) ? pct : null);
+        if (!bonusManuallyAdjustedRef.current) {
+          setBonus(bonusAmountFromPercent(deposit.amount, Number.isFinite(pct) ? pct : 0));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setPlayerBonusPercent(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDeposit?.id, selectedDeposit?.status, selectedDeposit?.amount, playerId]);
 
   const closeSidebar = useCallback(() => {
     clearActionForm();
@@ -500,7 +549,6 @@ export function DepositExchangeClient() {
         filterKey: "createdAt_from",
         filterKeyTo: "createdAt_to",
         operatorKey: "createdAt_op",
-        defaultFilterOperator: "inRange",
         ...tableColumnPresets.dateCol,
         render: (row: DepositRow) =>
           row.createdAt ? new Date(row.createdAt).toLocaleString() : "—",
@@ -637,7 +685,7 @@ export function DepositExchangeClient() {
                 </FieldLabel>
                 <AutocompleteField
                   value={playerId}
-                  onChange={setPlayerId}
+                  onChange={handlePlayerIdChange}
                   loadOptions={loadPlayerOptions}
                   placeholder="Search player…"
                   disabled={!canActOnSelection}
@@ -659,10 +707,25 @@ export function DepositExchangeClient() {
                   min={0}
                   step="0.01"
                   value={bonus}
-                  onChange={(e) => setBonus(e.target.value)}
+                  onChange={(e) => {
+                    bonusManuallyAdjustedRef.current = true;
+                    setBonus(e.target.value);
+                  }}
                   disabled={!canActOnSelection}
                   placeholder="0"
                 />
+                {playerBonusPercent !== null && canActOnSelection && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Bonus % from player: {playerBonusPercent}%
+                    {selectedDeposit && (
+                      <>
+                        {" "}
+                        · Calculated: ₹
+                        {bonusAmountFromPercent(selectedDeposit.amount, playerBonusPercent)}
+                      </>
+                    )}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -686,6 +749,7 @@ export function DepositExchangeClient() {
                 onClick={() => {
                   if (!selectedDeposit || selectedDeposit.status !== "pending") return;
                   setRejectOpen(true);
+                  setRejectReasonId("");
                   setRejectRemark("");
                 }}
                 className="w-full justify-center"
@@ -709,11 +773,15 @@ export function DepositExchangeClient() {
       {/* ─── Reject confirmation dialog ──────────────────────────────────── */}
       <ConfirmSensitiveActionDialog
         title="Reject deposit"
-        reason={rejectRemark}
         open={rejectOpen}
-        onReasonChange={setRejectRemark}
+        reasonType={REASON_TYPES.DEPOSIT_EXCHANGE_REJECT}
+        selectedReasonId={rejectReasonId}
+        onReasonIdChange={setRejectReasonId}
+        remark={rejectRemark}
+        onRemarkChange={setRejectRemark}
         onCancel={() => {
           setRejectOpen(false);
+          setRejectReasonId("");
           setRejectRemark("");
         }}
         onConfirm={() => void confirmReject()}

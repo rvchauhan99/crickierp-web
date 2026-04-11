@@ -5,16 +5,47 @@ type ApiErrorPayload = {
       message?: string;
       error?: {
         message?: string;
-        details?: { errors?: { row: number; message: string }[] } | Record<string, unknown>;
+        details?: {
+          errors?: { row: number; message: string }[];
+          fieldErrors?: Record<string, string[] | undefined>;
+          formErrors?: string[];
+        } & Record<string, unknown>;
       };
     };
   };
 };
 
+function messageFromValidationDetails(details: unknown): string | null {
+  if (!details || typeof details !== "object") return null;
+  const d = details as { fieldErrors?: Record<string, string[] | undefined>; formErrors?: string[] };
+  const fieldErrors = d.fieldErrors;
+  if (fieldErrors && typeof fieldErrors === "object") {
+    const parts: string[] = [];
+    for (const [field, msgs] of Object.entries(fieldErrors)) {
+      if (Array.isArray(msgs) && msgs.length > 0) {
+        const label = field === "_root" ? "Request" : field;
+        parts.push(`${label}: ${msgs.join(", ")}`);
+      }
+    }
+    if (parts.length > 0) return parts.join("; ");
+  }
+  const formErrors = d.formErrors;
+  if (Array.isArray(formErrors) && formErrors.length > 0) {
+    return formErrors.filter(Boolean).join("; ");
+  }
+  return null;
+}
+
 export function getApiErrorMessage(error: unknown, fallback: string) {
   if (typeof error === "object" && error !== null) {
     const obj = error as ApiErrorPayload;
-    return obj.response?.data?.error?.message ?? obj.response?.data?.message ?? obj.message ?? fallback;
+    const err = obj.response?.data?.error;
+    let msg = err?.message ?? obj.response?.data?.message ?? obj.message ?? fallback;
+    if (msg === "Validation failed" && err?.details) {
+      const fromDetails = messageFromValidationDetails(err.details);
+      if (fromDetails) msg = fromDetails;
+    }
+    return msg;
   }
   return fallback;
 }

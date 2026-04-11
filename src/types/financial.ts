@@ -2,14 +2,12 @@ export type { BankRow } from "./bank";
 
 export type { DepositRow } from "./deposit";
 
-export type WithdrawalRow = {
-  _id: string;
-  playerName: string;
-  bankName: string;
-  amount: number;
-  stage: "exchange" | "banker" | "final";
-  status: "requested" | "approved" | "rejected" | "finalized";
-  createdAt: string;
+export type { WithdrawalRow } from "./withdrawal";
+
+export type AuditActor = {
+  _id?: string;
+  fullName?: string;
+  username?: string;
 };
 
 export type AuditRow = {
@@ -18,5 +16,10 @@ export type AuditRow = {
   entity: string;
   entityId?: string;
   requestId?: string;
+  reason?: string;
+  ipAddress?: string;
   createdAt: string;
+  actorId?: string | AuditActor;
+  oldValue?: Record<string, unknown>;
+  newValue?: Record<string, unknown>;
 };

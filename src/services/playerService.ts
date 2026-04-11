@@ -53,6 +53,17 @@ export async function createPlayer(input: PlayerCreateInput): Promise<PlayerRow>
   return normalizePlayer(response.data?.data ?? {});
 }
 
+/** Single player read by Mongo `_id` (e.g. from Autocomplete). */
+export async function getPlayerById(id: string): Promise<Pick<PlayerRow, "playerId" | "phone" | "bonusPercentage">> {
+  const response = await apiClient.get<{ success: boolean; data: Record<string, unknown> }>(`/players/${encodeURIComponent(id)}`);
+  const row = response.data?.data ?? {};
+  return {
+    playerId: String(row.playerId ?? ""),
+    phone: String(row.phone ?? ""),
+    bonusPercentage: Number(row.bonusPercentage ?? 0),
+  };
+}
+
 export async function downloadSampleCsv(): Promise<Blob> {
   const response = await apiClient.get("/players/sample", { responseType: "blob" });
   return response.data as Blob;

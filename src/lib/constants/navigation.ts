@@ -77,6 +77,15 @@ export const NAV_ITEMS: AppNavNode[] = [
     ],
   },
   {
+    id: "expense",
+    label: "Expense",
+    children: [
+      { id: "expense-add", label: "Add", href: "/expense/add", keywords: ["create"] },
+      { id: "expense-list", label: "List", href: "/expense/list", keywords: ["search"] },
+      { id: "expense-audit", label: "Audit", href: "/expense/audit", keywords: ["approve", "reject"] },
+    ],
+  },
+  {
     id: "masters",
     label: "Masters",
     allowedRoles: ["superadmin"],
@@ -92,8 +101,14 @@ export const NAV_ITEMS: AppNavNode[] = [
         href: "/reports/transaction-history",
         keywords: ["history", "export"],
       },
+      {
+        id: "reports-expense-analysis",
+        label: "Expense analysis",
+        href: "/reports/expense-analysis",
+        keywords: ["expense", "totals", "export"],
+      },
     ],
   },
-  { id: "user-history", label: "User History", href: "/user-history", keywords: ["audit"] },
+  { id: "user-history", label: "Login history", href: "/user-history", keywords: ["audit", "login"] },
   { id: "notifications", label: "Notifications", href: "/notifications", keywords: ["alerts", "unread"] },
 ];

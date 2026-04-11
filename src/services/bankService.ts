@@ -173,3 +173,37 @@ export async function listBanksRaw(page = 1, pageSize = 20) {
     meta: { total: number; page: number; pageSize: number };
   };
 }
+
+export type BankLedgerRow = {
+  kind: "deposit" | "expense";
+  refId: string;
+  at: string;
+  label: string;
+  amount: number;
+  direction: "credit" | "debit";
+  balanceAfter: number;
+};
+
+export type BankLedgerResponse = {
+  bank: {
+    _id: string;
+    holderName: string;
+    bankName: string;
+    accountNumber: string;
+    openingBalance: number;
+    currentBalance: number;
+  };
+  periodOpeningBalance: number;
+  rows: BankLedgerRow[];
+};
+
+export async function getBankLedger(
+  bankId: string,
+  query?: { fromDate?: string; toDate?: string },
+): Promise<BankLedgerResponse> {
+  const res = await apiClient.get<{ success: boolean; data: BankLedgerResponse }>(
+    `/bank/${bankId}/ledger`,
+    { params: query },
+  );
+  return res.data.data;
+}

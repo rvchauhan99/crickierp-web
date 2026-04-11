@@ -259,7 +259,6 @@ export function DepositBankerClient() {
         filterKey: "createdAt_from",
         filterKeyTo: "createdAt_to",
         operatorKey: "createdAt_op",
-        defaultFilterOperator: "inRange",
         ...tableColumnPresets.dateCol,
         render: (row: DepositRow) => (row.createdAt ? new Date(row.createdAt).toLocaleString() : "—"),
       },

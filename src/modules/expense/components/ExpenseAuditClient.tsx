@@ -1,0 +1,526 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
+import {
+  IconCheck,
+  IconX,
+  IconCurrencyRupee,
+  IconClock,
+  IconCreditCard,
+  IconFileText,
+  IconUser,
+  IconRefresh,
+} from "@tabler/icons-react";
+import { AutocompleteField, type AutocompleteOption } from "@/components/common/AutocompleteField";
+import { FieldLabel } from "@/components/common/FieldLabel";
+import { FieldError } from "@/components/common/FieldError";
+import { Input } from "@/components/ui/Input";
+import { Button } from "@/components/ui/Button";
+import { ListingPageContainer } from "@/components/common/ListingPageContainer";
+import PaginatedTableReference, {
+  type PaginatedTableReferenceColumn,
+} from "@/components/common/PaginatedTableReference";
+import PaginationControlsReference from "@/components/common/PaginationControlsReference";
+import { TableStatusBadge } from "@/components/common/TableStatusBadge";
+import { DetailsSidebar } from "@/components/common/DetailsSidebar";
+import { ConfirmSensitiveActionDialog } from "@/components/common/ConfirmSensitiveActionDialog";
+import { useListingQueryStateReference } from "@/hooks/useListingQueryStateReference";
+import { tableColumnPresets } from "@/lib/tableStylePresets";
+import { approveExpense, listExpenseTypes, listExpensesNormalized, rejectExpense } from "@/services/expenseService";
+import { listBanksNormalized } from "@/services/bankService";
+import { userService } from "@/services/userService";
+import type { ExpenseRow } from "@/types/expense";
+import { getApiErrorMessage } from "@/lib/apiError";
+import { REASON_TYPES } from "@/lib/constants/reasonTypes";
+
+const COLUMN_FILTER_KEYS = [
+  "q",
+  "status",
+  "expenseTypeId",
+  "bankId",
+  "amount",
+  "amount_to",
+  "amount_op",
+  "createdByName",
+  "expenseDate_from",
+  "expenseDate_to",
+  "expenseDate_op",
+];
+
+function toOptionalFilterValue(value: string): string | undefined {
+  const trimmed = value.trim();
+  return trimmed === "" ? undefined : trimmed;
+}
+
+function formatDate(iso?: string): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString();
+}
+
+type ExpenseUserRow = {
+  _id?: string;
+  id?: string;
+  fullName?: string;
+  username?: string;
+};
+
+function buildUserLabel(row: ExpenseUserRow): string {
+  const fn = row.fullName?.trim();
+  const un = row.username?.trim();
+  if (fn && un) return `${fn} (${un})`;
+  return fn || un || "";
+}
+
+// ─── Detail card for sidebar ──────────────────────────────────────────────
+
+function ExpenseDetailCard({ expense }: { expense: ExpenseRow }) {
+  const items = [
+    {
+      icon: <IconCreditCard className="size-4 shrink-0 text-[var(--brand-primary)]" />,
+      label: "Type",
+      value: expense.expenseTypeName || "—",
+    },
+    {
+      icon: <IconCurrencyRupee className="size-4 shrink-0 text-[var(--brand-primary)]" />,
+      label: "Amount",
+      value: expense.amount.toLocaleString(),
+    },
+    {
+      icon: <IconClock className="size-4 shrink-0 text-[var(--brand-primary)]" />,
+      label: "Expense date",
+      value: expense.expenseDate || "—",
+    },
+    {
+      icon: <IconUser className="size-4 shrink-0 text-[var(--brand-primary)]" />,
+      label: "Created by",
+      value: expense.createdByName || "—",
+    },
+    {
+      icon: <IconClock className="size-4 shrink-0 text-gray-400" />,
+      label: "Audit created",
+      value: formatDate(expense.createdAt),
+    },
+    {
+      icon: <IconFileText className="size-4 shrink-0 text-gray-400" />,
+      label: "Memo",
+      value: expense.description || "—",
+    },
+  ];
+
+  return (
+    <div className="rounded-lg border border-[var(--border)] bg-slate-50 p-3">
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Expense Info</p>
+        <TableStatusBadge status={expense.status} />
+      </div>
+      <dl className="space-y-2.5">
+        {items.map((item) => (
+          <div key={item.label} className="flex items-start gap-2.5">
+            <span className="mt-0.5">{item.icon}</span>
+            <div className="min-w-0 flex-1">
+              <dt className="text-[11px] font-medium uppercase tracking-wide text-gray-400">{item.label}</dt>
+              <dd className="mt-0.5 text-sm font-medium text-gray-800">{item.value}</dd>
+            </div>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
+// ─── Main Component ─────────────────────────────────────────────────────────
+
+export function ExpenseAuditClient() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get("status")) return;
+    const next = new URLSearchParams(searchParams.toString());
+    next.set("status", "pending_audit");
+    router.replace(`${pathname}?${next.toString()}`);
+  }, [pathname, router, searchParams]);
+
+  const listingState = useListingQueryStateReference({
+    defaultLimit: 20,
+    filterKeys: COLUMN_FILTER_KEYS,
+  });
+  const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setFilter, setSort, clearFilters } =
+    listingState;
+
+  const expenseAuditListFetcher = useCallback(
+    async (params: Record<string, unknown>) => listExpensesNormalized(params),
+    [],
+  );
+
+  const expenseAuditTableColumnFilterValues = useMemo(() => ({ ...filters }), [filters]);
+
+  const expenseAuditTableFilterParams = useMemo(
+    () => ({
+      q: toOptionalFilterValue(filters.q || ""),
+      status: toOptionalFilterValue(filters.status || ""),
+      expenseTypeId: toOptionalFilterValue(filters.expenseTypeId || ""),
+      bankId: toOptionalFilterValue(filters.bankId || ""),
+      amount: toOptionalFilterValue(filters.amount || ""),
+      amount_to: toOptionalFilterValue(filters.amount_to || ""),
+      amount_op: toOptionalFilterValue(filters.amount_op || ""),
+      createdBy: toOptionalFilterValue(filters.createdBy || ""),
+      expenseDate_from: toOptionalFilterValue(filters.expenseDate_from || ""),
+      expenseDate_to: toOptionalFilterValue(filters.expenseDate_to || ""),
+      expenseDate_op: toOptionalFilterValue(filters.expenseDate_op || ""),
+    }),
+    [filters],
+  );
+
+  const handleExpenseAuditColumnFilterChange = useCallback(
+    (k: string, v: string) => setFilter(k, v),
+    [setFilter],
+  );
+
+  const [totalCount, setTotalCount] = useState(0);
+  const [tableKey, setTableKey] = useState(0);
+  const [selectedExpense, setSelectedExpense] = useState<ExpenseRow | null>(null);
+
+  const [bankId, setBankId] = useState("");
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectReasonId, setRejectReasonId] = useState("");
+  const [rejectRemark, setRejectRemark] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
+  const [errors, setErrors] = useState<{ bankId?: string }>({});
+
+  const loadBankOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
+    try {
+      const res = await listBanksNormalized({
+        page: 1,
+        limit: 25,
+        q: query || undefined,
+        sortBy: "createdAt",
+        sortOrder: "desc",
+      });
+      return res.data.map((b) => ({
+        value: b.id,
+        label: `${b.holderName} - ${b.bankName} (${String(b.accountNumber).slice(-4)})`,
+      }));
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const loadTypeOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
+    try {
+      const rows = await listExpenseTypes();
+      const q = query.trim().toLowerCase();
+      return rows
+        .filter((r) => !q || r.name.toLowerCase().includes(q) || (r.code ?? "").toLowerCase().includes(q))
+        .map((r) => ({
+          value: r._id,
+          label: r.code ? `${r.name} (${r.code})` : r.name,
+        }));
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const loadCreatedByOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
+    try {
+      const response = await userService.list({
+        q: query || undefined,
+        page: 1,
+        limit: 20,
+        sortBy: "fullName",
+        sortOrder: "asc",
+      });
+      const rows = Array.isArray(response?.data) ? (response.data as ExpenseUserRow[]) : [];
+      return rows
+        .map((row) => {
+          const value = String(row._id ?? row.id ?? "").trim();
+          const label = buildUserLabel(row);
+          if (!value || !label) return null;
+          return { value, label };
+        })
+        .filter((row): row is AutocompleteOption => row !== null);
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const closeSidebar = useCallback(() => {
+    setSelectedExpense(null);
+    setBankId("");
+    setErrors({});
+  }, []);
+
+  const onApproveSubmit = async () => {
+    if (!selectedExpense) return;
+    const next: typeof errors = {};
+    if (!bankId.trim()) next.bankId = "Bank is required to approve.";
+    setErrors(next);
+    if (Object.keys(next).length > 0) return;
+
+    setActionLoading(true);
+    try {
+      await approveExpense(selectedExpense.id, bankId.trim());
+      toast.success("Expense approved; bank debited.");
+      closeSidebar();
+      setTableKey((k) => k + 1);
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Failed to approve expense"));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const onRejectSubmit = async () => {
+    if (!selectedExpense) return;
+    if (!rejectReasonId.trim()) {
+      toast.error("Select a rejection reason.");
+      return;
+    }
+    setActionLoading(true);
+    try {
+      await rejectExpense(selectedExpense.id, {
+        reasonId: rejectReasonId.trim(),
+        remark: rejectRemark.trim() || undefined,
+      });
+      toast.success("Expense rejected.");
+      setRejectOpen(false);
+      setRejectReasonId("");
+      setRejectRemark("");
+      closeSidebar();
+      setTableKey((k) => k + 1);
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Failed to reject expense"));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const columns = useMemo<PaginatedTableReferenceColumn[]>(
+    () => [
+      {
+        field: "expenseDate",
+        label: "Expense date",
+        sortable: true,
+        filterType: "date" as const,
+        filterKey: "expenseDate_from",
+        filterKeyTo: "expenseDate_to",
+        operatorKey: "expenseDate_op",
+        ...tableColumnPresets.dateCol,
+        render: (row: ExpenseRow) => (row.expenseDate ? row.expenseDate : "—"),
+      },
+      {
+        field: "expenseTypeName",
+        label: "Type",
+        sortable: false,
+        filterType: "autocomplete" as const,
+        filterKey: "expenseTypeId",
+        filterLoadOptions: loadTypeOptions,
+        render: (row: ExpenseRow) => row.expenseTypeName ?? "—",
+        ...tableColumnPresets.nameCol,
+      },
+      {
+        field: "amount",
+        label: "Amount",
+        sortable: true,
+        minWidth: 100,
+        filterType: "number" as const,
+        filterKey: "amount",
+        filterKeyTo: "amount_to",
+        operatorKey: "amount_op",
+        render: (row: ExpenseRow) => (row.amount != null ? `₹${row.amount.toLocaleString()}` : "—"),
+      },
+      {
+        field: "status",
+        label: "Status",
+        ...tableColumnPresets.statusCol,
+        render: (row: ExpenseRow) => <TableStatusBadge status={row.status} />,
+        sortable: true,
+        filterType: "select" as const,
+        filterKey: "status",
+        filterOptions: [
+          { value: "pending_audit", label: "Pending audit" },
+          { value: "approved", label: "Approved" },
+          { value: "rejected", label: "Rejected" },
+        ],
+      },
+      {
+        field: "bankName",
+        label: "Suggested bank",
+        render: (row: ExpenseRow) => row.bankName || "—",
+        ...tableColumnPresets.nameCol,
+        sortable: false,
+      },
+      {
+        field: "createdByName",
+        label: "Created by",
+        render: (row: ExpenseRow) => row.createdByName ?? "—",
+        minWidth: 140,
+        sortable: false,
+        filterType: "autocomplete" as const,
+        filterKey: "createdBy",
+        filterLoadOptions: loadCreatedByOptions,
+      },
+      {
+        field: "actions",
+        label: "Actions",
+        sortable: false,
+        minWidth: 96,
+        render: (row: ExpenseRow) => {
+          if (row.status !== "pending_audit") return <span className="text-xs text-gray-400">—</span>;
+          if (selectedExpense?.id === row.id) {
+            return (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">
+                <IconCheck size={12} className="shrink-0" />
+                Selected
+              </span>
+            );
+          }
+          return (
+            <span className="text-xs text-[var(--brand-primary)] underline-offset-2 hover:underline cursor-pointer">
+              Click row
+            </span>
+          );
+        },
+      },
+    ],
+    [selectedExpense, loadCreatedByOptions, loadTypeOptions],
+  );
+
+  return (
+    <>
+      <ListingPageContainer
+        title="Expense / Audit"
+        description="Pending expenses awaiting audit action. Click a row to open the sidebar for approval or rejection."
+        density="compact"
+        fullWidth
+        secondaryButtonLabel="Reset filters"
+        onSecondaryClick={() => clearFilters({ keepQuickSearch: true })}
+      >
+        <div className="flex min-h-0 flex-1 flex-col">
+          {!selectedExpense && (
+            <div className="mb-3 flex shrink-0 items-center gap-2.5 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-700">
+              <IconUser className="size-4 shrink-0" />
+              <span>
+                <strong>Tip:</strong> Click any <strong>pending</strong> row to open the sidebar.
+              </span>
+            </div>
+          )}
+
+          <PaginatedTableReference
+            key={tableKey}
+            columns={columns}
+            fetcher={expenseAuditListFetcher}
+            height="calc(100vh - 280px)"
+            showSearch={false}
+            showPagination={false}
+            onTotalChange={setTotalCount}
+            columnFilterValues={expenseAuditTableColumnFilterValues}
+            onColumnFilterChange={handleExpenseAuditColumnFilterChange}
+            filterParams={expenseAuditTableFilterParams}
+            page={page}
+            limit={limit}
+            sortBy={sortBy || "createdAt"}
+            sortOrder={sortOrder || "desc"}
+            onPageChange={(zeroBased) => setPage(zeroBased + 1)}
+            onRowsPerPageChange={setLimit}
+            onSortChange={(field, order) => setSort(field, order)}
+            onRowClick={(row) => setSelectedExpense(row as ExpenseRow)}
+            selectedRowKey={selectedExpense?.id ?? null}
+            getRowKey={(row) => String((row as ExpenseRow).id)}
+            compactDensity
+          />
+          <PaginationControlsReference
+            page={page - 1}
+            rowsPerPage={limit}
+            totalCount={totalCount}
+            onPageChange={(zeroBased) => setPage(zeroBased + 1)}
+            onRowsPerPageChange={setLimit}
+            rowsPerPageOptions={[10, 20, 50, 100, 200]}
+          />
+        </div>
+      </ListingPageContainer>
+
+      <DetailsSidebar
+        open={!!selectedExpense}
+        title="Expense Audit"
+        subtitle={selectedExpense ? `Amount: ₹${selectedExpense.amount.toLocaleString()}` : undefined}
+        onClose={closeSidebar}
+        width="400px"
+      >
+        {selectedExpense && (
+          <div className="flex flex-col gap-5">
+            <ExpenseDetailCard expense={selectedExpense} />
+
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <FieldLabel>Bank account to debit *</FieldLabel>
+                <AutocompleteField
+                  value={bankId}
+                  onChange={setBankId}
+                  loadOptions={loadBankOptions}
+                  placeholder="Select bank…"
+                  disabled={selectedExpense.status !== "pending_audit" || actionLoading}
+                />
+                <FieldError message={errors.bankId} />
+              </div>
+
+              <div className="flex flex-col gap-2 pt-2 border-t border-[var(--border)]">
+                <Button
+                  variant="success"
+                  leftIcon={<IconCheck size={18} />}
+                  onClick={() => void onApproveSubmit()}
+                  disabled={selectedExpense.status !== "pending_audit" || actionLoading}
+                  className="w-full justify-center"
+                >
+                  {actionLoading ? "Processing…" : "Approve & Debit"}
+                </Button>
+                <Button
+                  variant="danger"
+                  leftIcon={<IconX size={18} />}
+                  onClick={() => {
+                    setRejectOpen(true);
+                    setRejectReasonId("");
+                    setRejectRemark("");
+                  }}
+                  disabled={selectedExpense.status !== "pending_audit" || actionLoading}
+                  className="w-full justify-center"
+                >
+                  Reject
+                </Button>
+                <Button
+                  variant="secondary"
+                  leftIcon={<IconRefresh size={18} />}
+                  onClick={closeSidebar}
+                  className="w-full justify-center"
+                >
+                  Clear Selection
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </DetailsSidebar>
+
+      <ConfirmSensitiveActionDialog
+        title="Reject Expense"
+        open={rejectOpen}
+        reasonType={REASON_TYPES.EXPENSE_AUDIT_REJECT}
+        selectedReasonId={rejectReasonId}
+        onReasonIdChange={setRejectReasonId}
+        remark={rejectRemark}
+        onRemarkChange={setRejectRemark}
+        onCancel={() => {
+          setRejectOpen(false);
+          setRejectReasonId("");
+          setRejectRemark("");
+        }}
+        onConfirm={() => void onRejectSubmit()}
+      />
+    </>
+  );
+}
