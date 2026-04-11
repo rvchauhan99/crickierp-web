@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { IconCheck, IconX } from "@tabler/icons-react";
+import { IconCheck, IconPencil, IconX } from "@tabler/icons-react";
 import { AutocompleteField, type AutocompleteOption } from "@/components/common/AutocompleteField";
 import { FormActions, FormContainer } from "@/components/common/FormContainer";
 import { FormGrid } from "@/components/common/FormGrid";
@@ -18,7 +18,15 @@ import PaginationControlsReference from "@/components/common/PaginationControlsR
 import { TableStatusBadge } from "@/components/common/TableStatusBadge";
 import { useListingQueryStateReference } from "@/hooks/useListingQueryStateReference";
 import { tableColumnPresets } from "@/lib/tableStylePresets";
-import { createDeposit, listDepositsNormalized } from "@/services/depositService";
+import {
+  createDeposit,
+  listDepositsNormalized,
+  updateDeposit,
+} from "@/services/depositService";
+import {
+  depositStatusApiParam,
+  depositStatusColumnSelectValue,
+} from "@/modules/deposit/depositListingStatusFilter";
 import { listBanksNormalized } from "@/services/bankService";
 import type { DepositRow } from "@/types/deposit";
 import { getApiErrorMessage } from "@/lib/apiError";
@@ -71,6 +79,12 @@ export function DepositBankerClient() {
   const [errors, setErrors] = useState<{ bankId?: string; utr?: string; amount?: string }>({});
   const [totalCount, setTotalCount] = useState(0);
   const [tableKey, setTableKey] = useState(0);
+  const [editDeposit, setEditDeposit] = useState<DepositRow | null>(null);
+  const [editBankId, setEditBankId] = useState("");
+  const [editUtr, setEditUtr] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editLoading, setEditLoading] = useState(false);
+  const [editErrors, setEditErrors] = useState<{ bankId?: string; utr?: string; amount?: string }>({});
 
   const loadBankOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {
@@ -122,10 +136,55 @@ export function DepositBankerClient() {
     setErrors({});
   };
 
-  const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
+  const closeEdit = () => {
+    setEditDeposit(null);
+    setEditBankId("");
+    setEditUtr("");
+    setEditAmount("");
+    setEditErrors({});
+  };
+
+  const onEditSubmit = async () => {
+    if (!editDeposit) return;
+    const next: typeof editErrors = {};
+    if (!editBankId.trim()) next.bankId = "Bank is required.";
+    if (!editUtr.trim()) next.utr = "UTR is required.";
+    const amt = Number(editAmount);
+    if (!editAmount.trim() || Number.isNaN(amt) || amt < 1) next.amount = "Amount must be at least 1.";
+    setEditErrors(next);
+    if (Object.keys(next).length > 0) return;
+
+    setEditLoading(true);
+    try {
+      await updateDeposit(editDeposit.id, {
+        bankId: editBankId.trim(),
+        utr: editUtr.trim(),
+        amount: amt,
+      });
+      toast.success("Deposit updated.");
+      closeEdit();
+      setTableKey((k) => k + 1);
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Failed to update deposit"));
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const columnFilterValues = useMemo(
+    () => ({
+      ...filters,
+      status: depositStatusColumnSelectValue(filters.status),
+    }),
+    [filters],
+  );
 
   const handleColumnFilterChange = useCallback(
     (key: string, value: string) => {
+      if (key === "status" && value === "") {
+        setFilter("status", "all");
+        return;
+      }
       setFilter(key, value);
     },
     [setFilter],
@@ -180,6 +239,7 @@ export function DepositBankerClient() {
           { label: "Pending", value: "pending" },
           { label: "Verified", value: "verified" },
           { label: "Rejected", value: "rejected" },
+          { label: "Finalized", value: "finalized" },
         ],
         ...tableColumnPresets.statusCol,
         render: (row: DepositRow) => <TableStatusBadge status={row.status} />,
@@ -202,6 +262,33 @@ export function DepositBankerClient() {
         defaultFilterOperator: "inRange",
         ...tableColumnPresets.dateCol,
         render: (row: DepositRow) => (row.createdAt ? new Date(row.createdAt).toLocaleString() : "—"),
+      },
+      {
+        field: "actions",
+        label: "Actions",
+        isActionColumn: true,
+        ...tableColumnPresets.actionsCol,
+        sortable: false,
+        render: (row: DepositRow) =>
+          row.status === "pending" ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              leftIcon={<IconPencil size={16} />}
+              onClick={() => {
+                setEditDeposit(row);
+                setEditBankId(row.bankId ?? "");
+                setEditUtr(row.utr);
+                setEditAmount(String(row.amount));
+                setEditErrors({});
+              }}
+            >
+              Edit
+            </Button>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          ),
       },
     ],
     [],
@@ -287,7 +374,7 @@ export function DepositBankerClient() {
             utr_op: toOptionalFilterValue(filters.utr_op || ""),
             bankName: toOptionalFilterValue(filters.bankName || ""),
             bankName_op: toOptionalFilterValue(filters.bankName_op || ""),
-            status: toOptionalFilterValue(filters.status || ""),
+            status: depositStatusApiParam(filters.status),
             amount: toOptionalFilterValue(filters.amount || ""),
             amount_to: toOptionalFilterValue(filters.amount_to || ""),
             amount_op: toOptionalFilterValue(filters.amount_op || ""),
@@ -314,6 +401,60 @@ export function DepositBankerClient() {
         />
       </ListingPageContainer>
       </div>
+
+      {editDeposit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 p-4">
+          <div className="card w-full max-w-lg space-y-4 p-5">
+            <h3 className="text-lg font-semibold">Edit pending deposit</h3>
+            <p className="text-sm text-muted-foreground">
+              Bank, UTR, and amount can be corrected while the deposit is pending.
+            </p>
+            <FormGrid>
+              <div className="md:col-span-2">
+                <FieldLabel>Bank *</FieldLabel>
+            <AutocompleteField
+              value={editBankId}
+              onChange={setEditBankId}
+              loadOptions={loadBankOptions}
+              placeholder="Search bank..."
+              emptyText="No banks found"
+              defaultOption={
+                editDeposit && editBankId
+                  ? { value: editBankId, label: editDeposit.bankName.trim() || "—" }
+                  : null
+              }
+            />
+                <FieldError message={editErrors.bankId} />
+              </div>
+              <div>
+                <FieldLabel>UTR *</FieldLabel>
+                <Input placeholder="UTR" value={editUtr} onChange={(e) => setEditUtr(e.target.value)} />
+                <FieldError message={editErrors.utr} />
+              </div>
+              <div>
+                <FieldLabel>Amount *</FieldLabel>
+                <Input
+                  type="number"
+                  min={1}
+                  step="1"
+                  placeholder="0"
+                  value={editAmount}
+                  onChange={(e) => setEditAmount(e.target.value)}
+                />
+                <FieldError message={editErrors.amount} />
+              </div>
+            </FormGrid>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="secondary" onClick={closeEdit} disabled={editLoading}>
+                Cancel
+              </Button>
+              <Button type="button" variant="success" onClick={onEditSubmit} disabled={editLoading}>
+                {editLoading ? "Updating…" : "Update"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

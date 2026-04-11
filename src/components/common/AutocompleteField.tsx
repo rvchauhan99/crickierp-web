@@ -18,6 +18,16 @@ type Props = {
   disabled?: boolean;
   debounceMs?: number;
   emptyText?: string;
+  /**
+   * When `value` is set but that option is not in the loaded list yet (e.g. edit form opened
+   * before the dropdown), use this label so the input does not appear empty. Must match `value`.
+   */
+  defaultOption?: AutocompleteOption | null;
+  /**
+   * Optional async resolver (e.g. GET-by-id). Used when `value` is set, not in `options`, and
+   * `defaultOption` is absent or does not match — same idea as techhind `resolveOptionById`.
+   */
+  resolveOptionByValue?: (value: string) => Promise<AutocompleteOption | null>;
 };
 
 export function AutocompleteField({
@@ -28,6 +38,8 @@ export function AutocompleteField({
   disabled = false,
   debounceMs = 300,
   emptyText = "No records found",
+  defaultOption = null,
+  resolveOptionByValue,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -37,21 +49,111 @@ export function AutocompleteField({
   const [selectedOption, setSelectedOption] = useState<AutocompleteOption | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const debounceRef = useRef<number | null>(null);
-
-  const displayText = open ? query : selectedOption?.label ?? "";
+  /** Keeps label when `value` is controlled but the option is not in `options` yet (user pick or default/resolve). */
+  const selectedCacheRef = useRef<AutocompleteOption | null>(null);
+  const loadOptionsRef = useRef(loadOptions);
+  loadOptionsRef.current = loadOptions;
+  const resolveOptionByValueRef = useRef(resolveOptionByValue);
+  resolveOptionByValueRef.current = resolveOptionByValue;
+  const defaultResolveAttemptRef = useRef<string | null>(null);
+  /** Avoid repeated `loadOptions("")` when value is still missing from the loaded page. */
+  const emptySearchAttemptRef = useRef<string | null>(null);
 
   const runLoad = useCallback(
     async (text: string) => {
       setLoading(true);
       try {
-        const rows = await loadOptions(text);
+        const rows = await loadOptionsRef.current(text);
         setOptions(rows);
       } finally {
         setLoading(false);
       }
     },
-    [loadOptions]
+    [],
   );
+
+  // Sync display label when value / options / defaultOption change (mirrors techhind selected-option cache).
+  useEffect(() => {
+    if (!value) {
+      selectedCacheRef.current = null;
+      setSelectedOption(null);
+      return;
+    }
+    const fromList = options.find((opt) => opt.value === value);
+    if (fromList) {
+      selectedCacheRef.current = fromList;
+      setSelectedOption(fromList);
+      return;
+    }
+    if (defaultOption && defaultOption.value === value) {
+      selectedCacheRef.current = defaultOption;
+      setSelectedOption(defaultOption);
+      return;
+    }
+    if (selectedCacheRef.current?.value === value) {
+      setSelectedOption(selectedCacheRef.current);
+      return;
+    }
+    setSelectedOption(null);
+  }, [value, options, defaultOption]);
+
+  // Pre-load with empty query once per value when we might find the option in the first page (no default label).
+  useEffect(() => {
+    if (!value || disabled || open) return;
+    if (options.some((o) => o.value === value)) return;
+    if (defaultOption?.value === value) return;
+    if (selectedCacheRef.current?.value === value) return;
+    if (resolveOptionByValue) return;
+    if (emptySearchAttemptRef.current === value) return;
+    emptySearchAttemptRef.current = value;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await loadOptionsRef.current("");
+        if (cancelled) return;
+        setOptions(rows);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [value, disabled, open, options, defaultOption, resolveOptionByValue]);
+
+  useEffect(() => {
+    if (!value) emptySearchAttemptRef.current = null;
+  }, [value]);
+
+  // Optional async resolve-by-id (techhind-style).
+  useEffect(() => {
+    if (!value) {
+      defaultResolveAttemptRef.current = null;
+      return;
+    }
+    if (!resolveOptionByValueRef.current) return;
+    if (options.some((o) => o.value === value)) return;
+    if (defaultOption?.value === value) return;
+    if (defaultResolveAttemptRef.current === value) return;
+    defaultResolveAttemptRef.current = value;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const opt = await resolveOptionByValueRef.current!(value);
+        if (cancelled || !opt || opt.value !== value) return;
+        selectedCacheRef.current = opt;
+        setSelectedOption(opt);
+        setOptions((prev) => (prev.some((o) => o.value === opt.value) ? prev : [...prev, opt]));
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [value, options, defaultOption]);
 
   useEffect(() => {
     if (!open || disabled) return;
@@ -64,11 +166,6 @@ export function AutocompleteField({
       if (debounceRef.current) window.clearTimeout(debounceRef.current);
     };
   }, [query, open, disabled, debounceMs, runLoad]);
-
-  useEffect(() => {
-    const found = options.find((opt) => opt.value === value) ?? selectedOption;
-    setSelectedOption(value ? found ?? null : null);
-  }, [value, options, selectedOption]);
 
   useEffect(() => {
     const onOutside = (event: MouseEvent) => {
@@ -101,6 +198,7 @@ export function AutocompleteField({
     if (event.key === "Enter" && open && activeIndex >= 0 && options[activeIndex]) {
       event.preventDefault();
       const picked = options[activeIndex];
+      selectedCacheRef.current = picked;
       setSelectedOption(picked);
       onChange(picked.value);
       setOpen(false);
@@ -112,6 +210,8 @@ export function AutocompleteField({
       setQuery("");
     }
   };
+
+  const displayText = open ? query : selectedOption?.label ?? "";
 
   const showClear = useMemo(() => Boolean(value) && !disabled, [value, disabled]);
 
@@ -135,6 +235,7 @@ export function AutocompleteField({
           <button
             type="button"
             onClick={() => {
+              selectedCacheRef.current = null;
               setSelectedOption(null);
               setQuery("");
               setOptions([]);
@@ -165,6 +266,7 @@ export function AutocompleteField({
                 onMouseEnter={() => setActiveIndex(index)}
                 onMouseDown={(event) => {
                   event.preventDefault();
+                  selectedCacheRef.current = option;
                   setSelectedOption(option);
                   onChange(option.value);
                   setOpen(false);

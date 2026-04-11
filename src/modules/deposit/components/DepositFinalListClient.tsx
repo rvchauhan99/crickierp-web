@@ -12,26 +12,8 @@ import { tableColumnPresets } from "@/lib/tableStylePresets";
 import { exportDeposits, listDepositsNormalized } from "@/services/depositService";
 import type { DepositRow } from "@/types/deposit";
 import { userService } from "@/services/userService";
-
-const COLUMN_FILTER_KEYS = [
-  "utr",
-  "utr_op",
-  "bankName",
-  "bankName_op",
-  "bankId",
-  "status",
-  "amount",
-  "amount_to",
-  "amount_op",
-  "totalAmount",
-  "totalAmount_to",
-  "totalAmount_op",
-  "player",
-  "createdBy",
-  "createdAt_from",
-  "createdAt_to",
-  "createdAt_op",
-];
+import { DEPOSIT_FINAL_FILTER_KEYS } from "@/modules/deposit/depositFinalListConstants";
+import { DepositFinalListFilterPanel } from "@/modules/deposit/components/DepositFinalListFilterPanel";
 
 function toOptionalFilterValue(value: string): string | undefined {
   const trimmed = value.trim();
@@ -58,11 +40,23 @@ function buildUserLabel(row: ExchangeUserRow): string {
 
 export function DepositFinalListClient() {
   const listingState = useListingQueryStateReference({
-    defaultLimit: 20,
-    filterKeys: COLUMN_FILTER_KEYS,
+    defaultLimit: 50,
+    filterKeys: [...DEPOSIT_FINAL_FILTER_KEYS],
   });
-  const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setFilter, setSort, clearFilters } =
-    listingState;
+  const {
+    page,
+    limit,
+    q,
+    sortBy,
+    sortOrder,
+    filters,
+    setPage,
+    setLimit,
+    setSort,
+    setQ,
+    setFilters,
+    clearFilters,
+  } = listingState;
 
   const [totalCount, setTotalCount] = useState(0);
   const [exporting, setExporting] = useState(false);
@@ -92,53 +86,43 @@ export function DepositFinalListClient() {
     };
   }, []);
 
-  const loadCreatedByOptions = useCallback(
-    async (query: string) => {
-      try {
-        const response = await userService.list({
-          q: query || undefined,
-          page: 1,
-          limit: 20,
-          sortBy: "fullName",
-          sortOrder: "asc",
-        });
-        const rows = Array.isArray(response?.data) ? (response.data as ExchangeUserRow[]) : [];
-        return rows
-          .map((row) => {
-            const value = String(row._id ?? row.id ?? "").trim();
-            const label = buildUserLabel(row);
-            if (!value || !label) return null;
-            return { value, label };
-          })
-          .filter((row): row is { value: string; label: string } => row !== null);
-      } catch {
-        return [];
-      }
-    },
-    [],
-  );
-
-  const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
-
-  const handleColumnFilterChange = useCallback(
-    (key: string, value: string) => {
-      setFilter(key, value);
-    },
-    [setFilter],
-  );
-
   const fetcher = useCallback(async (params: Record<string, unknown>) => {
     return listDepositsNormalized("final", params);
   }, []);
+
+  const filterParams = useMemo(
+    () => ({
+      q: toOptionalFilterValue(q || ""),
+      utr: toOptionalFilterValue(filters.utr || ""),
+      utr_op: toOptionalFilterValue(filters.utr_op || ""),
+      bankName: toOptionalFilterValue(filters.bankName || ""),
+      bankName_op: toOptionalFilterValue(filters.bankName_op || ""),
+      bankId: toOptionalFilterValue(filters.bankId || ""),
+      status: toOptionalFilterValue(filters.status || ""),
+      amount: toOptionalFilterValue(filters.amount || ""),
+      amount_to: toOptionalFilterValue(filters.amount_to || ""),
+      amount_op: toOptionalFilterValue(filters.amount_op || ""),
+      totalAmount: toOptionalFilterValue(filters.totalAmount || ""),
+      totalAmount_to: toOptionalFilterValue(filters.totalAmount_to || ""),
+      totalAmount_op: toOptionalFilterValue(filters.totalAmount_op || ""),
+      player: toOptionalFilterValue(filters.player || ""),
+      createdBy: toOptionalFilterValue(filters.createdBy || ""),
+      createdAt_from: toOptionalFilterValue(filters.createdAt_from || ""),
+      createdAt_to: toOptionalFilterValue(filters.createdAt_to || ""),
+      createdAt_op: toOptionalFilterValue(filters.createdAt_op || ""),
+    }),
+    [filters, q],
+  );
 
   const handleExport = useCallback(async () => {
     setExporting(true);
     try {
       const blob = await exportDeposits("final", {
         page: 1,
-        limit: 20,
+        limit,
         sortBy: sortBy || "createdAt",
         sortOrder: sortOrder || "desc",
+        q: toOptionalFilterValue(q || ""),
         utr: toOptionalFilterValue(filters.utr || ""),
         utr_op: toOptionalFilterValue(filters.utr_op || ""),
         bankName: toOptionalFilterValue(filters.bankName || ""),
@@ -170,7 +154,7 @@ export function DepositFinalListClient() {
     } finally {
       setExporting(false);
     }
-  }, [filters, sortBy, sortOrder]);
+  }, [filters, sortBy, sortOrder, q, limit]);
 
   const columns = useMemo<PaginatedTableReferenceColumn[]>(
     () => [
@@ -187,10 +171,6 @@ export function DepositFinalListClient() {
         render: (row: DepositRow) => row.bankName,
         ...tableColumnPresets.nameCol,
         sortable: true,
-        filterType: "text" as const,
-        filterKey: "bankName",
-        operatorKey: "bankName_op",
-        defaultFilterOperator: "contains",
       },
       {
         field: "utr",
@@ -198,21 +178,12 @@ export function DepositFinalListClient() {
         render: (row: DepositRow) => row.utr,
         minWidth: 130,
         sortable: true,
-        filterType: "text" as const,
-        filterKey: "utr",
-        operatorKey: "utr_op",
-        defaultFilterOperator: "contains",
       },
       {
         field: "amount",
         label: "Amount",
         render: (row: DepositRow) => row.amount.toLocaleString(),
         sortable: true,
-        filterType: "number" as const,
-        filterKey: "amount",
-        filterKeyTo: "amount_to",
-        operatorKey: "amount_op",
-        defaultFilterOperator: "equals",
       },
       {
         field: "bonusAmount",
@@ -226,11 +197,6 @@ export function DepositFinalListClient() {
         label: "Total",
         render: (row: DepositRow) => (row.totalAmount != null ? row.totalAmount.toLocaleString() : "—"),
         sortable: true,
-        filterType: "number" as const,
-        filterKey: "totalAmount",
-        filterKeyTo: "totalAmount_to",
-        operatorKey: "totalAmount_op",
-        defaultFilterOperator: "equals",
       },
       {
         field: "rejectReason",
@@ -242,14 +208,6 @@ export function DepositFinalListClient() {
       {
         field: "status",
         label: "Status",
-        filterType: "select" as const,
-        filterKey: "status",
-        filterOptions: [
-          { label: "Pending", value: "pending" },
-          { label: "Verified", value: "verified" },
-          { label: "Rejected", value: "rejected" },
-          { label: "Finalized", value: "finalized" },
-        ],
         ...tableColumnPresets.statusCol,
         render: (row: DepositRow) => <TableStatusBadge status={row.status} />,
       },
@@ -279,32 +237,22 @@ export function DepositFinalListClient() {
           return row.createdByName || (uid ? cachedUsers[uid] : "") || "—";
         },
         minWidth: 160,
-        filterType: "autocomplete" as const,
-        filterKey: "createdBy",
-        filterLoadOptions: loadCreatedByOptions,
-        filterPlaceholder: "Search user",
-        filterEmptyText: "No users found",
       },
       {
         field: "createdAt",
         label: "Created at",
         sortable: true,
-        filterType: "date" as const,
-        filterKey: "createdAt_from",
-        filterKeyTo: "createdAt_to",
-        operatorKey: "createdAt_op",
-        defaultFilterOperator: "inRange",
         ...tableColumnPresets.dateCol,
         render: (row: DepositRow) => (row.createdAt ? new Date(row.createdAt).toLocaleString() : "—"),
       },
     ],
-    [cachedUsers, loadCreatedByOptions],
+    [cachedUsers],
   );
 
   return (
     <ListingPageContainer
       title="Deposit / Final list"
-      description="All deposits including rejections. Filter by date range, UTR, bank, status, and more."
+      description="All deposits including rejections. Use advanced filters for UTR, bank, status, dates, and more."
       density="compact"
       fullWidth
       secondaryButtonLabel="Reset filters"
@@ -312,52 +260,45 @@ export function DepositFinalListClient() {
       exportButtonLabel="Export"
       onExportClick={handleExport}
       exportDisabled={exporting}
+      filters={
+        <DepositFinalListFilterPanel
+          q={q}
+          filters={filters}
+          setQ={setQ}
+          setFilters={setFilters}
+          onClear={() => clearFilters({ keepQuickSearch: false })}
+        />
+      }
     >
-      <PaginatedTableReference
-        columns={columns}
-        fetcher={fetcher}
-        height="calc(100vh - 220px)"
-        showSearch={false}
-        showPagination={false}
-        onTotalChange={setTotalCount}
-        columnFilterValues={columnFilterValues}
-        onColumnFilterChange={handleColumnFilterChange}
-        filterParams={{
-          utr: toOptionalFilterValue(filters.utr || ""),
-          utr_op: toOptionalFilterValue(filters.utr_op || ""),
-          bankName: toOptionalFilterValue(filters.bankName || ""),
-          bankName_op: toOptionalFilterValue(filters.bankName_op || ""),
-          bankId: toOptionalFilterValue(filters.bankId || ""),
-          status: toOptionalFilterValue(filters.status || ""),
-          amount: toOptionalFilterValue(filters.amount || ""),
-          amount_to: toOptionalFilterValue(filters.amount_to || ""),
-          amount_op: toOptionalFilterValue(filters.amount_op || ""),
-          totalAmount: toOptionalFilterValue(filters.totalAmount || ""),
-          totalAmount_to: toOptionalFilterValue(filters.totalAmount_to || ""),
-          totalAmount_op: toOptionalFilterValue(filters.totalAmount_op || ""),
-          player: toOptionalFilterValue(filters.player || ""),
-          createdBy: toOptionalFilterValue(filters.createdBy || ""),
-          createdAt_from: toOptionalFilterValue(filters.createdAt_from || ""),
-          createdAt_to: toOptionalFilterValue(filters.createdAt_to || ""),
-          createdAt_op: toOptionalFilterValue(filters.createdAt_op || ""),
-        }}
-        page={page}
-        limit={limit}
-        sortBy={sortBy || "createdAt"}
-        sortOrder={sortOrder || "desc"}
-        onPageChange={(zeroBased) => setPage(zeroBased + 1)}
-        onRowsPerPageChange={setLimit}
-        onSortChange={(field, order) => setSort(field, order)}
-        compactDensity
-      />
-      <PaginationControlsReference
-        page={page - 1}
-        rowsPerPage={limit}
-        totalCount={totalCount}
-        onPageChange={(zeroBased) => setPage(zeroBased + 1)}
-        onRowsPerPageChange={setLimit}
-        rowsPerPageOptions={[10, 20, 50, 100, 200]}
-      />
+      <div className="flex min-h-0 flex-1 flex-col gap-2">
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <PaginatedTableReference
+            columns={columns}
+            fetcher={fetcher}
+            height="calc(100vh - 300px)"
+            showSearch={false}
+            showPagination={false}
+            onTotalChange={setTotalCount}
+            filterParams={filterParams}
+            page={page}
+            limit={limit}
+            sortBy={sortBy || "createdAt"}
+            sortOrder={sortOrder || "desc"}
+            onPageChange={(zeroBased) => setPage(zeroBased + 1)}
+            onRowsPerPageChange={setLimit}
+            onSortChange={(field, order) => setSort(field, order)}
+            compactDensity={false}
+          />
+        </div>
+        <PaginationControlsReference
+          page={page - 1}
+          rowsPerPage={limit}
+          totalCount={totalCount}
+          onPageChange={(zeroBased) => setPage(zeroBased + 1)}
+          onRowsPerPageChange={setLimit}
+          rowsPerPageOptions={[10, 20, 50, 100, 200]}
+        />
+      </div>
     </ListingPageContainer>
   );
 }

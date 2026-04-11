@@ -85,6 +85,11 @@ export async function createDeposit(input: DepositCreateInput): Promise<unknown>
   return response.data?.data;
 }
 
+export async function updateDeposit(id: string, input: DepositCreateInput): Promise<unknown> {
+  const response = await apiClient.put<{ success: boolean; data: unknown }>(`/deposit/${id}`, input);
+  return response.data?.data;
+}
+
 export async function listDepositsNormalized(
   view: DepositView,
   params: Record<string, unknown>,

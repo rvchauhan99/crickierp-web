@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ListingPageContainer } from "@/components/common/ListingPageContainer";
 import PaginatedTableReference, {
   type PaginatedTableReferenceColumn,
@@ -104,10 +104,13 @@ export function MastersPageClient() {
     };
   }, []);
 
+  const setPageRef = useRef(setPage);
+  setPageRef.current = setPage;
+
   useEffect(() => {
-    setPage(1);
+    setPageRef.current(1);
     setTableKey((k) => k + 1);
-  }, [selectedMaster?.modelKey, setPage]);
+  }, [selectedMaster?.modelKey]);
 
   const filteredMasters = useMemo(() => {
     const q = masterSearch.trim().toLowerCase();
@@ -121,7 +124,19 @@ export function MastersPageClient() {
         return { data: [], meta: { total: 0, page: 1, pageSize: 20 } };
       }
       const result = await listMastersNormalized(selectedMaster.modelKey, params);
-      setFields(result.fields);
+      setFields((prev) => {
+        const next = result.fields;
+        if (
+          prev.length === next.length &&
+          prev.every((p, i) => {
+            const n = next[i];
+            return p.name === n?.name && p.type === n?.type && p.required === n?.required;
+          })
+        ) {
+          return prev;
+        }
+        return next;
+      });
       return { data: result.data, meta: result.meta };
     },
     [selectedMaster],
@@ -234,6 +249,7 @@ export function MastersPageClient() {
   }
 
   const visibilityParam = filters.visibility || "active";
+  const tableFilterParams = useMemo(() => ({ visibility: visibilityParam }), [visibilityParam]);
 
   const handleAddClick = async () => {
     if (!selectedMaster) return;
@@ -338,9 +354,7 @@ export function MastersPageClient() {
                 onPageChange={(zeroBased) => setPage(zeroBased + 1)}
                 onRowsPerPageChange={setLimit}
                 onSortChange={(field, order) => setSort(field, order)}
-                filterParams={{
-                  visibility: visibilityParam,
-                }}
+                filterParams={tableFilterParams}
               />
               <PaginationControlsReference
                 page={page - 1}

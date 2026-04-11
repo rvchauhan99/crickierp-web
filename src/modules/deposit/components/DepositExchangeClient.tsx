@@ -31,6 +31,7 @@ import {
   exportDeposits,
   listDepositsNormalized,
 } from "@/services/depositService";
+import { depositStatusApiParam, depositStatusColumnSelectValue } from "@/modules/deposit/depositListingStatusFilter";
 import { listPlayersNormalized } from "@/services/playerService";
 import type { DepositRow } from "@/types/deposit";
 import { Input } from "@/components/ui/Input";
@@ -267,10 +268,20 @@ export function DepositExchangeClient() {
     [],
   );
 
-  const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
+  const columnFilterValues = useMemo(
+    () => ({
+      ...filters,
+      status: depositStatusColumnSelectValue(filters.status),
+    }),
+    [filters],
+  );
 
   const handleColumnFilterChange = useCallback(
     (key: string, value: string) => {
+      if (key === "status" && value === "") {
+        setFilter("status", "all");
+        return;
+      }
       setFilter(key, value);
     },
     [setFilter],
@@ -304,7 +315,7 @@ export function DepositExchangeClient() {
         bankName: toOptionalFilterValue(filters.bankName || ""),
         bankName_op: toOptionalFilterValue(filters.bankName_op || ""),
         bankId: toOptionalFilterValue(filters.bankId || ""),
-        status: toOptionalFilterValue(filters.status || ""),
+        status: depositStatusApiParam(filters.status),
         amount: toOptionalFilterValue(filters.amount || ""),
         amount_to: toOptionalFilterValue(filters.amount_to || ""),
         amount_op: toOptionalFilterValue(filters.amount_op || ""),
@@ -450,6 +461,7 @@ export function DepositExchangeClient() {
           { label: "Pending", value: "pending" },
           { label: "Verified", value: "verified" },
           { label: "Rejected", value: "rejected" },
+          { label: "Finalized", value: "finalized" },
         ],
         ...tableColumnPresets.statusCol,
         render: (row: DepositRow) => <TableStatusBadge status={row.status} />,
@@ -563,7 +575,7 @@ export function DepositExchangeClient() {
               bankName: toOptionalFilterValue(filters.bankName || ""),
               bankName_op: toOptionalFilterValue(filters.bankName_op || ""),
               bankId: toOptionalFilterValue(filters.bankId || ""),
-              status: toOptionalFilterValue(filters.status || ""),
+              status: depositStatusApiParam(filters.status),
               amount: toOptionalFilterValue(filters.amount || ""),
               amount_to: toOptionalFilterValue(filters.amount_to || ""),
               amount_op: toOptionalFilterValue(filters.amount_op || ""),
