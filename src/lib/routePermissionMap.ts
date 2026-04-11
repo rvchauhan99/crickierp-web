@@ -43,15 +43,9 @@ const PREFIX_RULES: { prefix: string; access: RouteAccess }[] = [
   { prefix: "/user-history", access: { kind: "permission", permission: NAV_PERMISSIONS.USER_HISTORY_VIEW } },
   { prefix: "/dashboard", access: { kind: "permission", permission: NAV_PERMISSIONS.DASHBOARD_VIEW } },
   { prefix: "/masters", access: { kind: "superadminOnly" } },
-  /** Detail routes (e.g. /exchange/:id) — list or edit */
-  {
-    prefix: "/exchange",
-    access: { kind: "anyPermission", permissions: [NAV_PERMISSIONS.EXCHANGE_LIST, NAV_PERMISSIONS.EXCHANGE_EDIT] },
-  },
-  {
-    prefix: "/player",
-    access: { kind: "anyPermission", permissions: [NAV_PERMISSIONS.PLAYER_LIST, NAV_PERMISSIONS.PLAYER_EDIT] },
-  },
+  /** Detail routes (e.g. /exchange/:id) — same as list (no separate edit screen) */
+  { prefix: "/exchange", access: { kind: "permission", permission: NAV_PERMISSIONS.EXCHANGE_LIST } },
+  { prefix: "/player", access: { kind: "permission", permission: NAV_PERMISSIONS.PLAYER_LIST } },
   {
     prefix: "/bank",
     access: { kind: "permission", permission: NAV_PERMISSIONS.BANK_LIST },
