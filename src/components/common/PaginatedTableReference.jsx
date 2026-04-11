@@ -74,6 +74,7 @@ const getConfiguredColumnWidth = (column, fallbackWidth) => {
  * - initialSortBy, initialSortOrder (optional default sorting)
  * - filterParams: object merged into fetcher params (when parent uses URL state)
  * - onRowClick(row): when provided, rows are clickable; skip when target is button/link
+ * - selectedRowKey: when set, row whose getRowKey(row) matches gets extra highlight (e.g. selection)
  * - Controlled mode: pass page (1-based), limit, q, sortBy, sortOrder + onPageChange(0-based), onRowsPerPageChange, onQChange, onSortChange
  */
 export default function PaginatedTable({
@@ -91,6 +92,7 @@ export default function PaginatedTable({
   onTotalChange = null,
   filterParams = {},
   onRowClick = null,
+  selectedRowKey = null,
   // Controlled mode (from useListingQueryState)
   page: controlledPage,
   limit: controlledLimit,
@@ -876,6 +878,12 @@ export default function PaginatedTable({
               rows.map((row) => {
                 const rowKey = getRowKey(row);
                 const isExpanded = expandedRows.has(rowKey);
+                const selectedKey =
+                  selectedRowKey != null && selectedRowKey !== ""
+                    ? String(selectedRowKey)
+                    : null;
+                const isSelected =
+                  selectedKey != null && String(rowKey) === selectedKey;
                 return (
                   <React.Fragment key={rowKey}>
                     <tr
@@ -889,6 +897,8 @@ export default function PaginatedTable({
                       }
                       className={cn(
                         onRowClick ? "cursor-pointer" : "",
+                        isSelected &&
+                          "bg-emerald-50/90 ring-1 ring-inset ring-emerald-200/80 dark:bg-muted/50 dark:ring-border",
                         "group hover:bg-[#00823b]/5 transition-colors border-b border-border last:border-b-0"
                       )}
                     >

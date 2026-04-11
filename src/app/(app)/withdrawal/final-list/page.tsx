@@ -1,28 +1,88 @@
 "use client";
-import { useEffect, useState } from "react";
+
+import { useCallback, useState } from "react";
 import { financialService } from "@/services/financialService";
 import { Button } from "@/components/ui/Button";
+import { ListingPageContainer } from "@/components/common/ListingPageContainer";
+import PaginatedTableReference from "@/components/common/PaginatedTableReference";
+import PaginationControlsReference from "@/components/common/PaginationControlsReference";
+import { TableStatusBadge } from "@/components/common/TableStatusBadge";
+import { tableColumnPresets } from "@/lib/tableStylePresets";
 import { WithdrawalRow } from "@/types/financial";
 
 export default function WithdrawalFinalListPage() {
-  const [rows, setRows] = useState<WithdrawalRow[]>([]);
-  const load = () => financialService.listWithdrawals("final").then((res) => setRows(res?.data ?? []));
-  useEffect(() => {
-    load();
+  const [tableKey, setTableKey] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
+
+  const fetcher = useCallback(async (params: Record<string, unknown>) => {
+    return financialService.listWithdrawals("final", params.page as number, params.limit as number);
   }, []);
+
+  const handleFinalize = async (id: string) => {
+    try {
+      await financialService.updateWithdrawalStatus(id, "finalized");
+      setTableKey((prev) => prev + 1);
+    } catch {
+      alert("Failed to finalize withdrawal.");
+    }
+  };
+
+  const columns = [
+    { field: "playerName", label: "Player", render: (row: WithdrawalRow) => row.playerName, ...tableColumnPresets.nameCol },
+    { field: "bankName", label: "Bank", render: (row: WithdrawalRow) => row.bankName, ...tableColumnPresets.nameCol },
+    { field: "amount", label: "Amount", render: (row: WithdrawalRow) => row.amount.toLocaleString() },
+    {
+      field: "status",
+      label: "Status",
+      ...tableColumnPresets.statusCol,
+      render: (row: WithdrawalRow) => <TableStatusBadge status={row.status} />,
+    },
+    { field: "createdAt", label: "Date", render: (row: WithdrawalRow) => new Date(row.createdAt).toLocaleDateString(), ...tableColumnPresets.dateCol },
+    {
+      field: "actions",
+      label: "Actions",
+      isActionColumn: true,
+      ...tableColumnPresets.actionsCol,
+      render: (row: WithdrawalRow) => (
+        <div className="flex gap-2">
+          {row.status === "approved" ? (
+            <Button size="sm" onClick={() => handleFinalize(row._id)}>
+              Finalize
+            </Button>
+          ) : (
+            <span className="text-xs text-muted-foreground italic">No actions</span>
+          )}
+        </div>
+      ),
+    },
+  ];
+
   return (
-    <div className="space-y-3">
-      <h1 className="text-2xl font-semibold">Withdrawal / Final List</h1>
-      <ul className="list-disc pl-6 text-sm">
-        {rows.map((row) => (
-          <li key={row._id} className="flex gap-2 items-center">
-            <span>{row.playerName} - {row.amount} - {row.status}</span>
-            {row.status === "approved" ? (
-              <Button size="sm" onClick={() => financialService.updateWithdrawalStatus(row._id, "finalized").then(load)}>Finalize</Button>
-            ) : null}
-          </li>
-        ))}
-      </ul>
-    </div>
+    <ListingPageContainer title="Withdrawal / Final List" fullWidth density="compact">
+      <PaginatedTableReference
+        key={tableKey}
+        columns={columns}
+        fetcher={fetcher}
+        height="calc(100vh - 200px)"
+        showSearch={false}
+        showPagination={false}
+        onTotalChange={setTotalCount}
+        page={page}
+        limit={limit}
+        onPageChange={(zeroBased) => setPage(zeroBased + 1)}
+        onRowsPerPageChange={setLimit}
+        compactDensity
+      />
+      <PaginationControlsReference
+        page={page - 1}
+        rowsPerPage={limit}
+        totalCount={totalCount}
+        onPageChange={(zeroBased) => setPage(zeroBased + 1)}
+        onRowsPerPageChange={setLimit}
+        rowsPerPageOptions={[20, 50, 100]}
+      />
+    </ListingPageContainer>
   );
 }

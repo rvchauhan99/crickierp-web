@@ -31,6 +31,8 @@ export type PaginatedTableReferenceProps = {
   compactDensity?: boolean;
   rowDetailsRender?: ((row: unknown) => ReactNode) | null;
   onRowClick?: ((row: unknown) => void) | null;
+  /** When set, the row whose `getRowKey(row)` equals this value gets a selection highlight. */
+  selectedRowKey?: string | number | null;
 };
 
 declare function PaginatedTableReference(props: PaginatedTableReferenceProps): ReactNode;

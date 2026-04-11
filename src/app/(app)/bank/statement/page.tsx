@@ -1,12 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
 import { financialService } from "@/services/financialService";
-import { BankRow } from "@/types/financial";
+import type { BankRow } from "@/types/bank";
 
 export default function BankStatementPage() {
   const [rows, setRows] = useState<BankRow[]>([]);
   useEffect(() => {
-    financialService.listBanks().then((res) => setRows(res?.data ?? []));
+    financialService.listBanks().then((res) => setRows((res?.data ?? []) as BankRow[]));
   }, []);
   return (
     <div className="space-y-3">

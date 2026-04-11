@@ -1,0 +1,319 @@
+"use client";
+
+import { useCallback, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { IconCheck, IconX } from "@tabler/icons-react";
+import { AutocompleteField, type AutocompleteOption } from "@/components/common/AutocompleteField";
+import { FormActions, FormContainer } from "@/components/common/FormContainer";
+import { FormGrid } from "@/components/common/FormGrid";
+import { FieldLabel } from "@/components/common/FieldLabel";
+import { FieldError } from "@/components/common/FieldError";
+import { Input } from "@/components/ui/Input";
+import { Button } from "@/components/ui/Button";
+import { ListingPageContainer } from "@/components/common/ListingPageContainer";
+import PaginatedTableReference, {
+  type PaginatedTableReferenceColumn,
+} from "@/components/common/PaginatedTableReference";
+import PaginationControlsReference from "@/components/common/PaginationControlsReference";
+import { TableStatusBadge } from "@/components/common/TableStatusBadge";
+import { useListingQueryStateReference } from "@/hooks/useListingQueryStateReference";
+import { tableColumnPresets } from "@/lib/tableStylePresets";
+import { createDeposit, listDepositsNormalized } from "@/services/depositService";
+import { listBanksNormalized } from "@/services/bankService";
+import type { DepositRow } from "@/types/deposit";
+import { getApiErrorMessage } from "@/lib/apiError";
+
+const COLUMN_FILTER_KEYS = [
+  "utr",
+  "utr_op",
+  "bankName",
+  "bankName_op",
+  "status",
+  "amount",
+  "amount_to",
+  "amount_op",
+  "createdAt_from",
+  "createdAt_to",
+  "createdAt_op",
+];
+
+function toOptionalFilterValue(value: string): string | undefined {
+  const trimmed = value.trim();
+  return trimmed === "" ? undefined : trimmed;
+}
+
+function formatRelative(iso?: string): string {
+  if (!iso) return "—";
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return "—";
+  const sec = Math.floor((Date.now() - t) / 1000);
+  if (sec < 60) return "Just now";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min} min ago`;
+  const h = Math.floor(min / 60);
+  if (h < 48) return `${h} h ago`;
+  const days = Math.floor(h / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+export function DepositBankerClient() {
+  const listingState = useListingQueryStateReference({
+    defaultLimit: 20,
+    filterKeys: COLUMN_FILTER_KEYS,
+  });
+  const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setFilter, setSort, clearFilters } =
+    listingState;
+
+  const [bankId, setBankId] = useState("");
+  const [utr, setUtr] = useState("");
+  const [amount, setAmount] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<{ bankId?: string; utr?: string; amount?: string }>({});
+  const [totalCount, setTotalCount] = useState(0);
+  const [tableKey, setTableKey] = useState(0);
+
+  const loadBankOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
+    try {
+      const res = await listBanksNormalized({
+        page: 1,
+        limit: 25,
+        q: query || undefined,
+        sortBy: "createdAt",
+        sortOrder: "desc",
+      });
+      return res.data.map((b) => ({
+        value: b.id,
+        label: `${b.holderName} - ${b.bankName} (${b.accountNumber.slice(-4)})`,
+      }));
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const onSubmit = async () => {
+    const next: typeof errors = {};
+    if (!bankId.trim()) next.bankId = "Bank is required.";
+    if (!utr.trim()) next.utr = "UTR is required.";
+    const amt = Number(amount);
+    if (!amount.trim() || Number.isNaN(amt) || amt < 1) next.amount = "Amount must be at least 1.";
+    setErrors(next);
+    if (Object.keys(next).length > 0) return;
+
+    setLoading(true);
+    try {
+      await createDeposit({ bankId: bankId.trim(), utr: utr.trim(), amount: amt });
+      toast.success("Deposit recorded successfully.");
+      setUtr("");
+      setAmount("");
+      setBankId("");
+      setErrors({});
+      setTableKey((k) => k + 1);
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Failed to record deposit"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const reset = () => {
+    setBankId("");
+    setUtr("");
+    setAmount("");
+    setErrors({});
+  };
+
+  const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
+
+  const handleColumnFilterChange = useCallback(
+    (key: string, value: string) => {
+      setFilter(key, value);
+    },
+    [setFilter],
+  );
+
+  const fetcher = useCallback(async (params: Record<string, unknown>) => {
+    return listDepositsNormalized("banker", params);
+  }, []);
+
+  const columns = useMemo<PaginatedTableReferenceColumn[]>(
+    () => [
+      {
+        field: "utr",
+        label: "UTR",
+        render: (row: DepositRow) => row.utr,
+        minWidth: 140,
+        sortable: true,
+        filterType: "text" as const,
+        filterKey: "utr",
+        operatorKey: "utr_op",
+        defaultFilterOperator: "contains",
+      },
+      {
+        field: "bankName",
+        label: "Bank / Holder",
+        render: (row: DepositRow) => row.bankName,
+        ...tableColumnPresets.nameCol,
+        sortable: true,
+        filterType: "text" as const,
+        filterKey: "bankName",
+        operatorKey: "bankName_op",
+        defaultFilterOperator: "contains",
+      },
+      {
+        field: "amount",
+        label: "Amount",
+        render: (row: DepositRow) => row.amount.toLocaleString(),
+        sortable: true,
+        minWidth: 110,
+        filterType: "number" as const,
+        filterKey: "amount",
+        filterKeyTo: "amount_to",
+        operatorKey: "amount_op",
+        defaultFilterOperator: "equals",
+      },
+      {
+        field: "status",
+        label: "Status",
+        filterType: "select" as const,
+        filterKey: "status",
+        filterOptions: [
+          { label: "Pending", value: "pending" },
+          { label: "Verified", value: "verified" },
+          { label: "Rejected", value: "rejected" },
+        ],
+        ...tableColumnPresets.statusCol,
+        render: (row: DepositRow) => <TableStatusBadge status={row.status} />,
+      },
+      {
+        field: "due",
+        label: "Due time",
+        sortable: false,
+        minWidth: 120,
+        render: (row: DepositRow) => formatRelative(row.createdAt),
+      },
+      {
+        field: "createdAt",
+        label: "Created at",
+        sortable: true,
+        filterType: "date" as const,
+        filterKey: "createdAt_from",
+        filterKeyTo: "createdAt_to",
+        operatorKey: "createdAt_op",
+        defaultFilterOperator: "inRange",
+        ...tableColumnPresets.dateCol,
+        render: (row: DepositRow) => (row.createdAt ? new Date(row.createdAt).toLocaleString() : "—"),
+      },
+    ],
+    [],
+  );
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-6 pb-4">
+      {/* FormContainer defaults to flex-1; without shrink-0 the table steals height and the add form can disappear above the fold. */}
+      <div className="w-full shrink-0">
+        <FormContainer
+          className="!flex-none"
+          title="Banker deposit"
+          description="Select a bank account, enter UTR and amount. Pending items appear below and in Exchange Depositors."
+        >
+        <FormGrid>
+          <div className="md:col-span-2">
+            <FieldLabel>Bank *</FieldLabel>
+            <AutocompleteField
+              value={bankId}
+              onChange={setBankId}
+              loadOptions={loadBankOptions}
+              placeholder="Search bank..."
+              emptyText="No banks found"
+            />
+            <FieldError message={errors.bankId} />
+          </div>
+          <div>
+            <FieldLabel>UTR *</FieldLabel>
+            <Input placeholder="UTR" value={utr} onChange={(e) => setUtr(e.target.value)} />
+            <FieldError message={errors.utr} />
+          </div>
+          <div>
+            <FieldLabel>Amount *</FieldLabel>
+            <Input
+              type="number"
+              min={1}
+              step="1"
+              placeholder="0"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+            <FieldError message={errors.amount} />
+          </div>
+        </FormGrid>
+        <FormActions className="justify-between px-5 py-4">
+          <Button
+            type="button"
+            variant="success"
+            leftIcon={<IconCheck size={18} />}
+            onClick={onSubmit}
+            disabled={loading}
+          >
+            {loading ? "Saving…" : "Save"}
+          </Button>
+          <Button type="button" variant="danger" leftIcon={<IconX size={18} />} onClick={reset} disabled={loading}>
+            Clear
+          </Button>
+        </FormActions>
+        </FormContainer>
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col">
+      <ListingPageContainer
+        title="Deposits awaiting exchange"
+        description="Entries pending exchange action (same queue as Exchange Depositors)."
+        density="compact"
+        fullWidth
+        secondaryButtonLabel="Reset filters"
+        onSecondaryClick={() => clearFilters({ keepQuickSearch: true })}
+      >
+        <PaginatedTableReference
+          key={tableKey}
+          columns={columns}
+          fetcher={fetcher}
+          height="min(520px, calc(100vh - 320px))"
+          showSearch={false}
+          showPagination={false}
+          onTotalChange={setTotalCount}
+          columnFilterValues={columnFilterValues}
+          onColumnFilterChange={handleColumnFilterChange}
+          filterParams={{
+            utr: toOptionalFilterValue(filters.utr || ""),
+            utr_op: toOptionalFilterValue(filters.utr_op || ""),
+            bankName: toOptionalFilterValue(filters.bankName || ""),
+            bankName_op: toOptionalFilterValue(filters.bankName_op || ""),
+            status: toOptionalFilterValue(filters.status || ""),
+            amount: toOptionalFilterValue(filters.amount || ""),
+            amount_to: toOptionalFilterValue(filters.amount_to || ""),
+            amount_op: toOptionalFilterValue(filters.amount_op || ""),
+            createdAt_from: toOptionalFilterValue(filters.createdAt_from || ""),
+            createdAt_to: toOptionalFilterValue(filters.createdAt_to || ""),
+            createdAt_op: toOptionalFilterValue(filters.createdAt_op || ""),
+          }}
+          page={page}
+          limit={limit}
+          sortBy={sortBy || "createdAt"}
+          sortOrder={sortOrder || "desc"}
+          onPageChange={(zeroBased) => setPage(zeroBased + 1)}
+          onRowsPerPageChange={setLimit}
+          onSortChange={(field, order) => setSort(field, order)}
+          compactDensity
+        />
+        <PaginationControlsReference
+          page={page - 1}
+          rowsPerPage={limit}
+          totalCount={totalCount}
+          onPageChange={(zeroBased) => setPage(zeroBased + 1)}
+          onRowsPerPageChange={setLimit}
+          rowsPerPageOptions={[10, 20, 50, 100, 200]}
+        />
+      </ListingPageContainer>
+      </div>
+    </div>
+  );
+}

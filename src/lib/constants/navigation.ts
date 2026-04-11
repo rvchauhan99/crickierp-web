@@ -1,5 +1,27 @@
 import { AppNavNode } from "@/types/navigation";
 
+/**
+ * Hides nodes whose `allowedRoles` does not include the current user's role.
+ * Empty or missing `allowedRoles` means visible to everyone.
+ */
+export function filterNavByRole(nodes: AppNavNode[], role: string | undefined): AppNavNode[] {
+  const r = role ?? "";
+  const out: AppNavNode[] = [];
+  for (const node of nodes) {
+    if (node.allowedRoles?.length && !node.allowedRoles.includes(r)) {
+      continue;
+    }
+    if (node.children?.length) {
+      const children = filterNavByRole(node.children, role);
+      if (children.length === 0 && !node.href) continue;
+      out.push({ ...node, children });
+    } else {
+      out.push({ ...node });
+    }
+  }
+  return out;
+}
+
 export const NAV_ITEMS: AppNavNode[] = [
   { id: "dashboard", label: "Dashboard", href: "/dashboard", keywords: ["home", "summary"] },
   {
@@ -53,6 +75,12 @@ export const NAV_ITEMS: AppNavNode[] = [
       { id: "withdrawal-banker", label: "Banker", href: "/withdrawal/banker", keywords: ["update"] },
       { id: "withdrawal-final", label: "Final List", href: "/withdrawal/final-list", keywords: ["approve"] },
     ],
+  },
+  {
+    id: "masters",
+    label: "Masters",
+    allowedRoles: ["superadmin"],
+    children: [{ id: "masters-panel", label: "Panel", href: "/masters", keywords: ["reason", "expense type", "lookup"] }],
   },
   {
     id: "reports",

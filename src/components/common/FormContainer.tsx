@@ -9,11 +9,15 @@ type FormActionsProps = {
   align?: "left" | "center" | "right";
 };
 
+/**
+ * Footer action row for forms. Use as a direct child of `FormContainer` so it stays
+ * below the scrollable body (sticky card footer). Default padding matches form content (`px-5`).
+ */
 export function FormActions({ children, className, align = "right" }: FormActionsProps) {
   return (
     <div
       className={cn(
-        "shrink-0 border-t border-[var(--border)] bg-white px-4 py-3 flex gap-2",
+        "flex shrink-0 items-center gap-2 border-t border-[var(--border)] bg-white px-5 py-3",
         align === "right" && "justify-end",
         align === "center" && "justify-center",
         align === "left" && "justify-start",

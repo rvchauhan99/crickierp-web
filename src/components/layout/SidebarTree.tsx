@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { NAV_ITEMS } from "@/lib/constants/navigation";
+import { NAV_ITEMS, filterNavByRole } from "@/lib/constants/navigation";
 import { AppNavNode } from "@/types/navigation";
 import { cn } from "@/lib/cn";
 import { useNotifications } from "@/context/NotificationContext";
@@ -336,12 +336,14 @@ export function SidebarTree({
 }: Props) {
   const pathname = usePathname();
   const router = useRouter();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const { unreadCount } = useNotifications();
   const [menuSearch, setMenuSearch] = useState("");
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
-  const flatItems = useMemo(() => flattenNodes(NAV_ITEMS), []);
+  const navItemsForUser = useMemo(() => filterNavByRole(NAV_ITEMS, user?.role), [user?.role]);
+
+  const flatItems = useMemo(() => flattenNodes(navItemsForUser), [navItemsForUser]);
 
   const searchResults = useMemo(() => {
     const q = menuSearch.trim().toLowerCase();
@@ -380,11 +382,11 @@ export function SidebarTree({
   }, [open, onClose]);
 
   const filteredNodes = useMemo(() => {
-    if (!menuSearch.trim()) return NAV_ITEMS;
-    return NAV_ITEMS.filter((node) => nodeMatches(node, menuSearch));
-  }, [menuSearch]);
+    if (!menuSearch.trim()) return navItemsForUser;
+    return navItemsForUser.filter((node) => nodeMatches(node, menuSearch));
+  }, [menuSearch, navItemsForUser]);
 
-  const visibleNodes = collapsed ? NAV_ITEMS : filteredNodes;
+  const visibleNodes = collapsed ? navItemsForUser : filteredNodes;
 
   const handleLogout = () => {
     logout().finally(() => {
