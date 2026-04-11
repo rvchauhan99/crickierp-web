@@ -9,6 +9,11 @@ import { PermissionGrid, Permission } from "@/components/sub-admin/PermissionGri
 import { useAuth } from "@/context/AuthContext";
 import { userService } from "@/services/userService";
 
+/** Masters is superadmin-only; never assign `masters.*` via this grid. */
+function withoutMastersKeys(keys: string[] | undefined): string[] {
+  return (keys ?? []).filter((k) => !k.startsWith("masters."));
+}
+
 type SubAdminFormProps = {
   defaultValues?: any;
   onSubmit: (data: any) => void;
@@ -27,8 +32,8 @@ export const SubAdminForm = forwardRef<{ requestSubmit: () => void }, SubAdminFo
     const [password, setPassword] = useState("");
     const [role, setRole] = useState(defaultValues?.role || "sub_admin");
     const [status, setStatus] = useState(defaultValues?.status || "active");
-    const [permissions, setPermissions] = useState<string[]>(defaultValues?.permissions || []);
-    
+    const [permissions, setPermissions] = useState<string[]>(() => withoutMastersKeys(defaultValues?.permissions));
+
     const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
 
     useEffect(() => {
@@ -37,6 +42,11 @@ export const SubAdminForm = forwardRef<{ requestSubmit: () => void }, SubAdminFo
         .then((res) => setAllPermissions(res?.data ?? []))
         .catch(() => setAllPermissions([]));
     }, []);
+
+    useEffect(() => {
+      if (!defaultValues) return;
+      setPermissions(withoutMastersKeys(defaultValues.permissions));
+    }, [defaultValues?._id]);
 
     const handleSubmit = (e?: React.FormEvent) => {
       e?.preventDefault();

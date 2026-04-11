@@ -5,6 +5,7 @@ import { Checkbox } from "@/components/ui/Checkbox";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
+import { PERMISSION_MODULE_ORDER, sortPermissionsInModule } from "@/lib/constants/permissionLayout";
 
 export interface Permission {
   _id: string;
@@ -21,20 +22,6 @@ interface PermissionGridProps {
   disabled?: boolean;
   density?: "comfortable" | "compact";
 }
-
-const MODULE_ORDER = [
-  "dashboard",
-  "sub_admin",
-  "exchange",
-  "player",
-  "bank",
-  "deposit",
-  "withdrawal",
-  "reports",
-  "user_history",
-  "notifications",
-  "expense",
-];
 
 export function PermissionGrid({
   allPermissions,
@@ -55,10 +42,10 @@ export function PermissionGrid({
       return acc;
     }, {} as Record<string, Permission[]>);
 
-    // Sort the keys based on MODULE_ORDER
+    // Sort the keys based on PERMISSION_MODULE_ORDER (sidebar order)
     const sortedKeys = Object.keys(grouped).sort((a, b) => {
-      const indexA = MODULE_ORDER.indexOf(a);
-      const indexB = MODULE_ORDER.indexOf(b);
+      const indexA = PERMISSION_MODULE_ORDER.indexOf(a);
+      const indexB = PERMISSION_MODULE_ORDER.indexOf(b);
       
       if (indexA !== -1 && indexB !== -1) return indexA - indexB;
       if (indexA !== -1) return -1;
@@ -68,7 +55,7 @@ export function PermissionGrid({
 
     const sortedGrouped: Record<string, Permission[]> = {};
     for (const key of sortedKeys) {
-      sortedGrouped[key] = grouped[key];
+      sortedGrouped[key] = sortPermissionsInModule(key, grouped[key]);
     }
     return sortedGrouped;
   }, [allPermissions]);

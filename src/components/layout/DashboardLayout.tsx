@@ -33,6 +33,7 @@ function isDialogOpen() {
 }
 
 import { PropsWithChildren } from "react";
+import { RoutePermissionGuard } from "@/components/layout/RoutePermissionGuard";
 
 export function DashboardLayout({ children }: PropsWithChildren) {
   const [notificationOpen, setNotificationOpen] = useState(false);
@@ -229,7 +230,7 @@ export function DashboardLayout({ children }: PropsWithChildren) {
               : "flex-1 overflow-y-auto bg-[var(--background)] py-2 px-3 lg:px-4"
           }
         >
-          {children}
+          <RoutePermissionGuard>{children}</RoutePermissionGuard>
         </main>
       </div>
 

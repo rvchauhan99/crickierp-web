@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { NAV_ITEMS, filterNavByRole } from "@/lib/constants/navigation";
+import { NAV_ITEMS, filterNavForUser } from "@/lib/constants/navigation";
 import { AppNavNode } from "@/types/navigation";
 import { cn } from "@/lib/cn";
 import { useNotifications } from "@/context/NotificationContext";
@@ -341,7 +341,10 @@ export function SidebarTree({
   const [menuSearch, setMenuSearch] = useState("");
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
-  const navItemsForUser = useMemo(() => filterNavByRole(NAV_ITEMS, user?.role), [user?.role]);
+  const navItemsForUser = useMemo(
+    () => filterNavForUser(NAV_ITEMS, user?.role, user?.permissions),
+    [user?.role, user?.permissions]
+  );
 
   const flatItems = useMemo(() => flattenNodes(navItemsForUser), [navItemsForUser]);
 

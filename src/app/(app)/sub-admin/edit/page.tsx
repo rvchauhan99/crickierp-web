@@ -83,7 +83,7 @@ export default function SubAdminEditPage() {
     setEmail(row.email ?? "");
     setUsername(row.username ?? "");
     setStatus((row.status as "active" | "deactive") ?? "active");
-    setPermissions(row.permissions ?? []);
+    setPermissions((row.permissions ?? []).filter((k) => !k.startsWith("masters.")));
   }, []);
 
   const loadUserOptions = useCallback(
