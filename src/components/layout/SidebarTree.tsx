@@ -471,29 +471,39 @@ export function SidebarTree({
       </div>
 
       {/* Bottom actions */}
-      <div className="flex shrink-0 items-center justify-end gap-1 border-t border-white/10 pt-2">
-        <button
-          type="button"
-          className="hidden h-8 w-8 items-center justify-center rounded-md text-blue-200 hover:bg-[#142847] hover:text-white transition-colors lg:flex"
-          onClick={onToggleFullscreen}
-          aria-label="Full screen"
-          title="Full screen (Ctrl+Shift+F)"
-        >
-          <IconMaximize className="h-4 w-4" />
-        </button>
-        <button
-          type="button"
-          className="hidden h-8 w-8 items-center justify-center rounded-md text-blue-200 hover:bg-[#142847] hover:text-white transition-colors lg:flex"
-          onClick={onToggleCollapse}
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {collapsed ? (
-            <IconChevronRight className="h-4 w-4" />
-          ) : (
-            <IconChevronLeft className="h-4 w-4" />
-          )}
-        </button>
+      <div className={cn(
+        "flex shrink-0 items-center gap-1 border-t border-white/10 pt-2",
+        collapsed ? "justify-center" : "justify-between px-2 pb-2"
+      )}>
+        {!collapsed && (
+          <span className="text-[10px] text-blue-300/50">
+            © 2026 All Rights Reserved
+          </span>
+        )}
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            className="hidden h-8 w-8 items-center justify-center rounded-md text-blue-200 hover:bg-[#142847] hover:text-white transition-colors lg:flex"
+            onClick={onToggleFullscreen}
+            aria-label="Full screen"
+            title="Full screen (Ctrl+Shift+F)"
+          >
+            <IconMaximize className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            className="hidden h-8 w-8 items-center justify-center rounded-md text-blue-200 hover:bg-[#142847] hover:text-white transition-colors lg:flex"
+            onClick={onToggleCollapse}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {collapsed ? (
+              <IconChevronRight className="h-4 w-4" />
+            ) : (
+              <IconChevronLeft className="h-4 w-4" />
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );

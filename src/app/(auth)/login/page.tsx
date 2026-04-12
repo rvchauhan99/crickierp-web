@@ -111,6 +111,10 @@ export default function LoginPage() {
             )}
           </div>
         </FormContainer>
+        <p className="mt-8 text-center text-[13px] text-muted-foreground/80">
+          Powered by CrickiERP <br />
+          All Rights Reserved © 2026
+        </p>
       </div>
     </div>
   );

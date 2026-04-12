@@ -1,229 +1,192 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { IconCalendar, IconRefresh } from "@tabler/icons-react";
-import { Button } from "@/components/ui/Button";
-import { DashboardKPIs } from "./DashboardKPIs";
-import { DashboardCharts } from "./DashboardCharts";
-import { cn } from "@/lib/cn";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { IconRefresh, IconLayoutDashboard } from "@tabler/icons-react";
+import { DashboardFilterPanel, type DashboardFilters } from "./DashboardFilterPanel";
+import { DATE_PRESETS, DEFAULT_PRESET } from "./DashboardFilterBar";
+import { DashboardKPIs, type DashboardSummary } from "./DashboardKPIs";
+import { DashboardTrendChart, type TrendDataPoint } from "./DashboardTrendChart";
+import { DashboardPLDonut } from "./DashboardPLDonut";
+import { DashboardRecentActivity, type RecentActivityItem } from "./DashboardRecentActivity";
 import { reportService } from "@/services/reportService";
+import { cn } from "@/lib/cn";
 
-const DATE_PRESETS = [
-  {
-    label: "Today",
-    fn: () => {
-      const d = new Date().toISOString().split("T")[0];
-      return { date_from: d, date_to: d };
-    },
-  },
-  {
-    label: "This Week",
-    fn: () => {
-      const n = new Date(),
-        dy = n.getDay(),
-        m = new Date(n);
-      m.setDate(n.getDate() - (dy === 0 ? 6 : dy - 1));
-      const e = new Date(m);
-      e.setDate(m.getDate() + 6);
-      return {
-        date_from: m.toISOString().split("T")[0],
-        date_to: e.toISOString().split("T")[0],
-      };
-    },
-  },
-  {
-    label: "This Month",
-    fn: () => {
-      const n = new Date();
-      return {
-        date_from: new Date(n.getFullYear(), n.getMonth(), 1)
-          .toISOString()
-          .split("T")[0],
-        date_to: new Date(n.getFullYear(), n.getMonth() + 1, 0)
-          .toISOString()
-          .split("T")[0],
-      };
-    },
-  },
-  {
-    label: "Last 30 Days",
-    fn: () => {
-      const d = new Date(),
-        p = new Date();
-      p.setDate(p.getDate() - 30);
-      return {
-        date_from: p.toISOString().split("T")[0],
-        date_to: d.toISOString().split("T")[0],
-      };
-    },
-  },
-  {
-    label: "Last 6M",
-    fn: () => {
-      const n = new Date(),
-        p = new Date(n);
-      p.setMonth(n.getMonth() - 6);
-      return {
-        date_from: p.toISOString().split("T")[0],
-        date_to: n.toISOString().split("T")[0],
-      };
-    },
-  },
-  {
-    label: "This Year",
-    fn: () => {
-      const n = new Date();
-      return {
-        date_from: new Date(n.getFullYear(), 0, 1)
-          .toISOString()
-          .split("T")[0],
-        date_to: new Date(n.getFullYear(), 11, 31)
-          .toISOString()
-          .split("T")[0],
-      };
-    },
-  },
-];
-
-const DEFAULT_DATE_PRESET_LABEL = "Today";
-
-function getInitialFilters() {
-  const preset = DATE_PRESETS.find((p) => p.label === DEFAULT_DATE_PRESET_LABEL);
+function getInitialFilters(): DashboardFilters {
+  const preset = DATE_PRESETS.find((p) => p.label === DEFAULT_PRESET);
   const dates = preset ? preset.fn() : { date_from: "", date_to: "" };
-  return {
-    ...dates,
-    status: "active",
+  return { 
+    date_from: dates.date_from || "", 
+    date_to: dates.date_to || "",
+    status: "all",
+    transaction_type: "all",
+    player_id: "",
+    bank_id: "",
+    exchange_id: "",
+    amount_from: "",
+    amount_to: "",
+    search: "",
   };
 }
 
-export function DashboardContent() {
-  const [filters, setFilters] = useState(getInitialFilters());
-  const [loading, setLoading] = useState(true);
-  const [summary, setSummary] = useState<{
-    totalExchanges: number;
-    activeExchanges: number;
-    totalUsers: number;
-    auditEvents: number;
-  } | null>(null);
-  const [activePreset, setActivePreset] = useState<string | null>(
-    DEFAULT_DATE_PRESET_LABEL
-  );
+function formatDisplayDate(dateStr: string): string {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+}
 
-  useEffect(() => {
-    reportService
-      .dashboardSummary({
+function isToday(dateStr: string): boolean {
+  const today = new Date().toISOString().split("T")[0];
+  return dateStr === today;
+}
+
+export function DashboardContent() {
+  const [filters, setFilters] = useState(getInitialFilters);
+  const [activePreset, setActivePreset] = useState<string | null>(DEFAULT_PRESET);
+  const [loading, setLoading] = useState(true);
+  const [refreshToken, setRefreshToken] = useState(0);
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [trendData, setTrendData] = useState<TrendDataPoint[]>([]);
+  const [recentActivity, setRecentActivity] = useState<RecentActivityItem[]>([]);
+  const abortRef = useRef<AbortController | null>(null);
+
+  // Derive current time label
+  const now = new Date();
+  const timeLabel = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+  const todayBoth = isToday(filters.date_from) && isToday(filters.date_to);
+
+  const fetchData = useCallback(async () => {
+    if (abortRef.current) abortRef.current.abort();
+    abortRef.current = new AbortController();
+    setLoading(true);
+
+    try {
+      const res = await reportService.dashboardSummary({
         fromDate: filters.date_from,
         toDate: filters.date_to,
-      })
-      .then((res) => setSummary(res?.data ?? null))
-      .catch(() => setSummary(null))
-      .finally(() => setLoading(false));
-  }, [filters.date_from, filters.date_to]);
+      });
 
-  const handleApplyFilters = (next: Partial<typeof filters>) => {
-    setLoading(true);
-    setFilters((prev) => ({ ...prev, ...next }));
-    if (next.date_from || next.date_to) {
-      setActivePreset(null);
+      const data = res?.data ?? res;
+      if (!data) return;
+
+      setSummary({
+        deposit: data.deposit ?? { totalAmount: 0, totalCount: 0, pendingCount: 0, pendingAmount: 0, verifiedAmount: 0, verifiedCount: 0, rejectedCount: 0, bonusTotal: 0 },
+        withdrawal: data.withdrawal ?? { totalAmount: 0, totalCount: 0, pendingCount: 0, pendingAmount: 0, finalizedAmount: 0, finalizedCount: 0, rejectedCount: 0 },
+        expense: data.expense ?? { totalAmount: 0, totalCount: 0, pendingCount: 0, approvedAmount: 0 },
+        pnl: data.pnl ?? { gross: 0, net: 0 },
+        exchanges: data.exchanges ?? { total: 0, active: 0 },
+        users: data.users ?? { total: 0 },
+      });
+      setTrendData(Array.isArray(data.trendData) ? data.trendData : []);
+      setRecentActivity(Array.isArray(data.recentActivity) ? data.recentActivity : []);
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "CanceledError") return;
+      setSummary(null);
+      setTrendData([]);
+      setRecentActivity([]);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [filters.date_from, filters.date_to, refreshToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleClearFilters = () => {
-    setLoading(true);
-    setFilters(getInitialFilters());
-    setActivePreset(DEFAULT_DATE_PRESET_LABEL);
-  };
+  useEffect(() => {
+    fetchData();
+    return () => abortRef.current?.abort();
+  }, [fetchData]);
 
-  const handlePreset = (preset: typeof DATE_PRESETS[0]) => {
-    setLoading(true);
+  const handlePreset = (preset: (typeof DATE_PRESETS)[0]) => {
     const dates = preset.fn();
-    setFilters((prev) => ({ ...prev, ...dates }));
+    setFilters((f) => ({ ...f, date_from: dates.date_from || "", date_to: dates.date_to || "" }));
     setActivePreset(preset.label);
   };
 
+  const handleReset = () => {
+    setFilters(getInitialFilters());
+    setActivePreset(DEFAULT_PRESET);
+  };
+
+  const handleApplyFilters = (next: DashboardFilters) => {
+    // If the dates changed from preset values we null activePreset
+    setFilters(next);
+  };
+
   return (
-    <div className="space-y-4">
-      {/* Header & Filters */}
-      <div className="flex flex-col gap-3 py-2">
-        <div className="flex items-center justify-between flex-wrap gap-3 border-b border-[var(--border)] pb-3">
+    <div className="space-y-4 pb-8">
+      {/* ───── Page Header ───── */}
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-[var(--brand-primary)] rounded-xl shadow-sm">
+            <IconLayoutDashboard className="w-5 h-5 text-white" />
+          </div>
           <div>
             <h1 className="text-xl font-bold tracking-tight text-slate-900 leading-tight">
-              Dashboard
+              Operations Dashboard
             </h1>
-            <p className="text-xs text-slate-500 mt-1">
-              Full-day summary and key operational metrics.
+            <p className="text-xs text-slate-400 mt-0.5">
+              {todayBoth ? (
+                <span>
+                  Showing <strong className="text-[var(--brand-primary)] font-semibold">Today&apos;s</strong> data
+                  {" "}&mdash; {timeLabel}
+                </span>
+              ) : (
+                <span>
+                  {filters.date_from && formatDisplayDate(filters.date_from)}
+                  {filters.date_to && filters.date_to !== filters.date_from ? ` → ${formatDisplayDate(filters.date_to)}` : ""}
+                </span>
+              )}
             </p>
           </div>
+        </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Status Tabs */}
-            <div className="flex items-center gap-1.5 mr-2">
-              <span className="text-[10px] uppercase font-semibold tracking-wider text-slate-400">
-                Status:
-              </span>
-              {[
-                { label: "Pending", value: "pending" },
-                { label: "Active", value: "active" },
-                { label: "Completed", value: "completed" },
-                { label: "Cancelled", value: "cancelled" },
-                { label: "All", value: "all" },
-              ].map((s) => {
-                const isSelected = filters.status === s.value;
-                return (
-                  <button
-                    key={s.value}
-                    onClick={() => handleApplyFilters({ status: s.value })}
-                    className={cn(
-                      "text-[11px] px-2.5 py-1 rounded-full border font-medium transition-all",
-                      isSelected
-                        ? "bg-[var(--brand-primary)] text-white border-[var(--brand-primary)] shadow-sm"
-                        : "bg-white border-slate-200 text-slate-600 hover:border-[var(--brand-primary)]/50 hover:text-[var(--brand-primary)]"
-                    )}
-                  >
-                    {s.label}
-                  </button>
-                );
-              })}
-            </div>
+        <button
+          onClick={() => setRefreshToken((t) => t + 1)}
+          disabled={loading}
+          className={cn(
+            "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:border-[var(--brand-primary)]/50 hover:text-[var(--brand-primary)] transition-all disabled:opacity-50",
+          )}
+        >
+          <IconRefresh className={cn("w-3.5 h-3.5", loading && "animate-spin")} />
+          Refresh
+        </button>
+      </div>
 
-            {/* Date Presets */}
-            <div className="flex items-center gap-1.5 bg-slate-50 p-1 rounded-lg border border-slate-100">
-              <span className="flex items-center gap-1 text-[10px] uppercase font-semibold tracking-wider text-slate-400 ml-1">
-                <IconCalendar className="w-3 h-3" /> Quick:
-              </span>
-              {DATE_PRESETS.map((p) => (
-                <button
-                  key={p.label}
-                  onClick={() => handlePreset(p)}
-                  className={cn(
-                    "text-[11px] px-2 py-0.5 rounded-md font-medium transition-colors",
-                    activePreset === p.label
-                      ? "bg-white text-slate-800 shadow-sm border border-slate-200"
-                      : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50 border border-transparent"
-                  )}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
+      {/* ───── Filter panel ───── */}
+      <DashboardFilterPanel
+        filters={filters}
+        onApply={handleApplyFilters}
+        activePreset={activePreset}
+        onPreset={handlePreset}
+        onReset={handleReset}
+        loading={loading}
+      />
 
-            <div className="h-4 w-px bg-slate-200 mx-1" />
-            
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleClearFilters}
-              className="h-7 text-xs px-2 gap-1"
-            >
-              <IconRefresh className="w-3 h-3" /> Reset
-            </Button>
-          </div>
+      {/* ───── Today badge ───── */}
+      {todayBoth && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-[var(--brand-primary)]/5 border border-[var(--brand-primary)]/20 rounded-xl">
+          <div className="w-2 h-2 rounded-full bg-[var(--brand-primary)] animate-pulse" />
+          <span className="text-xs font-medium text-[var(--brand-primary)]">
+            Full Day Summary — {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
+          </span>
+        </div>
+      )}
+
+      {/* ───── KPI Cards ───── */}
+      <DashboardKPIs summary={summary} loading={loading} />
+
+      {/* ───── Charts Row ───── */}
+      <div className="grid grid-cols-12 gap-4">
+        {/* Trend Chart — 8/12 */}
+        <div className="col-span-12 lg:col-span-8 min-h-[360px]">
+          <DashboardTrendChart data={trendData} loading={loading} />
+        </div>
+
+        {/* Donut Chart — 4/12 */}
+        <div className="col-span-12 lg:col-span-4 min-h-[360px]">
+          <DashboardPLDonut summary={summary} loading={loading} />
         </div>
       </div>
 
-      <DashboardKPIs summary={summary} loading={loading} />
-
-      <DashboardCharts filters={filters} />
+      {/* ───── Recent Activity Table ───── */}
+      <DashboardRecentActivity items={recentActivity} loading={loading} />
     </div>
   );
 }

@@ -175,13 +175,17 @@ export async function listBanksRaw(page = 1, pageSize = 20) {
 }
 
 export type BankLedgerRow = {
-  kind: "deposit" | "expense";
+  kind: "deposit" | "withdrawal" | "expense";
   refId: string;
   at: string;
   label: string;
+  utr?: string;
+  playerName?: string;
+  createdByName?: string;
   amount: number;
   direction: "credit" | "debit";
   balanceAfter: number;
+  bonusMemo?: number;
 };
 
 export type BankLedgerResponse = {
@@ -194,12 +198,17 @@ export type BankLedgerResponse = {
     currentBalance: number;
   };
   periodOpeningBalance: number;
+  periodClosingBalance: number;
+  totalCredits: number;
+  totalDebits: number;
+  totalBonusGiven: number;
+  totalBonusReversed: number;
   rows: BankLedgerRow[];
 };
 
 export async function getBankLedger(
   bankId: string,
-  query?: { fromDate?: string; toDate?: string },
+  query?: { fromDate?: string; toDate?: string; entryType?: "all" | "deposit" | "withdrawal" | "expense" },
 ): Promise<BankLedgerResponse> {
   const res = await apiClient.get<{ success: boolean; data: BankLedgerResponse }>(
     `/bank/${bankId}/ledger`,
