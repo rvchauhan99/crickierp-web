@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { SidebarTree } from "@/components/layout/SidebarTree";
-import { NotificationPanel } from "@/components/layout/NotificationPanel";
 import {
   IconMenu2,
   IconX,
@@ -36,7 +35,6 @@ import { PropsWithChildren } from "react";
 import { RoutePermissionGuard } from "@/components/layout/RoutePermissionGuard";
 
 export function DashboardLayout({ children }: PropsWithChildren) {
-  const [notificationOpen, setNotificationOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(getStoredSidebarCollapsed);
   const [sidebarHoverExpanded, setSidebarHoverExpanded] = useState(false);
@@ -161,7 +159,6 @@ export function DashboardLayout({ children }: PropsWithChildren) {
               setSidebarOpen(false);
               persistFocusFullscreen(true);
             }}
-            onOpenNotifications={() => setNotificationOpen(true)}
           />
         </div>
       )}
@@ -233,12 +230,6 @@ export function DashboardLayout({ children }: PropsWithChildren) {
           <RoutePermissionGuard>{children}</RoutePermissionGuard>
         </main>
       </div>
-
-      {/* Notification panel */}
-      <NotificationPanel
-        open={notificationOpen}
-        onClose={() => setNotificationOpen(false)}
-      />
     </div>
   );
 }

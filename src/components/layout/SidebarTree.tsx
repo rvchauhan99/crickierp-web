@@ -6,7 +6,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { NAV_ITEMS, filterNavForUser } from "@/lib/constants/navigation";
 import { AppNavNode } from "@/types/navigation";
 import { cn } from "@/lib/cn";
-import { useNotifications } from "@/context/NotificationContext";
 import { useAuth } from "@/context/AuthContext";
 import {
   IconChevronDown,
@@ -15,7 +14,6 @@ import {
   IconSettings,
   IconLogout,
   IconSearch,
-  IconBell,
   IconMaximize,
   IconX,
 } from "@tabler/icons-react";
@@ -323,7 +321,6 @@ type Props = {
   onClose: () => void;
   onToggleCollapse: () => void;
   onToggleFullscreen: () => void;
-  onOpenNotifications: () => void;
 };
 
 export function SidebarTree({
@@ -332,12 +329,10 @@ export function SidebarTree({
   onClose,
   onToggleCollapse,
   onToggleFullscreen,
-  onOpenNotifications,
 }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const { logout, user } = useAuth();
-  const { unreadCount } = useNotifications();
   const [menuSearch, setMenuSearch] = useState("");
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
@@ -448,27 +443,6 @@ export function SidebarTree({
           )}
         </div>
       )}
-
-      {/* Notifications button */}
-      <button
-        type="button"
-        onClick={() => { onOpenNotifications(); onClose(); }}
-        className={cn(
-          "mb-2 flex shrink-0 items-center gap-2 rounded-md border-l-4 border-transparent px-3 py-1.5 text-sm font-medium text-blue-100 hover:bg-[#142847] hover:text-white transition-colors",
-          collapsed ? "h-10 w-10 justify-center px-1.5" : "w-full"
-        )}
-        title={collapsed ? "Notifications" : undefined}
-      >
-        <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
-          <IconBell className="h-5 w-5" />
-          {unreadCount > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-0.5 text-[9px] font-medium text-white">
-              {unreadCount > 99 ? "99+" : unreadCount}
-            </span>
-          )}
-        </span>
-        {!collapsed && <span className="flex-1 truncate">Notifications</span>}
-      </button>
 
       {/* Navigation — only this region scrolls */}
       <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb]:bg-white/20">

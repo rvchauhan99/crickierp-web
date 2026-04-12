@@ -25,7 +25,7 @@ export function filterNavByRole(nodes: AppNavNode[], role: string | undefined): 
 
 /**
  * Hides leaf items whose `requiredPermission` is not in `permissions` for non-superadmin users.
- * Leaves without `requiredPermission` stay visible (e.g. Notifications).
+ * Leaves without `requiredPermission` stay visible to any authenticated user.
  * Superadmin: returns `nodes` unchanged (call after `filterNavByRole`).
  */
 export function filterNavByPermissions(
@@ -278,6 +278,4 @@ export const NAV_ITEMS: AppNavNode[] = [
     keywords: ["audit", "login"],
     requiredPermission: NAV_PERMISSIONS.USER_HISTORY_VIEW,
   },
-  /** No `requiredPermission`: visible to any authenticated user until a notifications permission exists in the API. */
-  { id: "notifications", label: "Notifications", href: "/notifications", keywords: ["alerts", "unread"] },
 ];

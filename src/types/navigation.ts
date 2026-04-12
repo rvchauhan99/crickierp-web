@@ -7,7 +7,7 @@ export type AppNavNode = {
   allowedRoles?: string[];
   /**
    * Permission key (API `user.permissions`) required to show this leaf for non-superadmin users.
-   * Omit for items visible to any authenticated user (e.g. Notifications).
+   * Omit for items visible to any authenticated user.
    */
   requiredPermission?: string;
   children?: AppNavNode[];

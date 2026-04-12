@@ -1,7 +1,7 @@
 /**
  * Top-level module column order for the Sub Admin permission grid.
  * Keep aligned with `NAV_ITEMS` in `./navigation.ts` (sidebar).
- * The masters area is superadmin-only and not assignable via this grid; `notifications` covers future API keys.
+ * The masters area is superadmin-only and not assignable via this grid.
  */
 export const PERMISSION_MODULE_ORDER: string[] = [
   "dashboard",
@@ -14,7 +14,6 @@ export const PERMISSION_MODULE_ORDER: string[] = [
   "expense",
   "reports",
   "user_history",
-  "notifications",
 ];
 
 /**
