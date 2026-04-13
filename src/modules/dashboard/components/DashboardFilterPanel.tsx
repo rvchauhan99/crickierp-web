@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { AutocompleteField } from "@/components/common/AutocompleteField";
-import { DATE_PRESETS, DEFAULT_PRESET } from "./DashboardFilterBar";
+import { DATE_PRESETS } from "./DashboardFilterBar";
 import { cn } from "@/lib/cn";
 import { apiClient } from "@/services/apiClient";
 
@@ -31,6 +31,10 @@ interface DashboardFilterPanelProps {
   onReset: () => void;
   loading?: boolean;
 }
+
+type PlayerOptionRow = { _id: string; playerName?: string; name?: string; playerId?: string };
+type BankOptionRow = { _id: string; bankName?: string; holderName?: string };
+type ExchangeOptionRow = { _id: string; exchangeName?: string; name?: string };
 
 export function DashboardFilterPanel({
   filters,
@@ -70,6 +74,7 @@ export function DashboardFilterPanel({
     if (filters.transaction_type && filters.transaction_type !== "all") count++;
     if (filters.player_id) count++;
     if (filters.bank_id) count++;
+    if (filters.exchange_id) count++;
     if (filters.amount_from) count++;
     if (filters.amount_to) count++;
     if (filters.search) count++;
@@ -199,7 +204,7 @@ export function DashboardFilterPanel({
             >
               <option value="all">All</option>
               <option value="pending">Pending</option>
-              <option value="finalized">Finalized / Verified</option>
+              <option value="approved">Approved</option>
               <option value="rejected">Rejected</option>
             </Select>
           </div>
@@ -227,8 +232,8 @@ export function DashboardFilterPanel({
               disabled={loading}
               loadOptions={async (query) => {
                 const res = await apiClient.get("/players", { params: { search: query, limit: 20 } });
-                const rows = Array.isArray(res.data?.data) ? res.data.data : [];
-                return rows.map((p: any) => ({ value: p._id, label: p.playerName || p.name || p.playerId }));
+                const rows: PlayerOptionRow[] = Array.isArray(res.data?.data) ? res.data.data : [];
+                return rows.map((p) => ({ value: p._id, label: p.playerName || p.name || p.playerId || p._id }));
               }}
             />
           </div>
@@ -241,8 +246,8 @@ export function DashboardFilterPanel({
               disabled={loading}
               loadOptions={async (query) => {
                 const res = await apiClient.get("/bank", { params: { search: query, limit: 20 } });
-                const rows = Array.isArray(res.data?.data) ? res.data.data : [];
-                return rows.map((b: any) => ({ value: b._id, label: b.bankName || b.holderName || b._id }));
+                const rows: BankOptionRow[] = Array.isArray(res.data?.data) ? res.data.data : [];
+                return rows.map((b) => ({ value: b._id, label: b.bankName || b.holderName || b._id }));
               }}
             />
           </div>
@@ -255,8 +260,8 @@ export function DashboardFilterPanel({
               disabled={loading}
               loadOptions={async (query) => {
                 const res = await apiClient.get("/exchange", { params: { search: query, limit: 20 } });
-                const rows = Array.isArray(res.data?.data) ? res.data.data : [];
-                return rows.map((e: any) => ({ value: e._id, label: e.exchangeName || e.name || e._id }));
+                const rows: ExchangeOptionRow[] = Array.isArray(res.data?.data) ? res.data.data : [];
+                return rows.map((e) => ({ value: e._id, label: e.exchangeName || e.name || e._id }));
               }}
             />
           </div>
