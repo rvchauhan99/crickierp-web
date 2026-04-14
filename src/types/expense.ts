@@ -25,6 +25,10 @@ export type ExpenseRow = {
   description?: string;
   bankId?: string;
   bankName: string;
+  settlementAccountType?: "bank" | "person";
+  liabilityPersonId?: string;
+  liabilityPersonName?: string;
+  liabilityEntryId?: string;
   status: ExpenseStatus;
   rejectReason?: string;
   bankBalanceAfter?: number;
@@ -36,6 +40,10 @@ export type ExpenseRow = {
   approvedBy?: string;
   documents?: ExpenseDocumentMeta[];
 };
+
+export type ExpenseApproveInput =
+  | { settlementAccountType: "bank"; bankId: string }
+  | { settlementAccountType: "person"; liabilityPersonId: string };
 
 export type ExpenseCreateInput = {
   expenseTypeId: string;

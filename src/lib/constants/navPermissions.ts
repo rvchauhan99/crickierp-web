@@ -34,4 +34,11 @@ export const NAV_PERMISSIONS = {
   EXPENSE_ADD: "expense.add",
   EXPENSE_LIST: "expense.list",
   EXPENSE_AUDIT: "expense.audit",
+
+  LIABILITY_PERSON_ADD: "liability.person_add",
+  LIABILITY_PERSON_LIST: "liability.person_list",
+  LIABILITY_ENTRY_ADD: "liability.entry_add",
+  LIABILITY_ENTRY_LIST: "liability.entry_list",
+  LIABILITY_LEDGER_VIEW: "liability.ledger_view",
+  LIABILITY_REPORT_VIEW: "liability.report_view",
 } as const;

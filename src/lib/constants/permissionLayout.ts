@@ -12,6 +12,7 @@ export const PERMISSION_MODULE_ORDER: string[] = [
   "deposit",
   "withdrawal",
   "expense",
+  "liability",
   "reports",
   "user_history",
 ];
@@ -27,6 +28,7 @@ export const PERMISSION_ACTION_ORDER: Partial<Record<string, string[]>> = {
   withdrawal: ["exchange", "banker", "final_view"],
   reports: ["transaction_history", "expense_analysis"],
   expense: ["add", "list", "audit"],
+  liability: ["person_add", "person_list", "entry_add", "entry_list", "ledger_view", "report_view"],
 };
 
 export function sortPermissionsInModule<T extends { action: string }>(module: string, permissions: T[]): T[] {

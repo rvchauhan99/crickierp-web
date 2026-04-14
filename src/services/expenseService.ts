@@ -1,5 +1,6 @@
 import { apiClient } from "./apiClient";
 import type {
+  ExpenseApproveInput,
   ExpenseCreateInput,
   ExpenseDocumentMeta,
   ExpenseRow,
@@ -64,6 +65,22 @@ export function normalizeExpense(row: Record<string, unknown>): ExpenseRow {
     bankId = String((b as { _id?: unknown })._id);
   } else if (typeof b === "string") bankId = b;
 
+  let liabilityPersonId: string | undefined;
+  const lp = row.liabilityPersonId;
+  if (lp && typeof lp === "object" && lp !== null && "_id" in lp) {
+    liabilityPersonId = String((lp as { _id?: unknown })._id);
+  } else if (lp != null) {
+    liabilityPersonId = String(lp);
+  }
+
+  let liabilityEntryId: string | undefined;
+  const le = row.liabilityEntryId;
+  if (le && typeof le === "object" && le !== null && "_id" in le) {
+    liabilityEntryId = String((le as { _id?: unknown })._id);
+  } else if (le != null) {
+    liabilityEntryId = String(le);
+  }
+
   const createdById =
     row.createdBy && typeof row.createdBy === "object" && row.createdBy !== null && "_id" in row.createdBy
       ? String((row.createdBy as { _id?: unknown })._id)
@@ -115,6 +132,13 @@ export function normalizeExpense(row: Record<string, unknown>): ExpenseRow {
     description: String(row.description ?? "").trim() || undefined,
     bankId,
     bankName: String(row.bankName ?? "").trim(),
+    settlementAccountType:
+      row.settlementAccountType === "bank" || row.settlementAccountType === "person"
+        ? row.settlementAccountType
+        : undefined,
+    liabilityPersonId,
+    liabilityPersonName: String(row.liabilityPersonName ?? "").trim() || undefined,
+    liabilityEntryId,
     status,
     rejectReason: row.rejectReason != null ? String(row.rejectReason) : undefined,
     bankBalanceAfter: row.bankBalanceAfter != null ? Number(row.bankBalanceAfter) : undefined,
@@ -183,10 +207,8 @@ export async function getExpenseDocumentViewUrl(
   };
 }
 
-export async function approveExpense(id: string, bankId: string): Promise<unknown> {
-  const res = await apiClient.post<{ success: boolean; data: unknown }>(`/expense/${id}/approve`, {
-    bankId,
-  });
+export async function approveExpense(id: string, input: ExpenseApproveInput): Promise<unknown> {
+  const res = await apiClient.post<{ success: boolean; data: unknown }>(`/expense/${id}/approve`, input);
   return res.data?.data;
 }
 

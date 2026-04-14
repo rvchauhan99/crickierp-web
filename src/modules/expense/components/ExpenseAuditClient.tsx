@@ -37,6 +37,7 @@ import {
   rejectExpense,
 } from "@/services/expenseService";
 import { listBanksNormalized } from "@/services/bankService";
+import { listLiabilityPersonsNormalized } from "@/services/liabilityService";
 import { userService } from "@/services/userService";
 import type { ExpenseRow } from "@/types/expense";
 import { getApiErrorMessage } from "@/lib/apiError";
@@ -135,6 +136,21 @@ function ExpenseDetailCard({
       icon: <IconFileText className="size-4 shrink-0 text-gray-400" />,
       label: "Memo",
       value: expense.description || "—",
+    },
+    {
+      icon: <IconCreditCard className="size-4 shrink-0 text-gray-400" />,
+      label: "Settlement",
+      value:
+        expense.settlementAccountType === "bank"
+          ? `Bank: ${expense.bankName || "—"}`
+          : expense.settlementAccountType === "person"
+            ? `Person: ${expense.liabilityPersonName || "—"}`
+            : "Pending",
+    },
+    {
+      icon: <IconFileText className="size-4 shrink-0 text-gray-400" />,
+      label: "Liability Link",
+      value: expense.liabilityEntryId ? `Entry ${expense.liabilityEntryId}` : "—",
     },
   ];
 
@@ -247,13 +263,15 @@ export function ExpenseAuditClient() {
   const [tableKey, setTableKey] = useState(0);
   const [selectedExpense, setSelectedExpense] = useState<ExpenseRow | null>(null);
 
+  const [settlementAccountType, setSettlementAccountType] = useState<"bank" | "person">("bank");
   const [bankId, setBankId] = useState("");
+  const [liabilityPersonId, setLiabilityPersonId] = useState("");
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReasonId, setRejectReasonId] = useState("");
   const [rejectRemark, setRejectRemark] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [viewingDocIndex, setViewingDocIndex] = useState<number | null>(null);
-  const [errors, setErrors] = useState<{ bankId?: string }>({});
+  const [errors, setErrors] = useState<{ bankId?: string; liabilityPersonId?: string }>({});
 
   const loadBankOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {
@@ -268,6 +286,22 @@ export function ExpenseAuditClient() {
         value: b.id,
         label: `${b.holderName} - ${b.bankName} (${String(b.accountNumber).slice(-4)})`,
       }));
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const loadLiabilityPersonOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
+    try {
+      const res = await listLiabilityPersonsNormalized({
+        page: 1,
+        limit: 25,
+        q: query || undefined,
+        sortBy: "name",
+        sortOrder: "asc",
+        isActive: "true",
+      });
+      return res.data.map((p) => ({ value: p.id, label: p.name }));
     } catch {
       return [];
     }
@@ -313,7 +347,9 @@ export function ExpenseAuditClient() {
 
   const closeSidebar = useCallback(() => {
     setSelectedExpense(null);
+    setSettlementAccountType("bank");
     setBankId("");
+    setLiabilityPersonId("");
     setViewingDocIndex(null);
     setErrors({});
   }, []);
@@ -342,14 +378,26 @@ export function ExpenseAuditClient() {
   const onApproveSubmit = async () => {
     if (!selectedExpense) return;
     const next: typeof errors = {};
-    if (!bankId.trim()) next.bankId = "Bank is required to approve.";
+    if (settlementAccountType === "bank" && !bankId.trim()) next.bankId = "Bank is required to approve.";
+    if (settlementAccountType === "person" && !liabilityPersonId.trim()) {
+      next.liabilityPersonId = "Person is required to approve.";
+    }
     setErrors(next);
     if (Object.keys(next).length > 0) return;
 
     setActionLoading(true);
     try {
-      await approveExpense(selectedExpense.id, bankId.trim());
-      toast.success("Expense approved; bank debited.");
+      await approveExpense(
+        selectedExpense.id,
+        settlementAccountType === "bank"
+          ? { settlementAccountType: "bank", bankId: bankId.trim() }
+          : { settlementAccountType: "person", liabilityPersonId: liabilityPersonId.trim() },
+      );
+      toast.success(
+        settlementAccountType === "bank"
+          ? "Expense approved; bank debited."
+          : "Expense approved; liability posted against person.",
+      );
       closeSidebar();
       setTableKey((k) => k + 1);
     } catch (error: unknown) {
@@ -546,15 +594,47 @@ export function ExpenseAuditClient() {
 
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <FieldLabel>Bank account to debit *</FieldLabel>
-                <AutocompleteField
-                  value={bankId}
-                  onChange={setBankId}
-                  loadOptions={loadBankOptions}
-                  placeholder="Select bank…"
+                <FieldLabel>Settlement Account Type *</FieldLabel>
+                <select
+                  className="w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
+                  value={settlementAccountType}
+                  onChange={(e) => {
+                    const nextType = e.target.value === "person" ? "person" : "bank";
+                    setSettlementAccountType(nextType);
+                    setErrors({});
+                  }}
                   disabled={selectedExpense.status !== "pending_audit" || actionLoading}
-                />
-                <FieldError message={errors.bankId} />
+                >
+                  <option value="bank">Bank</option>
+                  <option value="person">Person</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                {settlementAccountType === "bank" ? (
+                  <>
+                    <FieldLabel>Bank account to debit *</FieldLabel>
+                    <AutocompleteField
+                      value={bankId}
+                      onChange={setBankId}
+                      loadOptions={loadBankOptions}
+                      placeholder="Select bank…"
+                      disabled={selectedExpense.status !== "pending_audit" || actionLoading}
+                    />
+                    <FieldError message={errors.bankId} />
+                  </>
+                ) : (
+                  <>
+                    <FieldLabel>Person account to credit *</FieldLabel>
+                    <AutocompleteField
+                      value={liabilityPersonId}
+                      onChange={setLiabilityPersonId}
+                      loadOptions={loadLiabilityPersonOptions}
+                      placeholder="Select liability person…"
+                      disabled={selectedExpense.status !== "pending_audit" || actionLoading}
+                    />
+                    <FieldError message={errors.liabilityPersonId} />
+                  </>
+                )}
               </div>
 
               <div className="flex flex-col gap-2 pt-2 border-t border-[var(--border)]">

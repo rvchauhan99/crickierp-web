@@ -1,0 +1,268 @@
+"use client";
+
+import { useCallback, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { ListingPageContainer } from "@/components/common/ListingPageContainer";
+import { FormContainer, FormActions } from "@/components/common/FormContainer";
+import { FormGrid } from "@/components/common/FormGrid";
+import { FieldLabel } from "@/components/common/FieldLabel";
+import { Input } from "@/components/ui/Input";
+import { Button } from "@/components/ui/Button";
+import { AutocompleteField, type AutocompleteOption } from "@/components/common/AutocompleteField";
+import PaginatedTableReference, {
+  type PaginatedTableReferenceColumn,
+} from "@/components/common/PaginatedTableReference";
+import PaginationControlsReference from "@/components/common/PaginationControlsReference";
+import { useListingQueryStateReference } from "@/hooks/useListingQueryStateReference";
+import { tableColumnPresets } from "@/lib/tableStylePresets";
+import { createLiabilityEntry, listLiabilityEntriesNormalized, listLiabilityPersonsNormalized } from "@/services/liabilityService";
+import { listBanksNormalized } from "@/services/bankService";
+import { getApiErrorMessage } from "@/lib/apiError";
+import type { LiabilityAccountType, LiabilityEntryRow, LiabilityEntryType } from "@/types/liability";
+
+const FILTER_KEYS = ["entryType", "accountType", "accountId", "entryDate_from", "entryDate_to"];
+
+function todayYmd(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export function LiabilityEntryClient() {
+  const listingState = useListingQueryStateReference({
+    defaultLimit: 20,
+    filterKeys: FILTER_KEYS,
+  });
+  const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setSort, clearFilters } = listingState;
+
+  const [entryDate, setEntryDate] = useState(todayYmd);
+  const [entryType, setEntryType] = useState<LiabilityEntryType>("journal");
+  const [amount, setAmount] = useState("");
+  const [fromAccountType, setFromAccountType] = useState<LiabilityAccountType>("person");
+  const [fromAccountId, setFromAccountId] = useState("");
+  const [toAccountType, setToAccountType] = useState<LiabilityAccountType>("bank");
+  const [toAccountId, setToAccountId] = useState("");
+  const [referenceNo, setReferenceNo] = useState("");
+  const [remark, setRemark] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [tableKey, setTableKey] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+
+  const loadPersonOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
+    const res = await listLiabilityPersonsNormalized({ page: 1, limit: 30, q: query, sortBy: "name", sortOrder: "asc" });
+    return res.data.map((p) => ({ value: p.id, label: p.name }));
+  }, []);
+
+  const loadBankOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
+    const res = await listBanksNormalized({
+      page: 1,
+      limit: 30,
+      q: query || undefined,
+      sortBy: "createdAt",
+      sortOrder: "desc",
+    });
+    return res.data.map((b) => ({
+      value: b.id,
+      label: `${b.holderName} - ${b.bankName} (${String(b.accountNumber).slice(-4)})`,
+    }));
+  }, []);
+
+  const loadFromOptions = useCallback(
+    async (query: string) => (fromAccountType === "person" ? loadPersonOptions(query) : loadBankOptions(query)),
+    [fromAccountType, loadPersonOptions, loadBankOptions],
+  );
+
+  const loadToOptions = useCallback(
+    async (query: string) => (toAccountType === "person" ? loadPersonOptions(query) : loadBankOptions(query)),
+    [toAccountType, loadPersonOptions, loadBankOptions],
+  );
+
+  const fetcher = useCallback(async (params: Record<string, unknown>) => listLiabilityEntriesNormalized(params), []);
+
+  const filterParams = useMemo(
+    () => ({
+      entryType: filters.entryType || undefined,
+      accountType: filters.accountType || undefined,
+      accountId: filters.accountId || undefined,
+      entryDate_from: filters.entryDate_from || undefined,
+      entryDate_to: filters.entryDate_to || undefined,
+    }),
+    [filters],
+  );
+
+  const resetForm = useCallback(() => {
+    setEntryDate(todayYmd());
+    setEntryType("journal");
+    setAmount("");
+    setFromAccountType("person");
+    setFromAccountId("");
+    setToAccountType("bank");
+    setToAccountId("");
+    setReferenceNo("");
+    setRemark("");
+  }, []);
+
+  const onSubmit = async () => {
+    const amt = Number(amount);
+    if (!entryDate || !/^\d{4}-\d{2}-\d{2}$/.test(entryDate)) return toast.error("Valid entry date required.");
+    if (!fromAccountId.trim() || !toAccountId.trim()) return toast.error("Both accounts are required.");
+    if (!amount.trim() || Number.isNaN(amt) || amt <= 0) return toast.error("Valid amount required.");
+    setSaving(true);
+    try {
+      await createLiabilityEntry({
+        entryDate,
+        entryType,
+        amount: amt,
+        fromAccountType,
+        fromAccountId: fromAccountId.trim(),
+        toAccountType,
+        toAccountId: toAccountId.trim(),
+        referenceNo: referenceNo.trim() || undefined,
+        remark: remark.trim() || undefined,
+      });
+      toast.success("Liability entry posted.");
+      resetForm();
+      setTableKey((k) => k + 1);
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Failed to post liability entry"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const columns = useMemo<PaginatedTableReferenceColumn[]>(
+    () => [
+      { field: "entryDate", label: "Date", ...tableColumnPresets.dateCol, sortable: true },
+      { field: "entryType", label: "Type", sortable: true },
+      { field: "fromAccountName", label: "From", render: (r: LiabilityEntryRow) => r.fromAccountName || r.fromAccountId },
+      { field: "toAccountName", label: "To", render: (r: LiabilityEntryRow) => r.toAccountName || r.toAccountId },
+      { field: "amount", label: "Amount", render: (r: LiabilityEntryRow) => r.amount.toLocaleString(), sortable: true },
+      { field: "referenceNo", label: "Reference", render: (r: LiabilityEntryRow) => r.referenceNo || "—" },
+      { field: "remark", label: "Remark", render: (r: LiabilityEntryRow) => r.remark || "—" },
+    ],
+    [],
+  );
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-5">
+      <FormContainer title="Post Liability Entry" description="Transfer between bank/person accounts for receivable/payable movements.">
+        <FormGrid className="md:grid-cols-4">
+          <div className="space-y-1.5">
+            <FieldLabel>Date *</FieldLabel>
+            <Input type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel>Entry Type *</FieldLabel>
+            <select
+              className="w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
+              value={entryType}
+              onChange={(e) => setEntryType(e.target.value as LiabilityEntryType)}
+            >
+              <option value="receipt">Receipt</option>
+              <option value="payment">Payment</option>
+              <option value="contra">Contra</option>
+              <option value="journal">Journal</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel>Amount *</FieldLabel>
+            <Input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" />
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel>Reference No</FieldLabel>
+            <Input value={referenceNo} onChange={(e) => setReferenceNo(e.target.value)} placeholder="Reference" />
+          </div>
+
+          <div className="space-y-1.5">
+            <FieldLabel>From Type *</FieldLabel>
+            <select
+              className="w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
+              value={fromAccountType}
+              onChange={(e) => {
+                setFromAccountType(e.target.value as LiabilityAccountType);
+                setFromAccountId("");
+              }}
+            >
+              <option value="person">Person</option>
+              <option value="bank">Bank</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel>From Account *</FieldLabel>
+            <AutocompleteField
+              value={fromAccountId}
+              onChange={setFromAccountId}
+              loadOptions={loadFromOptions}
+              placeholder={`Select ${fromAccountType}`}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel>To Type *</FieldLabel>
+            <select
+              className="w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
+              value={toAccountType}
+              onChange={(e) => {
+                setToAccountType(e.target.value as LiabilityAccountType);
+                setToAccountId("");
+              }}
+            >
+              <option value="person">Person</option>
+              <option value="bank">Bank</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel>To Account *</FieldLabel>
+            <AutocompleteField
+              value={toAccountId}
+              onChange={setToAccountId}
+              loadOptions={loadToOptions}
+              placeholder={`Select ${toAccountType}`}
+            />
+          </div>
+          <div className="md:col-span-4 space-y-1.5">
+            <FieldLabel>Remark</FieldLabel>
+            <Input value={remark} onChange={(e) => setRemark(e.target.value)} placeholder="Optional remark" />
+          </div>
+        </FormGrid>
+        <FormActions>
+          <Button type="button" onClick={() => void onSubmit()} disabled={saving}>
+            {saving ? "Posting..." : "Post Entry"}
+          </Button>
+        </FormActions>
+      </FormContainer>
+
+      <ListingPageContainer
+        title="Liability Entries"
+        description="Posted transfer entries between bank and person accounts."
+        fullWidth
+        secondaryButtonLabel="Reset filters"
+        onSecondaryClick={() => clearFilters({ keepQuickSearch: true })}
+      >
+        <PaginatedTableReference
+          key={tableKey}
+          columns={columns}
+          fetcher={fetcher}
+          filterParams={filterParams}
+          showSearch={false}
+          showPagination={false}
+          height="420px"
+          onTotalChange={setTotalCount}
+          page={page}
+          limit={limit}
+          sortBy={sortBy || "createdAt"}
+          sortOrder={sortOrder || "desc"}
+          onPageChange={(zeroBased) => setPage(zeroBased + 1)}
+          onRowsPerPageChange={setLimit}
+          onSortChange={(field, order) => setSort(field, order)}
+          compactDensity
+        />
+        <PaginationControlsReference
+          page={page - 1}
+          rowsPerPage={limit}
+          totalCount={totalCount}
+          onPageChange={(zeroBased) => setPage(zeroBased + 1)}
+          onRowsPerPageChange={setLimit}
+          rowsPerPageOptions={[10, 20, 50, 100]}
+        />
+      </ListingPageContainer>
+    </div>
+  );
+}
