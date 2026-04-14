@@ -1,16 +1,39 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ListingPageContainer } from "@/components/common/ListingPageContainer";
+import { useEffect, useState, useRef, useMemo } from "react";
+import { 
+  IconPrinter, 
+  IconUsers, 
+  IconArrowUpRight, 
+  IconArrowDownRight, 
+  IconScale, 
+  IconSearch, 
+  IconCircleCheck, 
+  IconCircleX 
+} from "@tabler/icons-react";
 import { getLiabilityPersonWiseReport, getLiabilitySummaryReport } from "@/services/liabilityService";
 import type { LiabilityPersonWiseReportRow, LiabilitySummaryReport } from "@/types/liability";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { toast } from "sonner";
+import { cn } from "@/lib/cn";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+
+function formatAmount(value: number) {
+  const abs = Math.abs(value);
+  let formatted: string;
+  if (abs >= 10_00_00_000) formatted = `₹${(abs / 10_00_00_000).toFixed(2)}Cr`;
+  else if (abs >= 10_00_000) formatted = `₹${(abs / 10_00_000).toFixed(2)}L`;
+  else formatted = `₹${abs.toLocaleString("en-IN")}`;
+  return value < 0 ? `−${formatted}` : formatted;
+}
 
 export function LiabilityReportClient() {
   const [summary, setSummary] = useState<LiabilitySummaryReport | null>(null);
   const [rows, setRows] = useState<LiabilityPersonWiseReportRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,69 +56,232 @@ export function LiabilityReportClient() {
     };
   }, []);
 
-  return (
-    <ListingPageContainer
-      title="Liability Report"
-      description="Receivable/payable summary and person-wise balances."
-      fullWidth
-    >
-      {loading ? (
-        <div className="rounded-md border border-[var(--border)] p-6 text-sm text-slate-500">Loading report...</div>
-      ) : (
-        <div className="space-y-4">
-          {summary && (
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-              <div className="rounded-md border border-[var(--border)] bg-slate-50 p-3">
-                <p className="text-xs text-slate-500">Total Receivable</p>
-                <p className="text-lg font-semibold">{summary.totalReceivable.toLocaleString()}</p>
-              </div>
-              <div className="rounded-md border border-[var(--border)] bg-slate-50 p-3">
-                <p className="text-xs text-slate-500">Total Payable</p>
-                <p className="text-lg font-semibold">{summary.totalPayable.toLocaleString()}</p>
-              </div>
-              <div className="rounded-md border border-[var(--border)] bg-slate-50 p-3">
-                <p className="text-xs text-slate-500">Net Position</p>
-                <p className="text-lg font-semibold">{summary.netPosition.toLocaleString()}</p>
-              </div>
-              <div className="rounded-md border border-[var(--border)] bg-slate-50 p-3">
-                <p className="text-xs text-slate-500">Total Persons</p>
-                <p className="text-lg font-semibold">{summary.totalPersons}</p>
-              </div>
-            </div>
-          )}
+  const filteredRows = useMemo(() => {
+    if (!search.trim()) return rows;
+    const q = search.toLowerCase();
+    return rows.filter(r => r.name.toLowerCase().includes(q));
+  }, [rows, search]);
 
-          <div className="overflow-x-auto rounded-md border border-[var(--border)]">
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-100 text-left">
-                <tr>
-                  <th className="px-3 py-2">Person</th>
-                  <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2 text-right">Balance</th>
-                  <th className="px-3 py-2">Side</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.length === 0 ? (
-                  <tr>
-                    <td className="px-3 py-3 text-center text-slate-500" colSpan={4}>
-                      No rows available.
-                    </td>
-                  </tr>
-                ) : (
-                  rows.map((r) => (
-                    <tr key={r.personId} className="border-t border-[var(--border)]">
-                      <td className="px-3 py-2">{r.name}</td>
-                      <td className="px-3 py-2">{r.isActive ? "Active" : "Deactive"}</td>
-                      <td className="px-3 py-2 text-right">{r.balance.toLocaleString()}</td>
-                      <td className="px-3 py-2 capitalize">{r.side}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+  const handlePrint = () => {
+    window.print();
+  };
+
+  return (
+    <>
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          #print-container, #print-container * {
+            visibility: visible;
+          }
+          #print-container {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            padding: 20px;
+          }
+          .no-print {
+            display: none !important;
+          }
+          @page {
+            size: A4 landscape;
+            margin: 1cm;
+          }
+          table {
+            page-break-inside: auto;
+          }
+          tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+          }
+          thead {
+            display: table-header-group;
+          }
+          tfoot {
+            display: table-footer-group;
+          }
+        }
+      `}} />
+
+      <div className="space-y-4 pb-8 max-w-[1400px] mx-auto no-print">
+        {/* Header */}
+        <div className="flex justify-between items-end">
+          <div>
+            <h1 className="text-xl font-bold tracking-tight text-slate-900 leading-tight">
+              Liability Summary Report
+            </h1>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Receivable/payable summary and person-wise balances.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="relative group">
+              <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 group-focus-within:text-slate-600 transition-colors" />
+              <Input 
+                placeholder="Search person..." 
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 h-9 text-xs w-[240px] bg-white border-slate-200 focus:border-slate-300 focus:ring-0 transition-all rounded-lg"
+              />
+            </div>
+            {summary && (
+              <Button onClick={handlePrint} variant="outline" className="h-9 text-xs gap-2 px-4 shadow-sm">
+                <IconPrinter className="w-3.5 h-3.5" />
+                Print PDF
+              </Button>
+            )}
           </div>
         </div>
-      )}
-    </ListingPageContainer>
+
+        {loading ? (
+           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-12 text-center">
+             <div className="inline-flex items-center gap-2 text-slate-400 font-medium">
+               <div className="w-2 h-2 rounded-full bg-slate-200 animate-pulse" />
+               Loading report data...
+             </div>
+           </div>
+        ) : (
+          <>
+            {summary && (
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden divide-y md:divide-y-0 md:divide-x divide-slate-100 grid grid-cols-2 md:grid-cols-4">
+                <div className="p-4 flex flex-col justify-center">
+                  <span className="text-[10px] uppercase font-bold tracking-widest text-emerald-600/70 mb-1 flex items-center gap-1">
+                    <IconArrowUpRight className="w-3 h-3"/> Total Receivable
+                  </span>
+                  <span className="text-xl font-bold text-emerald-700">{formatAmount(summary.totalReceivable)}</span>
+                </div>
+                <div className="p-4 flex flex-col justify-center">
+                  <span className="text-[10px] uppercase font-bold tracking-widest text-rose-600/70 mb-1 flex items-center gap-1">
+                    <IconArrowDownRight className="w-3 h-3"/> Total Payable
+                  </span>
+                  <span className="text-xl font-bold text-rose-700">{formatAmount(summary.totalPayable)}</span>
+                </div>
+                <div className="p-4 flex flex-col justify-center">
+                  <span className="text-[10px] uppercase font-bold tracking-widest text-blue-600/70 mb-1 flex items-center gap-1">
+                    <IconScale className="w-3 h-3"/> Net Position
+                  </span>
+                  <span className="text-xl font-bold text-blue-700">{formatAmount(summary.netPosition)}</span>
+                </div>
+                <div className="p-4 flex flex-col justify-center bg-slate-50/50">
+                  <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500 mb-1 flex items-center gap-1">
+                    <IconUsers className="w-3 h-3"/> Total Persons
+                  </span>
+                  <span className="text-xl font-bold text-slate-800">{summary.totalPersons}</span>
+                </div>
+              </div>
+            )}
+
+            {filteredRows.length > 0 && (
+              <div id="print-container" ref={printRef} className="bg-white border border-slate-200 shadow-sm rounded-xl overflow-hidden print:border-none print:shadow-none print:rounded-none">
+                {/* Letterhead */}
+                <div className="p-6 border-b border-slate-200 bg-slate-50/50 print:bg-white flex justify-between items-center">
+                  <div>
+                    <h2 className="text-2xl font-bold text-slate-900 tracking-tight">CrickERP Liability Summary</h2>
+                    <div className="flex items-center gap-3 mt-1.5 text-sm text-slate-500">
+                      <span>Total Accounts: <strong className="text-slate-700 font-mono">{filteredRows.length}</strong></span>
+                      <span className="w-1 h-1 rounded-full bg-slate-300" />
+                      <span>Generated: {new Date().toLocaleDateString('en-IN', {day: '2-digit', month: 'short', year:'numeric', hour: '2-digit', minute: '2-digit'})}</span>
+                    </div>
+                  </div>
+                  <div className="text-right hidden print:block">
+                     <p className="text-xs text-slate-400 italic">Financial Summary Report</p>
+                  </div>
+                </div>
+
+                <div className="w-full">
+                  <table className="w-full text-xs text-left align-top">
+                    <thead className="bg-slate-50 border-b border-slate-200 font-semibold text-slate-600 uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="py-3 px-4">Liability Person</th>
+                        <th className="py-3 px-4 w-[160px]">Status</th>
+                        <th className="py-3 px-4 text-right w-[140px]">Inward (DR)</th>
+                        <th className="py-3 px-4 text-right w-[140px]">Outward (CR)</th>
+                        <th className="py-3 px-4 text-right w-[180px] bg-slate-100/30 border-l border-slate-200 text-slate-800">Balance</th>
+                        <th className="py-3 px-4 w-[140px]">Side</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredRows.map((r) => (
+                        <tr key={r.personId} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="py-3 px-4">
+                            <div className="font-semibold text-slate-900">{r.name}</div>
+                            <div className="text-[10px] text-slate-400 mt-0.5 font-mono">ID: {r.personId.slice(-8).toUpperCase()}</div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className={cn(
+                              "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-tight",
+                              r.isActive 
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-100" 
+                                : "bg-slate-100 text-slate-500 border border-slate-200"
+                            )}>
+                              {r.isActive ? (
+                                <><IconCircleCheck className="w-2.5 h-2.5" /> Active</>
+                              ) : (
+                                <><IconCircleX className="w-2.5 h-2.5" /> Inactive</>
+                              )}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                             {r.totalDebits !== undefined ? (
+                               <span className="text-slate-600">{formatAmount(r.totalDebits)}</span>
+                             ) : <span className="text-slate-300">−</span>}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                             {r.totalCredits !== undefined ? (
+                               <span className="text-slate-600">{formatAmount(r.totalCredits)}</span>
+                             ) : <span className="text-slate-300">−</span>}
+                          </td>
+                          <td className={cn(
+                            "py-3 px-4 text-right font-bold text-sm bg-slate-50/20 border-l border-slate-100",
+                            r.side === "receivable" ? "text-emerald-700" : "text-rose-700"
+                          )}>
+                            {formatAmount(Math.abs(r.balance))}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className={cn(
+                              "text-[10px] font-bold uppercase tracking-widest",
+                              r.side === "receivable" ? "text-emerald-600/70" : "text-rose-600/70"
+                            )}>
+                              {r.side}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-slate-50 border-t-2 border-slate-200">
+                       <tr>
+                         <td colSpan={2} className="py-3 px-4 text-right font-bold text-slate-400 text-[10px] uppercase tracking-wider">
+                           Reporting Totals:
+                         </td>
+                         <td colSpan={2} className="py-3 px-4" />
+                         <td className="py-3 px-4 text-right font-bold text-slate-900 bg-slate-100/50">
+                            Net: {summary ? formatAmount(summary.netPosition) : "−"}
+                         </td>
+                         <td className="py-3 px-4" />
+                       </tr>
+                    </tfoot>
+                  </table>
+                </div>
+
+                <div className="p-6 text-center text-[10px] text-slate-400 border-t border-slate-100 print:block">
+                  <p>*** End of Liability Summary Report ***</p>
+                  <p className="mt-1">Proprietary & Confidential - CrickERP Financial Suite</p>
+                </div>
+              </div>
+            )}
+
+            {filteredRows.length === 0 && (
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-12 text-center">
+                <p className="text-slate-500 font-medium">No results found matching your search.</p>
+                <Button variant="ghost" size="sm" onClick={() => setSearch("")} className="mt-2 text-blue-600 hover:text-blue-700">Clear Search</Button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </>
   );
 }
