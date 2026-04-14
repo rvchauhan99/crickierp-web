@@ -1,5 +1,11 @@
 import { apiClient } from "./apiClient";
-import type { ExpenseCreateInput, ExpenseRow, ExpenseTypeOption, ExpenseUpdateInput } from "@/types/expense";
+import type {
+  ExpenseCreateInput,
+  ExpenseDocumentMeta,
+  ExpenseRow,
+  ExpenseTypeOption,
+  ExpenseUpdateInput,
+} from "@/types/expense";
 
 function toOptionalParam(value: unknown): string | undefined {
   if (value === null || value === undefined) return undefined;
@@ -78,6 +84,27 @@ export function normalizeExpense(row: Record<string, unknown>): ExpenseRow {
     expenseTypeId = String((et as { _id?: unknown })._id);
   } else if (typeof et === "string") expenseTypeId = et;
 
+  const documentsRaw = Array.isArray(row.documents) ? row.documents : [];
+  const documents: ExpenseDocumentMeta[] = documentsRaw
+    .map((doc) => {
+      if (!doc || typeof doc !== "object") return null;
+      const d = doc as Record<string, unknown>;
+      const path = String(d.path ?? "").trim();
+      const filename = String(d.filename ?? "").trim();
+      const size = Number(d.size ?? 0);
+      const mimeType = String(d.mime_type ?? "").trim();
+      const uploadedAt = String(d.uploaded_at ?? "").trim();
+      if (!path || !filename || !mimeType || !uploadedAt || Number.isNaN(size) || size < 0) return null;
+      return {
+        path,
+        filename,
+        size,
+        mime_type: mimeType,
+        uploaded_at: uploadedAt,
+      };
+    })
+    .filter((d): d is ExpenseDocumentMeta => d !== null);
+
   return {
     _id: id,
     id,
@@ -97,6 +124,7 @@ export function normalizeExpense(row: Record<string, unknown>): ExpenseRow {
     approvedByName,
     createdBy: createdById,
     approvedBy: approvedById,
+    documents,
   };
 }
 
@@ -121,6 +149,38 @@ export async function createExpense(input: ExpenseCreateInput): Promise<unknown>
 export async function updateExpense(id: string, input: ExpenseUpdateInput): Promise<unknown> {
   const res = await apiClient.patch<{ success: boolean; data: unknown }>(`/expense/${id}`, input);
   return res.data?.data;
+}
+
+export async function uploadExpenseDocuments(expenseId: string, files: File[]): Promise<unknown> {
+  const formData = new FormData();
+  files.forEach((file) => formData.append("documents", file));
+  const res = await apiClient.post<{ success: boolean; data: unknown }>(
+    `/expense/${expenseId}/documents`,
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    },
+  );
+  return res.data?.data;
+}
+
+export async function getExpenseDocumentViewUrl(
+  expenseId: string,
+  docIndex: number,
+): Promise<{ url: string; filename?: string; mime_type?: string; uploaded_at?: string }> {
+  const res = await apiClient.get<{
+    success: boolean;
+    data?: { url?: string; filename?: string; mime_type?: string; uploaded_at?: string };
+  }>(`/expense/${expenseId}/documents/${docIndex}/view`);
+  const data = res.data?.data;
+  return {
+    url: String(data?.url ?? ""),
+    filename: data?.filename,
+    mime_type: data?.mime_type,
+    uploaded_at: data?.uploaded_at,
+  };
 }
 
 export async function approveExpense(id: string, bankId: string): Promise<unknown> {
