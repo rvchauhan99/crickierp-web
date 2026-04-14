@@ -135,6 +135,13 @@ export const NAV_ITEMS: AppNavNode[] = [
         keywords: ["search"],
         requiredPermission: NAV_PERMISSIONS.PLAYER_LIST,
       },
+      {
+        id: "player-edit",
+        label: "Edit",
+        href: "/player/edit",
+        keywords: ["update", "modify"],
+        requiredPermission: NAV_PERMISSIONS.PLAYER_EDIT,
+      },
     ],
   },
   {

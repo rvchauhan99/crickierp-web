@@ -20,12 +20,14 @@ export function PlayerAddClient() {
   const [exchangeId, setExchangeId] = useState("");
   const [playerId, setPlayerId] = useState("");
   const [phone, setPhone] = useState("");
-  const [bonusPct, setBonusPct] = useState("0");
+  const [regularBonusPct, setRegularBonusPct] = useState("0");
+  const [firstDepositBonusPct, setFirstDepositBonusPct] = useState("0");
   const [manualErrors, setManualErrors] = useState<{
     exchangeId?: string;
     playerId?: string;
     phone?: string;
-    bonusPercentage?: string;
+    regularBonusPercentage?: string;
+    firstDepositBonusPercentage?: string;
   }>({});
   const [manualLoading, setManualLoading] = useState(false);
 
@@ -54,7 +56,8 @@ export function PlayerAddClient() {
     setExchangeId("");
     setPlayerId("");
     setPhone("");
-    setBonusPct("0");
+    setRegularBonusPct("0");
+    setFirstDepositBonusPct("0");
     setManualErrors({});
   };
 
@@ -63,11 +66,18 @@ export function PlayerAddClient() {
     if (!exchangeId.trim()) next.exchangeId = "Exchange is required.";
     if (!playerId.trim()) next.playerId = "Player Id is required.";
     if (!phone.trim()) next.phone = "Phone number is required.";
-    const bp = Number(bonusPct);
-    if (bonusPct.trim() === "" || Number.isNaN(bp)) {
-      next.bonusPercentage = "Bonus % is required.";
-    } else if (bp < 0 || bp > 100) {
-      next.bonusPercentage = "Bonus % must be between 0 and 100.";
+    const regularBonus = Number(regularBonusPct);
+    if (regularBonusPct.trim() === "" || Number.isNaN(regularBonus)) {
+      next.regularBonusPercentage = "Regular bonus percentage is required.";
+    } else if (regularBonus < 0 || regularBonus > 100) {
+      next.regularBonusPercentage = "Regular bonus percentage must be between 0 and 100.";
+    }
+
+    const firstDepositBonus = Number(firstDepositBonusPct);
+    if (firstDepositBonusPct.trim() === "" || Number.isNaN(firstDepositBonus)) {
+      next.firstDepositBonusPercentage = "First deposit bonus percentage is required.";
+    } else if (firstDepositBonus < 0 || firstDepositBonus > 100) {
+      next.firstDepositBonusPercentage = "First deposit bonus percentage must be between 0 and 100.";
     }
     setManualErrors(next);
     if (Object.keys(next).length > 0) return;
@@ -78,7 +88,8 @@ export function PlayerAddClient() {
         exchangeId: exchangeId.trim(),
         playerId: playerId.trim(),
         phone: phone.trim(),
-        bonusPercentage: bp,
+        regularBonusPercentage: regularBonus,
+        firstDepositBonusPercentage: firstDepositBonus,
       });
       toast.success("Player saved successfully.");
       resetManual();
@@ -97,7 +108,10 @@ export function PlayerAddClient() {
     setBulkLoading(true);
     try {
       const result = await importPlayers(bulkFile);
-      const parts = [`Imported ${result.created} player${result.created === 1 ? "" : "s"}.`];
+      const parts = [
+        `Created ${result.created} player${result.created === 1 ? "" : "s"}.`,
+        `Updated ${result.updated} player${result.updated === 1 ? "" : "s"}.`,
+      ];
       if (result.skipped > 0) {
         parts.push(`${result.skipped} empty row${result.skipped === 1 ? "" : "s"} skipped.`);
       }
@@ -138,6 +152,8 @@ export function PlayerAddClient() {
       <FormContainer
         title="Add Exchange Player"
         description="Register a single player against an exchange."
+        contentOverflow="visible"
+        className="flex-none"
       >
         <FormGrid>
           <div>
@@ -165,17 +181,30 @@ export function PlayerAddClient() {
             <FieldError message={manualErrors.phone} />
           </div>
           <div>
-            <FieldLabel>Bonus % *</FieldLabel>
+            <FieldLabel>Regular Bonus Percentage *</FieldLabel>
             <Input
               type="number"
               min={0}
               max={100}
               step="0.01"
               placeholder="0"
-              value={bonusPct}
-              onChange={(e) => setBonusPct(e.target.value)}
+              value={regularBonusPct}
+              onChange={(e) => setRegularBonusPct(e.target.value)}
             />
-            <FieldError message={manualErrors.bonusPercentage} />
+            <FieldError message={manualErrors.regularBonusPercentage} />
+          </div>
+          <div>
+            <FieldLabel>First Deposit Bonus Percentage *</FieldLabel>
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              step="0.01"
+              placeholder="0"
+              value={firstDepositBonusPct}
+              onChange={(e) => setFirstDepositBonusPct(e.target.value)}
+            />
+            <FieldError message={manualErrors.firstDepositBonusPercentage} />
           </div>
         </FormGrid>
         <FormActions className="justify-between px-5 py-4">
@@ -196,9 +225,10 @@ export function PlayerAddClient() {
 
       <FormContainer
         title="Bulk upload"
-        description="Upload a CSV or Excel file. Each row must include exchange name, player id, phone, and bonus_percentage (0–100; leave empty for 0). Use the sample file as a template. If any row is invalid, nothing is imported."
+        description="Upload a CSV or Excel file. Each row must include exchange name, player id, phone, bonus_percentage (regular bonus), and first_deposit_bonus_percentage (0–100; leave empty for 0). Use the sample file as a template. If any row is invalid, nothing is imported."
+        className="flex-none"
       >
-        <div className="space-y-3">
+        <div className="space-y-2">
           <div>
             <FieldLabel>Player file (CSV or Excel) *</FieldLabel>
             <input
@@ -217,7 +247,7 @@ export function PlayerAddClient() {
             </button>
           </div>
         </div>
-        <FormActions className="justify-between px-5 py-4">
+        <FormActions className="justify-between px-5 py-3">
           <Button
             type="button"
             variant="success"
