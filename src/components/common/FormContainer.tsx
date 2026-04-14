@@ -38,6 +38,7 @@ type FormContainerProps = PropsWithChildren<{
   description?: string;
   sideContent?: ReactNode;
   maxHeight?: string;
+  contentOverflow?: "auto" | "visible";
   className?: string;
 }>;
 
@@ -46,6 +47,7 @@ export function FormContainer({
   description,
   sideContent,
   maxHeight,
+  contentOverflow = "auto",
   className,
   children,
 }: FormContainerProps) {
@@ -69,7 +71,8 @@ export function FormContainer({
   return (
     <div
       className={cn(
-        "flex flex-col min-h-0 flex-1 rounded-lg border border-[var(--border)] bg-white shadow-sm overflow-hidden",
+        "flex flex-col min-h-0 flex-1 rounded-lg border border-[var(--border)] bg-white shadow-sm",
+        contentOverflow === "auto" ? "overflow-hidden" : "overflow-visible",
         maxHeight && "max-h-[var(--form-max-height)]",
         className
       )}
@@ -91,7 +94,8 @@ export function FormContainer({
       {/* Scrollable form body */}
       <div
         className={cn(
-          "flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-5 py-4",
+          "flex-1 min-h-0 px-5 py-4",
+          contentOverflow === "auto" ? "overflow-y-auto overflow-x-hidden" : "overflow-visible",
           "[scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-gray-50 [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb]:bg-gray-200"
         )}
       >

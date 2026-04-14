@@ -1,5 +1,5 @@
 import { apiClient } from "@/services/apiClient";
-import type { PlayerCreateInput, PlayerImportResult, PlayerRow } from "@/types/player";
+import type { PlayerCreateInput, PlayerDetail, PlayerImportResult, PlayerRow, PlayerUpdateInput } from "@/types/player";
 
 function toOptionalParam(value: unknown): string | undefined {
   if (value === null || value === undefined) return undefined;
@@ -39,7 +39,9 @@ function normalizePlayer(row: Record<string, unknown>): PlayerRow {
     exchange: ex as PlayerRow["exchange"],
     playerId: String(row.playerId ?? ""),
     phone: String(row.phone ?? ""),
-    bonusPercentage: Number(row.bonusPercentage ?? 0),
+    regularBonusPercentage: Number(row.regularBonusPercentage ?? row.bonusPercentage ?? 0),
+    firstDepositBonusPercentage: Number(row.firstDepositBonusPercentage ?? 0),
+    bonusPercentage: Number(row.regularBonusPercentage ?? row.bonusPercentage ?? 0),
     createdAt: row.createdAt as string | undefined,
     updatedAt: row.updatedAt as string | undefined,
     createdBy: row.createdBy,
@@ -53,14 +55,28 @@ export async function createPlayer(input: PlayerCreateInput): Promise<PlayerRow>
   return normalizePlayer(response.data?.data ?? {});
 }
 
+export async function updatePlayer(id: string, input: PlayerUpdateInput): Promise<PlayerRow> {
+  const response = await apiClient.patch<{ success: boolean; data: Record<string, unknown> }>(
+    `/players/${encodeURIComponent(id)}`,
+    input,
+  );
+  return normalizePlayer(response.data?.data ?? {});
+}
+
 /** Single player read by Mongo `_id` (e.g. from Autocomplete). */
-export async function getPlayerById(id: string): Promise<Pick<PlayerRow, "playerId" | "phone" | "bonusPercentage">> {
+export async function getPlayerById(
+  id: string,
+): Promise<PlayerDetail> {
   const response = await apiClient.get<{ success: boolean; data: Record<string, unknown> }>(`/players/${encodeURIComponent(id)}`);
   const row = response.data?.data ?? {};
+  const regularBonusPercentage = Number(row.regularBonusPercentage ?? row.bonusPercentage ?? 0);
   return {
+    exchange: row.exchange as PlayerRow["exchange"],
     playerId: String(row.playerId ?? ""),
     phone: String(row.phone ?? ""),
-    bonusPercentage: Number(row.bonusPercentage ?? 0),
+    regularBonusPercentage,
+    firstDepositBonusPercentage: Number(row.firstDepositBonusPercentage ?? 0),
+    bonusPercentage: regularBonusPercentage,
   };
 }
 

@@ -10,6 +10,7 @@ import {
   IconClock,
   IconCreditCard,
   IconFileText,
+  IconPaperclip,
   IconUser,
   IconRefresh,
 } from "@tabler/icons-react";
@@ -28,7 +29,13 @@ import { DetailsSidebar } from "@/components/common/DetailsSidebar";
 import { ConfirmSensitiveActionDialog } from "@/components/common/ConfirmSensitiveActionDialog";
 import { useListingQueryStateReference } from "@/hooks/useListingQueryStateReference";
 import { tableColumnPresets } from "@/lib/tableStylePresets";
-import { approveExpense, listExpenseTypes, listExpensesNormalized, rejectExpense } from "@/services/expenseService";
+import {
+  approveExpense,
+  getExpenseDocumentViewUrl,
+  listExpenseTypes,
+  listExpensesNormalized,
+  rejectExpense,
+} from "@/services/expenseService";
 import { listBanksNormalized } from "@/services/bankService";
 import { userService } from "@/services/userService";
 import type { ExpenseRow } from "@/types/expense";
@@ -61,6 +68,18 @@ function formatDate(iso?: string): string {
   return d.toLocaleString();
 }
 
+function formatFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  let size = bytes;
+  let unit = 0;
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024;
+    unit += 1;
+  }
+  return `${size.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
+}
+
 type ExpenseUserRow = {
   _id?: string;
   id?: string;
@@ -77,7 +96,15 @@ function buildUserLabel(row: ExpenseUserRow): string {
 
 // ─── Detail card for sidebar ──────────────────────────────────────────────
 
-function ExpenseDetailCard({ expense }: { expense: ExpenseRow }) {
+function ExpenseDetailCard({
+  expense,
+  onViewDocument,
+  viewingDocIndex,
+}: {
+  expense: ExpenseRow;
+  onViewDocument: (index: number) => void;
+  viewingDocIndex: number | null;
+}) {
   const items = [
     {
       icon: <IconCreditCard className="size-4 shrink-0 text-[var(--brand-primary)]" />,
@@ -128,6 +155,40 @@ function ExpenseDetailCard({ expense }: { expense: ExpenseRow }) {
           </div>
         ))}
       </dl>
+      <div className="mt-3 border-t border-[var(--border)] pt-3">
+        <div className="mb-2 flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-gray-400">
+          <IconPaperclip className="size-3.5" />
+          Documents
+        </div>
+        {Array.isArray(expense.documents) && expense.documents.length > 0 ? (
+          <div className="space-y-2">
+            {expense.documents.map((doc, index) => (
+              <div
+                key={`${doc.path}-${index}`}
+                className="flex items-center justify-between rounded-md border border-[var(--border)] bg-white px-2.5 py-2"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-medium text-gray-800">{doc.filename}</p>
+                  <p className="text-[11px] text-gray-500">
+                    {formatFileSize(doc.size)} • {doc.mime_type || "file"} • {formatDate(doc.uploaded_at)}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="shrink-0"
+                  disabled={viewingDocIndex === index}
+                  onClick={() => onViewDocument(index)}
+                >
+                  {viewingDocIndex === index ? "Opening..." : "View"}
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-gray-500">No documents uploaded.</p>
+        )}
+      </div>
     </div>
   );
 }
@@ -191,6 +252,7 @@ export function ExpenseAuditClient() {
   const [rejectReasonId, setRejectReasonId] = useState("");
   const [rejectRemark, setRejectRemark] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+  const [viewingDocIndex, setViewingDocIndex] = useState<number | null>(null);
   const [errors, setErrors] = useState<{ bankId?: string }>({});
 
   const loadBankOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
@@ -252,8 +314,30 @@ export function ExpenseAuditClient() {
   const closeSidebar = useCallback(() => {
     setSelectedExpense(null);
     setBankId("");
+    setViewingDocIndex(null);
     setErrors({});
   }, []);
+
+  const onViewDocument = useCallback(
+    async (docIndex: number) => {
+      if (!selectedExpense) return;
+      setViewingDocIndex(docIndex);
+      try {
+        const data = await getExpenseDocumentViewUrl(selectedExpense.id, docIndex);
+        const url = String(data.url || "").trim();
+        if (!url) {
+          toast.error("Document URL is unavailable.");
+          return;
+        }
+        window.open(url, "_blank", "noopener,noreferrer");
+      } catch (error: unknown) {
+        toast.error(getApiErrorMessage(error, "Failed to open document"));
+      } finally {
+        setViewingDocIndex(null);
+      }
+    },
+    [selectedExpense],
+  );
 
   const onApproveSubmit = async () => {
     if (!selectedExpense) return;
@@ -454,7 +538,11 @@ export function ExpenseAuditClient() {
       >
         {selectedExpense && (
           <div className="flex flex-col gap-5">
-            <ExpenseDetailCard expense={selectedExpense} />
+            <ExpenseDetailCard
+              expense={selectedExpense}
+              onViewDocument={(docIndex) => void onViewDocument(docIndex)}
+              viewingDocIndex={viewingDocIndex}
+            />
 
             <div className="space-y-4">
               <div className="space-y-1.5">

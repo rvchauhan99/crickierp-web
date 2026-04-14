@@ -7,6 +7,14 @@ export type ExpenseTypeOption = {
   description?: string;
 };
 
+export type ExpenseDocumentMeta = {
+  path: string;
+  filename: string;
+  size: number;
+  mime_type: string;
+  uploaded_at: string;
+};
+
 export type ExpenseRow = {
   _id: string;
   id: string;
@@ -26,6 +34,7 @@ export type ExpenseRow = {
   approvedByName?: string;
   createdBy?: string;
   approvedBy?: string;
+  documents?: ExpenseDocumentMeta[];
 };
 
 export type ExpenseCreateInput = {

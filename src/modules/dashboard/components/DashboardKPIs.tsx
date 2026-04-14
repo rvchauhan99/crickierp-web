@@ -30,9 +30,10 @@ export type DashboardSummary = {
     totalCount: number;
     pendingCount: number;
     pendingAmount: number;
-    finalizedAmount: number;
-    finalizedCount: number;
+    approvedAmount: number;
+    approvedCount: number;
     rejectedCount: number;
+    reverseBonusTotal: number;
   };
   expense: {
     totalAmount: number;
@@ -51,6 +52,18 @@ export type DashboardSummary = {
   users: {
     total: number;
   };
+  exchangesBreakdown?: {
+    exchangeId: string;
+    name: string;
+    depositTotal: number;
+    depositVerified: number;
+    withdrawalTotal: number;
+    withdrawalApproved: number;
+    bonusGiven: number;
+    bonusRecovered: number;
+    netPL: number;
+    netBonus: number;
+  }[];
 };
 
 interface Props {
@@ -166,7 +179,7 @@ export function DashboardKPIs({ summary, loading = false }: Props) {
         loading={loading}
         title="Total Deposits"
         value={formatAmount(d?.totalAmount ?? 0)}
-        subtitle={`${formatCount(d?.totalCount ?? 0)} entries`}
+        subtitle={`${formatCount(d?.totalCount ?? 0)} non-rejected entries`}
         icon={<IconArrowUpRight className="w-5 h-5 text-emerald-600" />}
         iconBg="bg-emerald-50"
         badge={
@@ -187,7 +200,7 @@ export function DashboardKPIs({ summary, loading = false }: Props) {
         loading={loading}
         title="Total Withdrawals"
         value={formatAmount(w?.totalAmount ?? 0)}
-        subtitle={`${formatCount(w?.totalCount ?? 0)} entries`}
+        subtitle={`${formatCount(w?.totalCount ?? 0)} non-rejected entries`}
         icon={<IconArrowDownRight className="w-5 h-5 text-rose-600" />}
         iconBg="bg-rose-50"
         valueColor="text-rose-700"
@@ -198,21 +211,27 @@ export function DashboardKPIs({ summary, loading = false }: Props) {
         }
         footer={
           <div className="flex items-center justify-between">
-            <span>Finalized: <strong className="text-slate-600">{formatAmount(w?.finalizedAmount ?? 0)}</strong></span>
+            <span>Approved: <strong className="text-slate-600">{formatAmount(w?.approvedAmount ?? 0)}</strong></span>
             <span>Rejected: <strong className="text-red-400">{w?.rejectedCount ?? 0}</strong></span>
           </div>
         }
       />
 
-      {/* 3. Total Bonus */}
+      {/* 3. Net Bonus */}
       <KPICard
         loading={loading}
-        title="Total Bonus (D/W)"
-        value={formatAmount(d?.bonusTotal ?? 0)}
-        subtitle="Sum of all deposit bonuses"
+        title="Net Bonus (D − W)"
+        value={formatAmount((d?.bonusTotal ?? 0) - (w?.reverseBonusTotal ?? 0))}
+        subtitle="Deposit bonuses minus reverse bonuses"
         icon={<IconGift className="w-5 h-5 text-amber-500" />}
         iconBg="bg-amber-50"
         valueColor="text-amber-700"
+        footer={
+          <div className="flex items-center justify-between">
+            <span>Given: <strong className="text-emerald-500">{formatAmount(d?.bonusTotal ?? 0)}</strong></span>
+            <span>Recovered: <strong className="text-rose-500">{formatAmount(w?.reverseBonusTotal ?? 0)}</strong></span>
+          </div>
+        }
       />
 
       {/* 4. Gross P&L */}
@@ -220,7 +239,7 @@ export function DashboardKPIs({ summary, loading = false }: Props) {
         loading={loading}
         title="Gross P & L"
         value={formatAmount(pnl?.gross ?? 0)}
-        subtitle="Verified Deposits − Finalized Withdrawals"
+        subtitle="Verified Deposits − Approved Withdrawals"
         icon={
           (pnl?.gross ?? 0) >= 0
             ? <IconTrendingUp className="w-5 h-5 text-emerald-600" />

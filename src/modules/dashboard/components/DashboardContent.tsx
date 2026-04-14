@@ -8,6 +8,7 @@ import { DashboardKPIs, type DashboardSummary } from "./DashboardKPIs";
 import { DashboardTrendChart, type TrendDataPoint } from "./DashboardTrendChart";
 import { DashboardPLDonut } from "./DashboardPLDonut";
 import { DashboardRecentActivity, type RecentActivityItem } from "./DashboardRecentActivity";
+import { DashboardExchangeSummary } from "./DashboardExchangeSummary";
 import { reportService } from "@/services/reportService";
 import { cn } from "@/lib/cn";
 
@@ -48,6 +49,16 @@ export function DashboardContent() {
   const [trendData, setTrendData] = useState<TrendDataPoint[]>([]);
   const [recentActivity, setRecentActivity] = useState<RecentActivityItem[]>([]);
   const abortRef = useRef<AbortController | null>(null);
+  const appliedFilterChips = [
+    filters.status !== "all" ? `Status: ${filters.status}` : "",
+    filters.transaction_type !== "all" ? `Type: ${filters.transaction_type}` : "",
+    filters.player_id ? "Player" : "",
+    filters.bank_id ? "Bank" : "",
+    filters.exchange_id ? "Exchange" : "",
+    filters.amount_from ? `Min: ${filters.amount_from}` : "",
+    filters.amount_to ? `Max: ${filters.amount_to}` : "",
+    filters.search ? `Search: ${filters.search}` : "",
+  ].filter(Boolean);
 
   // Derive current time label
   const now = new Date();
@@ -63,6 +74,14 @@ export function DashboardContent() {
       const res = await reportService.dashboardSummary({
         fromDate: filters.date_from,
         toDate: filters.date_to,
+        exchangeId: filters.exchange_id || undefined,
+        status: filters.status,
+        transactionType: filters.transaction_type,
+        playerId: filters.player_id || undefined,
+        bankId: filters.bank_id || undefined,
+        amountFrom: filters.amount_from || undefined,
+        amountTo: filters.amount_to || undefined,
+        search: filters.search || undefined,
       });
 
       const data = res?.data ?? res;
@@ -70,11 +89,12 @@ export function DashboardContent() {
 
       setSummary({
         deposit: data.deposit ?? { totalAmount: 0, totalCount: 0, pendingCount: 0, pendingAmount: 0, verifiedAmount: 0, verifiedCount: 0, rejectedCount: 0, bonusTotal: 0 },
-        withdrawal: data.withdrawal ?? { totalAmount: 0, totalCount: 0, pendingCount: 0, pendingAmount: 0, finalizedAmount: 0, finalizedCount: 0, rejectedCount: 0 },
+        withdrawal: data.withdrawal ?? { totalAmount: 0, totalCount: 0, pendingCount: 0, pendingAmount: 0, approvedAmount: 0, approvedCount: 0, rejectedCount: 0, reverseBonusTotal: 0 },
         expense: data.expense ?? { totalAmount: 0, totalCount: 0, pendingCount: 0, approvedAmount: 0 },
         pnl: data.pnl ?? { gross: 0, net: 0 },
         exchanges: data.exchanges ?? { total: 0, active: 0 },
         users: data.users ?? { total: 0 },
+        exchangesBreakdown: Array.isArray(data.exchangesBreakdown) ? data.exchangesBreakdown : [],
       });
       setTrendData(Array.isArray(data.trendData) ? data.trendData : []);
       setRecentActivity(Array.isArray(data.recentActivity) ? data.recentActivity : []);
@@ -86,7 +106,19 @@ export function DashboardContent() {
     } finally {
       setLoading(false);
     }
-  }, [filters.date_from, filters.date_to, refreshToken]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [
+    filters.date_from,
+    filters.date_to,
+    filters.exchange_id,
+    filters.status,
+    filters.transaction_type,
+    filters.player_id,
+    filters.bank_id,
+    filters.amount_from,
+    filters.amount_to,
+    filters.search,
+    refreshToken,
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     fetchData();
@@ -159,6 +191,26 @@ export function DashboardContent() {
         loading={loading}
       />
 
+      <div className="flex flex-wrap gap-2">
+        {appliedFilterChips.length > 0 ? (
+          appliedFilterChips.map((chip) => (
+            <span
+              key={chip}
+              className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600"
+            >
+              {chip}
+            </span>
+          ))
+        ) : (
+          <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600">
+            No advanced filters applied
+          </span>
+        )}
+        <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700">
+          Withdrawal pending = requested, settled = approved
+        </span>
+      </div>
+
       {/* ───── Today badge ───── */}
       {todayBoth && (
         <div className="flex items-center gap-2 px-3 py-2 bg-[var(--brand-primary)]/5 border border-[var(--brand-primary)]/20 rounded-xl">
@@ -171,6 +223,9 @@ export function DashboardContent() {
 
       {/* ───── KPI Cards ───── */}
       <DashboardKPIs summary={summary} loading={loading} />
+
+      {/* ───── Exchange Breakdowns ───── */}
+      <DashboardExchangeSummary exchangesBreakdown={summary?.exchangesBreakdown} loading={loading} />
 
       {/* ───── Charts Row ───── */}
       <div className="grid grid-cols-12 gap-4">

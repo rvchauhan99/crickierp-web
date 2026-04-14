@@ -1,7 +1,18 @@
 import { apiClient } from "./apiClient";
 
 export const reportService = {
-  dashboardSummary: async (params?: { fromDate?: string; toDate?: string }) => {
+  dashboardSummary: async (params?: {
+    fromDate?: string;
+    toDate?: string;
+    exchangeId?: string;
+    status?: string;
+    transactionType?: string;
+    playerId?: string;
+    bankId?: string;
+    amountFrom?: string;
+    amountTo?: string;
+    search?: string;
+  }) => {
     const res = await apiClient.get("/reports/dashboard-summary", { params });
     return res.data;
   },

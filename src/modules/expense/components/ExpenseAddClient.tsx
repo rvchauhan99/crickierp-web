@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { IconDeviceFloppy, IconPencil, IconX, IconCheck, IconPlus } from "@tabler/icons-react";
+import { IconDeviceFloppy, IconPencil, IconX, IconPlus } from "@tabler/icons-react";
 import { AutocompleteField, type AutocompleteOption } from "@/components/common/AutocompleteField";
 import { FormActions, FormContainer } from "@/components/common/FormContainer";
 import { FormGrid } from "@/components/common/FormGrid";
@@ -18,7 +18,13 @@ import PaginationControlsReference from "@/components/common/PaginationControlsR
 import { TableStatusBadge } from "@/components/common/TableStatusBadge";
 import { useListingQueryStateReference } from "@/hooks/useListingQueryStateReference";
 import { tableColumnPresets } from "@/lib/tableStylePresets";
-import { createExpense, listExpenseTypes, listExpensesNormalized, updateExpense } from "@/services/expenseService";
+import {
+  createExpense,
+  listExpenseTypes,
+  listExpensesNormalized,
+  updateExpense,
+  uploadExpenseDocuments,
+} from "@/services/expenseService";
 import { listBanksNormalized } from "@/services/bankService";
 import { userService } from "@/services/userService";
 import { getApiErrorMessage } from "@/lib/apiError";
@@ -48,6 +54,18 @@ function todayYmd(): string {
 function toOptionalFilterValue(value: string): string | undefined {
   const trimmed = value.trim();
   return trimmed === "" ? undefined : trimmed;
+}
+
+function formatFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  let size = bytes;
+  let unit = 0;
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024;
+    unit += 1;
+  }
+  return `${size.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
 }
 
 type UserRow = {
@@ -105,6 +123,7 @@ export function ExpenseAddClient() {
   const [description, setDescription] = useState("");
   const [bankId, setBankId] = useState("");
   const [loading, setLoading] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [errors, setErrors] = useState<{
     expenseTypeId?: string;
     amount?: string;
@@ -176,7 +195,23 @@ export function ExpenseAddClient() {
     setExpenseDate(todayYmd());
     setDescription("");
     setBankId("");
+    setSelectedFiles([]);
     setErrors({});
+  }, []);
+
+  const onFilesSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    setSelectedFiles(files);
+  }, []);
+
+  const onPreviewFile = useCallback((file: File) => {
+    const objectUrl = URL.createObjectURL(file);
+    window.open(objectUrl, "_blank", "noopener,noreferrer");
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 60 * 1000);
+  }, []);
+
+  const removeSelectedFile = useCallback((indexToRemove: number) => {
+    setSelectedFiles((prev) => prev.filter((_, index) => index !== indexToRemove));
   }, []);
 
   const onSubmit = async () => {
@@ -202,14 +237,22 @@ export function ExpenseAddClient() {
         });
         toast.success("Expense updated.");
       } else {
-        await createExpense({
+        const created = (await createExpense({
           expenseTypeId: expenseTypeId.trim(),
           amount: amt,
           expenseDate: expenseDate.trim(),
           description: description.trim() || undefined,
           bankId: bankId.trim() || undefined,
-        });
-        toast.success("Expense created. Pending audit.");
+        })) as { _id?: string; id?: string } | null;
+        const createdId = String(created?._id ?? created?.id ?? "").trim();
+        if (selectedFiles.length > 0 && createdId) {
+          await uploadExpenseDocuments(createdId, selectedFiles);
+          toast.success("Expense created and documents uploaded. Pending audit.");
+        } else if (selectedFiles.length > 0) {
+          toast.warning("Expense created, but document upload was skipped because ID was unavailable.");
+        } else {
+          toast.success("Expense created. Pending audit.");
+        }
       }
       resetForm();
       setTableKey((k) => k + 1);
@@ -323,6 +366,7 @@ export function ExpenseAddClient() {
       <div className="w-full shrink-0">
         <FormContainer
           className="!flex-none"
+          contentOverflow="visible"
           title={editingId ? "Update pending expense" : "Add new expense"}
           description={
             editingId
@@ -360,6 +404,55 @@ export function ExpenseAddClient() {
               <FieldLabel>Description (optional)</FieldLabel>
               <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Memo" />
             </div>
+            {!editingId && (
+              <div className="space-y-1.5">
+                <FieldLabel>Documents (optional)</FieldLabel>
+                <Input
+                  type="file"
+                  multiple
+                  accept=".pdf,image/jpeg,image/jpg,image/png,image/webp"
+                  onChange={onFilesSelected}
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Upload up to 5 files (PDF/JPG/JPEG/PNG/WEBP). Max 10MB each.
+                </p>
+                {selectedFiles.length > 0 ? (
+                  <div className="space-y-1.5">
+                    <p className="text-[11px] text-slate-600">{selectedFiles.length} file(s) selected</p>
+                    <div className="max-h-36 space-y-1 overflow-y-auto rounded-md border border-[var(--border)] bg-slate-50 p-2">
+                      {selectedFiles.map((file, index) => (
+                        <div key={`${file.name}-${file.lastModified}-${index}`} className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-[11px] font-medium text-slate-700">{file.name}</p>
+                            <p className="text-[10px] text-slate-500">
+                              {formatFileSize(file.size)} • {file.type || "file"}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => onPreviewFile(file)}
+                            >
+                              View
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="danger"
+                              onClick={() => removeSelectedFile(index)}
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            )}
             <div className="md:col-span-4 space-y-1.5 border-t border-[var(--border)] pt-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">

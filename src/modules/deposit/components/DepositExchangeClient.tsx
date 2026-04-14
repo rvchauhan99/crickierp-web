@@ -200,6 +200,7 @@ export function DepositExchangeClient() {
   const [playerId, setPlayerId] = useState("");
   const [bonus, setBonus] = useState("0");
   const [playerBonusPercent, setPlayerBonusPercent] = useState<number | null>(null);
+  const [bonusPercentSource, setBonusPercentSource] = useState<"first_deposit" | "regular" | null>(null);
   const bonusManuallyAdjustedRef = useRef(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReasonId, setRejectReasonId] = useState("");
@@ -311,6 +312,7 @@ export function DepositExchangeClient() {
     setPlayerId("");
     setBonus("0");
     setPlayerBonusPercent(null);
+    setBonusPercentSource(null);
   }, []);
 
   const handleResetFilters = useCallback(() => {
@@ -422,6 +424,7 @@ export function DepositExchangeClient() {
     setPlayerId("");
     setBonus("0");
     setPlayerBonusPercent(null);
+    setBonusPercentSource(null);
   }, []);
 
   useEffect(() => {
@@ -430,20 +433,37 @@ export function DepositExchangeClient() {
     const pid = playerId.trim();
     if (!deposit || deposit.status !== "pending" || !pid) {
       setPlayerBonusPercent(null);
+      setBonusPercentSource(null);
       return;
     }
 
-    void getPlayerById(pid)
-      .then((p) => {
+    void Promise.all([
+      getPlayerById(pid),
+      listDepositsNormalized("exchange", {
+        page: 1,
+        limit: 1,
+        player: pid,
+        status: "all",
+      }),
+    ])
+      .then(([p, priorDeposits]) => {
         if (cancelled) return;
-        const pct = Number(p.bonusPercentage ?? 0);
+        const hasPriorNonRejected = (priorDeposits.meta?.total ?? 0) > 0;
+        const source: "first_deposit" | "regular" = hasPriorNonRejected ? "regular" : "first_deposit";
+        const pct = Number(
+          source === "first_deposit" ? p.firstDepositBonusPercentage : p.regularBonusPercentage,
+        );
+        setBonusPercentSource(source);
         setPlayerBonusPercent(Number.isFinite(pct) ? pct : null);
         if (!bonusManuallyAdjustedRef.current) {
           setBonus(bonusAmountFromPercent(deposit.amount, Number.isFinite(pct) ? pct : 0));
         }
       })
       .catch(() => {
-        if (!cancelled) setPlayerBonusPercent(null);
+        if (!cancelled) {
+          setPlayerBonusPercent(null);
+          setBonusPercentSource(null);
+        }
       });
 
     return () => {
@@ -716,7 +736,8 @@ export function DepositExchangeClient() {
                 />
                 {playerBonusPercent !== null && canActOnSelection && (
                   <p className="mt-1 text-xs text-gray-500">
-                    Bonus % from player: {playerBonusPercent}%
+                    Applied {bonusPercentSource === "first_deposit" ? "First Deposit" : "Regular"} Bonus %:{" "}
+                    {playerBonusPercent}%
                     {selectedDeposit && (
                       <>
                         {" "}

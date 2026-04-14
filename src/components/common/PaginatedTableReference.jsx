@@ -116,7 +116,6 @@ export default function PaginatedTable({
   const hasColumnFilters = Boolean(onColumnFilterChange);
   const filterDebounceRef = React.useRef({});
   const pendingFilterRef = React.useRef({});
-  const tableMeasureRef = React.useRef(null);
   const debouncedColumnFilterChange = React.useCallback(
     (key, value) => {
       pendingFilterRef.current[key] = value;
@@ -460,52 +459,6 @@ export default function PaginatedTable({
     (1 + page) * rowsPerPage - (rows ? rows.length : 0)
   );
 
-  React.useLayoutEffect(() => {
-    if (!hasColumnFilters || typeof window === "undefined") return;
-    const table = tableMeasureRef.current;
-    if (!table) return;
-    const measure = () => {
-      const row = table.querySelector("tr[data-ptr-filter-row]");
-      if (!row) return;
-      const cells = row.querySelectorAll("td[data-ptr-filter-type]");
-      const samples = [];
-      cells.forEach((td) => {
-        const type = td.getAttribute("data-ptr-filter-type");
-        const key = td.getAttribute("data-ptr-filter-key") || "";
-        const inner = td.querySelector("[data-ptr-filter-row-inner]");
-        const stack = td.querySelector("[data-ptr-filter-stack]");
-        const firstInput = td.querySelector("input");
-        samples.push({
-          key,
-          type,
-          tdW: td.clientWidth,
-          innerW: inner?.clientWidth ?? null,
-          stackW: stack?.clientWidth ?? null,
-          inputW: firstInput?.clientWidth ?? null,
-          inputType: firstInput?.getAttribute("type") || null,
-        });
-      });
-      // #region agent log
-      fetch("http://127.0.0.1:7657/ingest/d0d9b36b-f0d8-4539-9aa9-ddadb14942d4", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "9e4f16" },
-        body: JSON.stringify({
-          sessionId: "9e4f16",
-          runId: "filter-measure-pre",
-          hypothesisId: "H1-H5",
-          location: "PaginatedTableReference.jsx:useLayoutEffect",
-          message: "filter cell layout widths",
-          data: { samples, compactDensity, loading },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
-    };
-    measure();
-    const raf = requestAnimationFrame(measure);
-    return () => cancelAnimationFrame(raf);
-  }, [hasColumnFilters, compactDensity, loading, rows.length, columns]);
-
   const totalPages = Math.ceil(totalCount / rowsPerPage) || 1;
   const from = totalCount === 0 ? 0 : page * rowsPerPage + 1;
   const to = Math.min((page + 1) * rowsPerPage, totalCount);
@@ -536,7 +489,6 @@ export default function PaginatedTable({
 
       <div className="flex-1 min-w-0 overflow-x-auto overflow-y-auto border-y border-border w-full max-w-full [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-muted [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30">
         <table
-          ref={tableMeasureRef}
           className={cn("w-full table-auto", compactDensity ? "min-w-full" : "min-w-max")}
           aria-label="paginated table"
         >

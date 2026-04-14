@@ -6,7 +6,7 @@ import { IconChartDonut } from "@tabler/icons-react";
 
 export type PLDonutSummary = {
   deposit: { verifiedAmount: number };
-  withdrawal: { finalizedAmount: number };
+  withdrawal: { approvedAmount: number };
   expense: { approvedAmount: number };
 };
 
@@ -16,7 +16,7 @@ interface Props {
 }
 
 const COLORS = ["#15803d", "#c62828", "#c27803"];
-const SEGMENTS = ["Deposits (Verified)", "Withdrawals (Finalized)", "Expenses (Approved)"];
+const SEGMENTS = ["Deposits (Verified)", "Withdrawals (Approved)", "Expenses (Approved)"];
 
 function formatAmount(value: number) {
   if (value >= 10_00_000) return `₹${(value / 10_00_000).toFixed(1)}L`;
@@ -46,7 +46,7 @@ const CustomTooltip = ({
 
 export function DashboardPLDonut({ summary, loading }: Props) {
   const depositsVal = summary?.deposit?.verifiedAmount ?? 0;
-  const withdrawalsVal = summary?.withdrawal?.finalizedAmount ?? 0;
+  const withdrawalsVal = summary?.withdrawal?.approvedAmount ?? 0;
   const expensesVal = summary?.expense?.approvedAmount ?? 0;
 
   const pieData = [
@@ -90,7 +90,7 @@ export function DashboardPLDonut({ summary, loading }: Props) {
               <IconChartDonut className="w-6 h-6 text-slate-300" />
             </div>
             <p className="text-sm font-medium text-slate-400">No settled data</p>
-            <p className="text-xs text-slate-300 mt-1">Finalized transactions will appear here</p>
+            <p className="text-xs text-slate-300 mt-1">Approved transactions will appear here</p>
           </div>
         ) : (
           <>

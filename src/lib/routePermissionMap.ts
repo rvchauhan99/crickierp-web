@@ -14,6 +14,7 @@ const PREFIX_RULES: { prefix: string; access: RouteAccess }[] = [
   { prefix: "/exchange/list", access: { kind: "permission", permission: NAV_PERMISSIONS.EXCHANGE_LIST } },
   { prefix: "/player/add", access: { kind: "permission", permission: NAV_PERMISSIONS.PLAYER_ADD } },
   { prefix: "/player/list", access: { kind: "permission", permission: NAV_PERMISSIONS.PLAYER_LIST } },
+  { prefix: "/player/edit", access: { kind: "permission", permission: NAV_PERMISSIONS.PLAYER_EDIT } },
   { prefix: "/bank/add", access: { kind: "permission", permission: NAV_PERMISSIONS.BANK_ADD } },
   { prefix: "/bank/list", access: { kind: "permission", permission: NAV_PERMISSIONS.BANK_LIST } },
   { prefix: "/bank/statement", access: { kind: "permission", permission: NAV_PERMISSIONS.BANK_STATEMENT } },

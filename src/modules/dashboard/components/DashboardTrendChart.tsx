@@ -16,6 +16,8 @@ import {
 import { IconChartBar, IconChartArea } from "@tabler/icons-react";
 import { cn } from "@/lib/cn";
 
+const SKELETON_BAR_HEIGHTS = [32, 58, 41, 76, 43, 67, 52, 37, 70, 46, 63, 35, 55, 48];
+
 export type TrendDataPoint = {
   date: string;
   depositAmount: number;
@@ -85,7 +87,7 @@ export function DashboardTrendChart({ data, loading }: Props) {
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/50 rounded-t-xl">
         <div>
           <h3 className="font-semibold text-slate-800 text-sm">Transaction Trends</h3>
-          <p className="text-[11px] text-slate-400 mt-0.5">Deposit & Withdrawal amounts over time</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Filtered transaction amounts over time (withdrawals settled = approved)</p>
         </div>
         <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
           <button
@@ -117,7 +119,7 @@ export function DashboardTrendChart({ data, loading }: Props) {
               <div
                 key={i}
                 className="flex-1 rounded-t-sm bg-slate-100"
-                style={{ height: `${20 + Math.random() * 60}%` }}
+                style={{ height: `${SKELETON_BAR_HEIGHTS[i] ?? 50}%` }}
               />
             ))}
           </div>
