@@ -1,6 +1,15 @@
 "use client";
 
-import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  KeyboardEvent,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
 import { IconX } from "@tabler/icons-react";
 import { Input } from "@/components/ui/Input";
 import { cn } from "@/lib/cn";
@@ -48,6 +57,8 @@ export function AutocompleteField({
   const [activeIndex, setActiveIndex] = useState(-1);
   const [selectedOption, setSelectedOption] = useState<AutocompleteOption | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  /** Portal dropdown — outside `rootRef` so parent `overflow:hidden` does not clip options. */
+  const dropdownRef = useRef<HTMLUListElement | null>(null);
   const debounceRef = useRef<number | null>(null);
   /** Keeps label when `value` is controlled but the option is not in `options` yet (user pick or default/resolve). */
   const selectedCacheRef = useRef<AutocompleteOption | null>(null);
@@ -58,6 +69,48 @@ export function AutocompleteField({
   const defaultResolveAttemptRef = useRef<string | null>(null);
   /** Avoid repeated `loadOptions("")` when value is still missing from the loaded page. */
   const emptySearchAttemptRef = useRef<string | null>(null);
+
+  const [dropdownBox, setDropdownBox] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+  } | null>(null);
+
+  const updateDropdownPosition = useCallback(() => {
+    if (!rootRef.current) return;
+    const r = rootRef.current.getBoundingClientRect();
+    const gap = 4;
+    const viewportH = window.innerHeight;
+    const preferredMax = 14 * 16; /* ~max-h-56 */
+    const spaceBelow = viewportH - r.bottom - gap - 8;
+    const maxHeight = Math.min(preferredMax, Math.max(80, spaceBelow));
+    setDropdownBox({
+      top: r.bottom + gap,
+      left: r.left,
+      width: r.width,
+      maxHeight,
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open || disabled) {
+      setDropdownBox(null);
+      return;
+    }
+    updateDropdownPosition();
+  }, [open, disabled, updateDropdownPosition, options.length, loading]);
+
+  useEffect(() => {
+    if (!open || disabled) return;
+    const onScrollOrResize = () => updateDropdownPosition();
+    window.addEventListener("resize", onScrollOrResize);
+    window.addEventListener("scroll", onScrollOrResize, true);
+    return () => {
+      window.removeEventListener("resize", onScrollOrResize);
+      window.removeEventListener("scroll", onScrollOrResize, true);
+    };
+  }, [open, disabled, updateDropdownPosition]);
 
   const runLoad = useCallback(
     async (text: string) => {
@@ -169,10 +222,10 @@ export function AutocompleteField({
 
   useEffect(() => {
     const onOutside = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-        setQuery("");
-      }
+      const t = event.target as Node;
+      if (rootRef.current?.contains(t) || dropdownRef.current?.contains(t)) return;
+      setOpen(false);
+      setQuery("");
     };
     document.addEventListener("mousedown", onOutside);
     return () => document.removeEventListener("mousedown", onOutside);
@@ -215,6 +268,48 @@ export function AutocompleteField({
 
   const showClear = useMemo(() => Boolean(value) && !disabled, [value, disabled]);
 
+  const dropdownList =
+    open && dropdownBox ? (
+      <ul
+        ref={dropdownRef}
+        className="fixed z-[200] overflow-auto rounded-md border border-[var(--border)] bg-white py-1 shadow-lg"
+        style={{
+          top: dropdownBox.top,
+          left: dropdownBox.left,
+          width: dropdownBox.width,
+          maxHeight: dropdownBox.maxHeight,
+        }}
+        role="listbox"
+      >
+        {loading ? (
+          <li className="px-3 py-2 text-sm text-gray-500">Loading...</li>
+        ) : options.length === 0 ? (
+          <li className="px-3 py-2 text-sm text-gray-500">{emptyText}</li>
+        ) : (
+          options.map((option, index) => (
+            <li
+              key={option.value}
+              className={cn(
+                "cursor-pointer px-3 py-2 text-sm",
+                index === activeIndex ? "bg-[var(--brand-primary)] text-white" : "hover:bg-gray-50"
+              )}
+              onMouseEnter={() => setActiveIndex(index)}
+              onMouseDown={(event) => {
+                event.preventDefault();
+                selectedCacheRef.current = option;
+                setSelectedOption(option);
+                onChange(option.value);
+                setOpen(false);
+                setQuery("");
+              }}
+            >
+              {option.label}
+            </li>
+          ))
+        )}
+      </ul>
+    ) : null;
+
   return (
     <div className="relative w-full" ref={rootRef}>
       <div className="relative">
@@ -249,36 +344,9 @@ export function AutocompleteField({
         )}
       </div>
 
-      {open && (
-        <ul className="absolute z-50 mt-1 max-h-56 w-full overflow-auto rounded-md border border-[var(--border)] bg-white py-1 shadow-md">
-          {loading ? (
-            <li className="px-3 py-2 text-sm text-gray-500">Loading...</li>
-          ) : options.length === 0 ? (
-            <li className="px-3 py-2 text-sm text-gray-500">{emptyText}</li>
-          ) : (
-            options.map((option, index) => (
-              <li
-                key={option.value}
-                className={cn(
-                  "cursor-pointer px-3 py-2 text-sm",
-                  index === activeIndex ? "bg-[var(--brand-primary)] text-white" : "hover:bg-gray-50"
-                )}
-                onMouseEnter={() => setActiveIndex(index)}
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  selectedCacheRef.current = option;
-                  setSelectedOption(option);
-                  onChange(option.value);
-                  setOpen(false);
-                  setQuery("");
-                }}
-              >
-                {option.label}
-              </li>
-            ))
-          )}
-        </ul>
-      )}
+      {typeof document !== "undefined" && dropdownList
+        ? createPortal(dropdownList, document.body)
+        : null}
     </div>
   );
 }
