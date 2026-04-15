@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { IconCheck, IconX } from "@tabler/icons-react";
 import { AutocompleteField, type AutocompleteOption } from "@/components/common/AutocompleteField";
@@ -11,11 +11,21 @@ import { FieldError } from "@/components/common/FieldError";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { listExchanges } from "@/services/exchangeService";
-import { createPlayer, downloadSampleCsv, importPlayers } from "@/services/playerService";
+import {
+  createPlayer,
+  createPlayerImportJob,
+  downloadSampleCsv,
+  getPlayerImportJob,
+  importPlayers,
+  streamPlayerImportJobEvents,
+} from "@/services/playerService";
 import { formatImportErrorToast, getApiErrorMessage } from "@/lib/apiError";
+import type { PlayerImportJobSummary } from "@/types/player";
 
 export function PlayerAddClient() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const streamCleanupRef = useRef<(() => void) | null>(null);
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [exchangeId, setExchangeId] = useState("");
   const [playerId, setPlayerId] = useState("");
@@ -33,6 +43,14 @@ export function PlayerAddClient() {
 
   const [bulkFile, setBulkFile] = useState<File | null>(null);
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [importJob, setImportJob] = useState<PlayerImportJobSummary | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (streamCleanupRef.current) streamCleanupRef.current();
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    };
+  }, []);
 
   const loadExchangeOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {
@@ -106,18 +124,75 @@ export function PlayerAddClient() {
       return;
     }
     setBulkLoading(true);
+    const asyncImportEnabled = process.env.NEXT_PUBLIC_PLAYER_IMPORT_ASYNC_ENABLED !== "false";
+    let cleanupStream: (() => void) | null = null;
+    let pollingTimer: ReturnType<typeof setInterval> | null = null;
+    const stopAllTracking = () => {
+      if (cleanupStream) cleanupStream();
+      if (pollingTimer) clearInterval(pollingTimer);
+      streamCleanupRef.current = null;
+      pollTimerRef.current = null;
+    };
     try {
-      const result = await importPlayers(bulkFile);
-      const parts = [
-        `Created ${result.created} player${result.created === 1 ? "" : "s"}.`,
-        `Updated ${result.updated} player${result.updated === 1 ? "" : "s"}.`,
-      ];
-      if (result.skipped > 0) {
-        parts.push(`${result.skipped} empty row${result.skipped === 1 ? "" : "s"} skipped.`);
+      if (!asyncImportEnabled) {
+        const result = await importPlayers(bulkFile);
+        const parts = [
+          `Created ${result.created} player${result.created === 1 ? "" : "s"}.`,
+          `Updated ${result.updated} player${result.updated === 1 ? "" : "s"}.`,
+        ];
+        if (result.skipped > 0) {
+          parts.push(`${result.skipped} empty row${result.skipped === 1 ? "" : "s"} skipped.`);
+        }
+        toast.success(parts.join(" "));
+        setBulkFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
       }
-      toast.success(parts.join(" "));
+
+      const queued = await createPlayerImportJob(bulkFile);
+      toast.success("Import accepted. Processing started in background.");
+      const initial = await getPlayerImportJob(queued.jobId);
+      setImportJob(initial);
       setBulkFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
+
+      const refreshStatus = async () => {
+        try {
+          const next = await getPlayerImportJob(queued.jobId);
+          setImportJob(next);
+          if (next.status === "completed") {
+            stopAllTracking();
+            toast.success(
+              `Import completed. Processed ${next.progress.processedRows}/${next.progress.totalRows} rows.`,
+            );
+          } else if (next.status === "failed") {
+            stopAllTracking();
+            toast.error(next.failureReason ?? "Import failed.");
+          }
+        } catch {
+          // Keep polling retries silent.
+        }
+      };
+
+      cleanupStream = await streamPlayerImportJobEvents(queued.jobId, (streamed) => {
+        setImportJob((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            status: streamed.status,
+            failureReason: streamed.failureReason,
+            progress: streamed.progress,
+          };
+        });
+      });
+      streamCleanupRef.current = cleanupStream;
+
+      pollingTimer = setInterval(() => {
+        void refreshStatus();
+      }, 7000);
+      pollTimerRef.current = pollingTimer;
+
+      void refreshStatus();
     } catch (error: unknown) {
       const { title, description } = formatImportErrorToast(error, "Import failed");
       if (description) {
@@ -270,6 +345,19 @@ export function PlayerAddClient() {
             Cancel
           </Button>
         </FormActions>
+        {importJob ? (
+          <div className="border-border mt-3 rounded-md border p-3 text-sm">
+            <div className="font-medium">Import status: {importJob.status}</div>
+            <div className="text-[var(--text-secondary)]">
+              Processed {importJob.progress.processedRows}/{importJob.progress.totalRows} rows
+            </div>
+            <div className="text-[var(--text-secondary)]">
+              Success: {importJob.progress.successRows} | Failed: {importJob.progress.failedRows} | Skipped:{" "}
+              {importJob.progress.skippedRows}
+            </div>
+            {importJob.failureReason ? <div className="mt-1 text-red-600">{importJob.failureReason}</div> : null}
+          </div>
+        ) : null}
       </FormContainer>
     </div>
   );

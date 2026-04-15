@@ -1,5 +1,13 @@
 import { apiClient } from "@/services/apiClient";
-import type { PlayerCreateInput, PlayerDetail, PlayerImportResult, PlayerRow, PlayerUpdateInput } from "@/types/player";
+import type {
+  PlayerCreateInput,
+  PlayerDetail,
+  PlayerImportJobSummary,
+  PlayerImportResult,
+  PlayerRow,
+  PlayerUpdateInput,
+} from "@/types/player";
+import { getAccessToken } from "./sessionStore";
 
 function toOptionalParam(value: unknown): string | undefined {
   if (value === null || value === undefined) return undefined;
@@ -93,6 +101,112 @@ export async function importPlayers(file: File): Promise<PlayerImportResult> {
     formData,
   );
   return response.data.data;
+}
+
+export async function createPlayerImportJob(file: File): Promise<{ jobId: string; status: string }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await apiClient.post<{ success: boolean; data: { jobId: string; status: string } }>(
+    "/players/import-jobs",
+    formData,
+    { timeout: 60_000 },
+  );
+  return response.data.data;
+}
+
+export async function getPlayerImportJob(jobId: string): Promise<PlayerImportJobSummary> {
+  const response = await apiClient.get<{ success: boolean; data: PlayerImportJobSummary }>(
+    `/players/import-jobs/${encodeURIComponent(jobId)}`,
+    { timeout: 30_000 },
+  );
+  return response.data.data;
+}
+
+export async function streamPlayerImportJobEvents(
+  jobId: string,
+  onProgress: (payload: PlayerImportJobSummary) => void,
+): Promise<() => void> {
+  const token = getAccessToken();
+  if (!token) {
+    throw new Error("Missing access token for realtime updates");
+  }
+
+  const controller = new AbortController();
+  const response = await fetch(
+    `${apiClient.defaults.baseURL}/players/import-jobs/${encodeURIComponent(jobId)}/events`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      signal: controller.signal,
+      credentials: "include",
+    },
+  );
+  if (!response.ok || !response.body) {
+    throw new Error("Unable to connect to import progress stream");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+  const processChunk = (chunk: string) => {
+    buffer += chunk;
+    const parts = buffer.split("\n\n");
+    buffer = parts.pop() ?? "";
+    for (const part of parts) {
+      const lines = part.split("\n");
+      let eventName = "message";
+      let dataLine = "";
+      for (const line of lines) {
+        if (line.startsWith("event:")) eventName = line.slice(6).trim();
+        if (line.startsWith("data:")) dataLine += line.slice(5).trim();
+      }
+      if (eventName !== "progress" || !dataLine) continue;
+      try {
+        const eventData = JSON.parse(dataLine) as {
+          jobId: string;
+          status: PlayerImportJobSummary["status"];
+          totalRows: number;
+          processedRows: number;
+          successRows: number;
+          failedRows: number;
+          skippedRows: number;
+          message?: string;
+        };
+        onProgress({
+          id: eventData.jobId,
+          status: eventData.status,
+          fileName: "",
+          failureReason: eventData.message,
+          progress: {
+            totalRows: eventData.totalRows,
+            processedRows: eventData.processedRows,
+            successRows: eventData.successRows,
+            failedRows: eventData.failedRows,
+            skippedRows: eventData.skippedRows,
+          },
+          errorSample: [],
+        });
+      } catch {
+        // Ignore malformed events.
+      }
+    }
+  };
+
+  void (async () => {
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        processChunk(decoder.decode(value, { stream: true }));
+      }
+    } catch {
+      // Caller handles fallback polling.
+    }
+  })();
+
+  return () => controller.abort();
 }
 
 function str(params: Record<string, unknown>, key: string): string {
