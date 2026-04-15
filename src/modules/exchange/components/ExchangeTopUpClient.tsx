@@ -1,0 +1,201 @@
+"use client";
+
+import { useCallback, useState } from "react";
+import { IconCheck, IconFilter, IconRefresh } from "@tabler/icons-react";
+import { AutocompleteField, type AutocompleteOption } from "@/components/common/AutocompleteField";
+import { FieldLabel } from "@/components/common/FieldLabel";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { getApiErrorMessage } from "@/lib/apiError";
+import { createExchangeTopup, listExchanges, listExchangeTopups } from "@/services/exchangeService";
+import type { ExchangeTopupRow } from "@/types/exchange";
+
+function formatAmount(value: number) {
+  return `₹${Number(value || 0).toLocaleString("en-IN")}`;
+}
+
+function createdByLabel(createdBy: ExchangeTopupRow["createdBy"]): string {
+  if (!createdBy || typeof createdBy === "string") return "";
+  return createdBy.fullName?.trim() || createdBy.username?.trim() || "";
+}
+
+export function ExchangeTopUpClient() {
+  const [exchangeId, setExchangeId] = useState("");
+  const [amount, setAmount] = useState("");
+  const [remark, setRemark] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [rows, setRows] = useState<ExchangeTopupRow[]>([]);
+  const [currentBalance, setCurrentBalance] = useState<number | null>(null);
+
+  const loadExchangeOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
+    try {
+      const res = await listExchanges({ page: 1, limit: 40, q: query || undefined, sortBy: "name", sortOrder: "asc" });
+      return res.items.map((item) => ({
+        value: item._id ?? item.id,
+        label: `${item.name} (${item.provider})`,
+      }));
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const refreshTopups = useCallback(async () => {
+    if (!exchangeId.trim()) {
+      setRows([]);
+      setCurrentBalance(null);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await listExchangeTopups({ exchangeId: exchangeId.trim(), page: 1, pageSize: 50, sortOrder: "desc" });
+      setRows(res.items);
+      setCurrentBalance(res.items[0]?.exchangeId?.currentBalance ?? null);
+    } catch (e: unknown) {
+      setError(getApiErrorMessage(e, "Failed to load top up history"));
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [exchangeId]);
+
+  const submitTopup = async () => {
+    if (!exchangeId.trim()) {
+      setError("Please select exchange.");
+      return;
+    }
+    const amountValue = Number(amount);
+    if (!Number.isFinite(amountValue) || amountValue <= 0) {
+      setError("Please enter valid amount.");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const created = await createExchangeTopup({
+        exchangeId: exchangeId.trim(),
+        amount: amountValue,
+        remark: remark.trim() || undefined,
+      });
+      setAmount("");
+      setRemark("");
+      setCurrentBalance(created.currentBalance ?? null);
+      await refreshTopups();
+    } catch (e: unknown) {
+      setError(getApiErrorMessage(e, "Failed to create top up"));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4 pb-8 max-w-[1200px] mx-auto">
+      <div>
+        <h1 className="text-xl font-bold tracking-tight text-slate-900 leading-tight">Exchange Top Up</h1>
+        <p className="text-xs text-slate-400 mt-0.5">Direct credit into exchange balance (no bank transaction).</p>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className="md:col-span-2 space-y-1.5">
+            <FieldLabel>Exchange</FieldLabel>
+            <AutocompleteField
+              value={exchangeId}
+              onChange={(value) => {
+                setExchangeId(value);
+                setRows([]);
+                setCurrentBalance(null);
+              }}
+              loadOptions={loadExchangeOptions}
+              placeholder="Search exchange..."
+            />
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel>Top Up Amount</FieldLabel>
+            <Input
+              type="number"
+              min={0.01}
+              step="0.01"
+              value={amount}
+              onChange={(event) => setAmount(event.target.value)}
+              placeholder="0.00"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel>Remark</FieldLabel>
+            <Input value={remark} onChange={(event) => setRemark(event.target.value)} placeholder="Optional remark" />
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button onClick={submitTopup} disabled={submitting} className="gap-2">
+            <IconCheck className="w-4 h-4" />
+            {submitting ? "Posting..." : "Post Top Up"}
+          </Button>
+          <Button variant="outline" onClick={refreshTopups} disabled={loading} className="gap-2">
+            <IconRefresh className="w-4 h-4" />
+            Refresh
+          </Button>
+          {currentBalance != null ? (
+            <div className="ml-auto text-sm text-slate-700">
+              Current Balance: <span className="font-semibold">{formatAmount(currentBalance)}</span>
+            </div>
+          ) : null}
+        </div>
+
+        {error ? <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-2">{error}</div> : null}
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2 text-sm font-medium text-slate-700">
+          <IconFilter className="w-4 h-4" />
+          Top Up History
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-slate-50 text-slate-600 uppercase tracking-wider text-[10px]">
+              <tr>
+                <th className="text-left px-4 py-3">Date</th>
+                <th className="text-left px-4 py-3">Exchange</th>
+                <th className="text-right px-4 py-3">Amount</th>
+                <th className="text-left px-4 py-3">Remark</th>
+                <th className="text-left px-4 py-3">Created By</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                    {loading ? "Loading..." : "No top up entries found."}
+                  </td>
+                </tr>
+              ) : (
+                rows.map((row) => (
+                  <tr key={row._id} className="border-t border-slate-100">
+                    <td className="px-4 py-3 text-slate-600">
+                      {new Date(row.createdAt).toLocaleString("en-IN", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </td>
+                    <td className="px-4 py-3 text-slate-700">
+                      {row.exchangeId?.name} ({row.exchangeId?.provider})
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold text-emerald-700">{formatAmount(row.amount)}</td>
+                    <td className="px-4 py-3 text-slate-600">{row.remark || "-"}</td>
+                    <td className="px-4 py-3 text-slate-600">{createdByLabel(row.createdBy) || "-"}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}

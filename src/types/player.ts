@@ -55,5 +55,17 @@ export type PlayerImportJobSummary = {
   fileName: string;
   failureReason?: string;
   progress: PlayerImportJobProgress;
-  errorSample: Array<{ row: number; message: string }>;
+  errorSample: Array<{
+    row: number;
+    message: string;
+    reason?: string;
+    rowData?: {
+      exchange_name: string;
+      player_id: string;
+      phone: string;
+      bonus_percentage: string;
+      first_deposit_bonus_percentage: string;
+    };
+  }>;
+  errorCsvAvailable?: boolean;
 };

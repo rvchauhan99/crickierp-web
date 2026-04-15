@@ -6,6 +6,7 @@ import {
   ExchangeListResult,
   ExchangeStatementEntryType,
   ExchangeStatementResponse,
+  ExchangeTopupRow,
   ExchangeStatus,
 } from "@/types/exchange";
 
@@ -66,6 +67,12 @@ function normalizeExchange(row: Partial<Exchange> & { _id?: string; id?: string 
     _id: row._id ?? id,
     name: row.name ?? "",
     openingBalance: Number(row.openingBalance ?? 0),
+    currentBalance:
+      row.currentBalance != null
+        ? Number(row.currentBalance)
+        : row.openingBalance != null
+          ? Number(row.openingBalance)
+          : 0,
     bonus: Number(row.bonus ?? 0),
     provider: row.provider ?? "",
     status: (row.status ?? "deactive") as Exchange["status"],
@@ -113,6 +120,9 @@ export async function listExchanges(params: ExchangeListParams = {}): Promise<Ex
     openingBalance: toOptionalParam(params.openingBalance),
     openingBalance_to: toOptionalParam(params.openingBalanceTo),
     openingBalance_op: toOptionalParam(params.openingBalanceOp),
+    currentBalance: toOptionalParam(params.currentBalance),
+    currentBalance_to: toOptionalParam(params.currentBalanceTo),
+    currentBalance_op: toOptionalParam(params.currentBalanceOp),
     bonus: toOptionalParam(params.bonus),
     bonus_to: toOptionalParam(params.bonusTo),
     bonus_op: toOptionalParam(params.bonusOp),
@@ -185,6 +195,9 @@ export async function listExchangesNormalized(
     openingBalance: str(params, "openingBalance"),
     openingBalanceTo: str(params, "openingBalance_to"),
     openingBalanceOp: str(params, "openingBalance_op") || undefined,
+    currentBalance: str(params, "currentBalance"),
+    currentBalanceTo: str(params, "currentBalance_to"),
+    currentBalanceOp: str(params, "currentBalance_op") || undefined,
     bonus: str(params, "bonus"),
     bonusTo: str(params, "bonus_to"),
     bonusOp: str(params, "bonus_op") || undefined,
@@ -229,6 +242,9 @@ export async function exportExchanges(params: ExchangeListParams = {}): Promise<
     openingBalance: toOptionalParam(params.openingBalance),
     openingBalance_to: toOptionalParam(params.openingBalanceTo),
     openingBalance_op: toOptionalParam(params.openingBalanceOp),
+    currentBalance: toOptionalParam(params.currentBalance),
+    currentBalance_to: toOptionalParam(params.currentBalanceTo),
+    currentBalance_op: toOptionalParam(params.currentBalanceOp),
     bonus: toOptionalParam(params.bonus),
     bonus_to: toOptionalParam(params.bonusTo),
     bonus_op: toOptionalParam(params.bonusOp),
@@ -267,4 +283,40 @@ export async function getExchangeStatement(
     { params: query },
   );
   return res.data.data;
+}
+
+export async function createExchangeTopup(input: {
+  exchangeId: string;
+  amount: number;
+  remark?: string;
+}): Promise<ExchangeTopupRow & { currentBalance?: number }> {
+  const res = await apiClient.post<{ success: boolean; data: ExchangeTopupRow & { currentBalance?: number } }>(
+    "/exchange-topup",
+    input,
+  );
+  return res.data.data;
+}
+
+export async function listExchangeTopups(params?: {
+  exchangeId?: string;
+  page?: number;
+  pageSize?: number;
+  sortOrder?: "asc" | "desc";
+}): Promise<{ items: ExchangeTopupRow[]; meta: { page: number; pageSize: number; total: number } }> {
+  const response = await apiClient.get<{
+    success: boolean;
+    data: ExchangeTopupRow[];
+    meta: { page: number; pageSize: number; total: number };
+  }>("/exchange-topup", {
+    params: {
+      exchangeId: params?.exchangeId,
+      page: params?.page ?? 1,
+      pageSize: params?.pageSize ?? 20,
+      sortOrder: params?.sortOrder ?? "desc",
+    },
+  });
+  return {
+    items: response.data.data ?? [],
+    meta: response.data.meta ?? { page: 1, pageSize: 20, total: 0 },
+  };
 }

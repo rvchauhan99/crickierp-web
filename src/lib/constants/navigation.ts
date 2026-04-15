@@ -122,6 +122,13 @@ export const NAV_ITEMS: AppNavNode[] = [
         keywords: ["ledger", "report"],
         requiredPermission: NAV_PERMISSIONS.EXCHANGE_STATEMENT,
       },
+      {
+        id: "exchange-top-up",
+        label: "Top Up",
+        href: "/exchange/top-up",
+        keywords: ["credit", "balance"],
+        requiredPermission: NAV_PERMISSIONS.EXCHANGE_TOPUP_ADD,
+      },
     ],
   },
   {

@@ -9,6 +9,33 @@ import type {
 } from "@/types/player";
 import { getAccessToken } from "./sessionStore";
 
+export class PlayerImportValidationCsvError extends Error {
+  blob: Blob;
+  fileName: string;
+
+  constructor(blob: Blob, fileName: string) {
+    super("Import validation failed");
+    this.name = "PlayerImportValidationCsvError";
+    this.blob = blob;
+    this.fileName = fileName;
+  }
+}
+
+function parseDispositionFileName(contentDisposition: string | undefined): string | null {
+  if (!contentDisposition) return null;
+  const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1]);
+    } catch {
+      return utf8Match[1];
+    }
+  }
+  const plainMatch = contentDisposition.match(/filename="?([^";]+)"?/i);
+  if (!plainMatch?.[1]) return null;
+  return plainMatch[1];
+}
+
 function toOptionalParam(value: unknown): string | undefined {
   if (value === null || value === undefined) return undefined;
   const text = String(value).trim();
@@ -96,11 +123,33 @@ export async function downloadSampleCsv(): Promise<Blob> {
 export async function importPlayers(file: File): Promise<PlayerImportResult> {
   const formData = new FormData();
   formData.append("file", file);
-  const response = await apiClient.post<{ success: boolean; data: PlayerImportResult }>(
+  const response = await apiClient.post<Blob>(
     "/players/import",
     formData,
+    {
+      responseType: "blob",
+      validateStatus: () => true,
+    },
   );
-  return response.data.data;
+  const contentType = String(response.headers["content-type"] ?? "");
+  const contentDisposition = String(response.headers["content-disposition"] ?? "");
+
+  if (response.status >= 200 && response.status < 300) {
+    const payload = JSON.parse(await response.data.text()) as { success?: boolean; data?: PlayerImportResult };
+    return payload.data ?? { created: 0, updated: 0, skipped: 0 };
+  }
+
+  if (response.status === 400 && contentType.includes("text/csv")) {
+    const fileName = parseDispositionFileName(contentDisposition) ?? "player-import-errors.csv";
+    throw new PlayerImportValidationCsvError(response.data, fileName);
+  }
+
+  if (contentType.includes("application/json")) {
+    const payload = JSON.parse(await response.data.text()) as { error?: { message?: string }; message?: string };
+    throw new Error(payload.error?.message ?? payload.message ?? "Import failed");
+  }
+
+  throw new Error("Import failed");
 }
 
 export async function createPlayerImportJob(file: File): Promise<{ jobId: string; status: string }> {
@@ -120,6 +169,17 @@ export async function getPlayerImportJob(jobId: string): Promise<PlayerImportJob
     { timeout: 30_000 },
   );
   return response.data.data;
+}
+
+export async function downloadPlayerImportJobErrorCsv(
+  jobId: string,
+): Promise<{ blob: Blob; fileName: string }> {
+  const response = await apiClient.get<Blob>(`/players/import-jobs/${encodeURIComponent(jobId)}/errors.csv`, {
+    responseType: "blob",
+  });
+  const contentDisposition = String(response.headers["content-disposition"] ?? "");
+  const fileName = parseDispositionFileName(contentDisposition) ?? `player-import-errors-${jobId}.csv`;
+  return { blob: response.data, fileName };
 }
 
 export async function streamPlayerImportJobEvents(
@@ -187,6 +247,7 @@ export async function streamPlayerImportJobEvents(
             skippedRows: eventData.skippedRows,
           },
           errorSample: [],
+          errorCsvAvailable: false,
         });
       } catch {
         // Ignore malformed events.

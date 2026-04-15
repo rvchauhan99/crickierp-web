@@ -14,9 +14,11 @@ import { listExchanges } from "@/services/exchangeService";
 import {
   createPlayer,
   createPlayerImportJob,
+  downloadPlayerImportJobErrorCsv,
   downloadSampleCsv,
   getPlayerImportJob,
   importPlayers,
+  PlayerImportValidationCsvError,
   streamPlayerImportJobEvents,
 } from "@/services/playerService";
 import { formatImportErrorToast, getApiErrorMessage } from "@/lib/apiError";
@@ -26,6 +28,7 @@ export function PlayerAddClient() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const streamCleanupRef = useRef<(() => void) | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const downloadedErrorCsvJobsRef = useRef<Set<string>>(new Set());
 
   const [exchangeId, setExchangeId] = useState("");
   const [playerId, setPlayerId] = useState("");
@@ -63,7 +66,7 @@ export function PlayerAddClient() {
       });
       return result.items.map((ex) => ({
         value: ex.id,
-        label: `${ex.name} (${ex.provider})`,
+        label: `${ex.name} (${ex.provider}) - Bal: ₹${Number(ex.currentBalance ?? ex.openingBalance ?? 0).toLocaleString("en-IN")}`,
       }));
     } catch {
       return [];
@@ -77,6 +80,17 @@ export function PlayerAddClient() {
     setRegularBonusPct("0");
     setFirstDepositBonusPct("0");
     setManualErrors({});
+  };
+
+  const triggerCsvDownload = (blob: Blob, fileName: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const onManualSave = async () => {
@@ -167,6 +181,19 @@ export function PlayerAddClient() {
             );
           } else if (next.status === "failed") {
             stopAllTracking();
+            if (next.errorCsvAvailable && !downloadedErrorCsvJobsRef.current.has(next.id)) {
+              downloadedErrorCsvJobsRef.current.add(next.id);
+              try {
+                const { blob, fileName } = await downloadPlayerImportJobErrorCsv(next.id);
+                triggerCsvDownload(blob, fileName);
+                toast.error(next.failureReason ?? "Import failed.", {
+                  description: "Validation errors were downloaded as a CSV file.",
+                });
+                return;
+              } catch {
+                // Fallback to standard failure toast below.
+              }
+            }
             toast.error(next.failureReason ?? "Import failed.");
           }
         } catch {
@@ -194,6 +221,11 @@ export function PlayerAddClient() {
 
       void refreshStatus();
     } catch (error: unknown) {
+      if (error instanceof PlayerImportValidationCsvError) {
+        triggerCsvDownload(error.blob, error.fileName);
+        toast.error("Import failed.", { description: "Validation errors were downloaded as a CSV file." });
+        return;
+      }
       const { title, description } = formatImportErrorToast(error, "Import failed");
       if (description) {
         toast.error(title, { description });
@@ -208,14 +240,7 @@ export function PlayerAddClient() {
   const onDownloadSample = async () => {
     try {
       const blob = await downloadSampleCsv();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "players-sample.csv";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      triggerCsvDownload(blob, "players-sample.csv");
       toast.success("Sample CSV downloaded.");
     } catch {
       toast.error("Failed to download sample CSV.");

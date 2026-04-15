@@ -190,7 +190,7 @@ export function ExchangeStatementClient() {
 
           <div className="flex items-center gap-1 flex-1">
             <span className="text-[11px] uppercase font-semibold tracking-wider text-slate-500 mr-2">Type:</span>
-            {(["all", "deposit", "withdrawal"] as const).map((type) => (
+            {(["all", "deposit", "withdrawal", "topup"] as const).map((type) => (
               <button
                 key={type}
                 onClick={() => setEntryType(type)}
@@ -243,6 +243,13 @@ export function ExchangeStatementClient() {
                   minute: "2-digit",
                 })}
               </span>
+              <span className="w-1 h-1 rounded-full bg-slate-300" />
+              <span>
+                Current Balance:{" "}
+                <strong className="text-slate-700">
+                  {formatAmount(statement.exchange.currentBalance ?? statement.periodClosingBalance)}
+                </strong>
+              </span>
             </div>
           </div>
 
@@ -258,6 +265,11 @@ export function ExchangeStatementClient() {
                 <IconArrowUpRight className="w-3 h-3" /> Total Credits
               </span>
               <span className="text-xl font-bold text-emerald-700">{formatAmount(statement.totalCredits)}</span>
+              {statement.totalTopUpCredits > 0 ? (
+                <div className="text-[10px] text-emerald-600 mt-1">
+                  Top Up Credits: {formatAmount(statement.totalTopUpCredits)}
+                </div>
+              ) : null}
             </div>
             <div className="p-4">
               <span className="text-[10px] uppercase font-semibold tracking-widest text-rose-600/70 mb-1 flex items-center gap-1">
@@ -308,13 +320,16 @@ export function ExchangeStatementClient() {
                       <td className="py-3 px-4">
                         <div className="font-medium text-slate-800">{row.label}</div>
                         {row.utr ? <div className="text-[10px] text-slate-400 font-mono mt-0.5">UTR: {row.utr}</div> : null}
+                        {row.remark ? <div className="text-[10px] text-slate-500 mt-0.5">Remark: {row.remark}</div> : null}
                         {row.bonusMemo && row.bonusMemo > 0 ? (
                           <div className="mt-1 text-[10px] text-amber-600 italic bg-amber-50 px-1.5 py-0.5 rounded inline-block">
                             Memo: {formatAmount(row.bonusMemo)}
                           </div>
                         ) : null}
                       </td>
-                      <td className="py-3 px-4 text-slate-700 font-medium">{row.playerId || "-"}</td>
+                      <td className="py-3 px-4 text-slate-700 font-medium">
+                        {row.playerId || row.createdByName || "-"}
+                      </td>
                       <td className="py-3 px-4 text-right">
                         {row.direction === "credit" ? (
                           <span className="font-semibold text-emerald-600">{formatAmount(row.amount)}</span>

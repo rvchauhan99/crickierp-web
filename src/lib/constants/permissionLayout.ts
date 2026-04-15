@@ -22,7 +22,7 @@ export const PERMISSION_MODULE_ORDER: string[] = [
  * Actions not listed sort after known ones, alphabetically among themselves.
  */
 export const PERMISSION_ACTION_ORDER: Partial<Record<string, string[]>> = {
-  exchange: ["add", "list", "statement"],
+  exchange: ["add", "list", "statement", "topup_add", "topup_list"],
   player: ["add", "list", "edit"],
   bank: ["add", "list", "statement"],
   deposit: ["banker", "exchange", "final_view"],
