@@ -4,6 +4,8 @@ import {
   ExchangeCreateInput,
   ExchangeListParams,
   ExchangeListResult,
+  ExchangeStatementEntryType,
+  ExchangeStatementResponse,
   ExchangeStatus,
 } from "@/types/exchange";
 
@@ -249,4 +251,20 @@ export async function createExchange(input: ExchangeCreateInput): Promise<Exchan
       ...input,
     };
   }
+}
+
+export async function getExchangeStatement(
+  exchangeId: string,
+  query?: {
+    fromDate?: string;
+    toDate?: string;
+    playerId?: string;
+    entryType?: ExchangeStatementEntryType;
+  },
+): Promise<ExchangeStatementResponse> {
+  const res = await apiClient.get<{ success: boolean; data: ExchangeStatementResponse }>(
+    `/exchange/${encodeURIComponent(exchangeId)}/statement`,
+    { params: query },
+  );
+  return res.data.data;
 }

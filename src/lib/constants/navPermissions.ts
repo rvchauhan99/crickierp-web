@@ -10,6 +10,7 @@ export const NAV_PERMISSIONS = {
 
   EXCHANGE_ADD: "exchange.add",
   EXCHANGE_LIST: "exchange.list",
+  EXCHANGE_STATEMENT: "exchange.statement",
 
   PLAYER_ADD: "player.add",
   PLAYER_LIST: "player.list",

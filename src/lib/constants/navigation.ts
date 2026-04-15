@@ -115,6 +115,13 @@ export const NAV_ITEMS: AppNavNode[] = [
         keywords: ["transfer"],
         requiredPermission: NAV_PERMISSIONS.EXCHANGE_LIST,
       },
+      {
+        id: "exchange-statement",
+        label: "Statement",
+        href: "/exchange/statement",
+        keywords: ["ledger", "report"],
+        requiredPermission: NAV_PERMISSIONS.EXCHANGE_STATEMENT,
+      },
     ],
   },
   {

@@ -12,6 +12,7 @@ const PREFIX_RULES: { prefix: string; access: RouteAccess }[] = [
   { prefix: "/sub-admin/edit", access: { kind: "permission", permission: NAV_PERMISSIONS.SUB_ADMIN_EDIT } },
   { prefix: "/exchange/add", access: { kind: "permission", permission: NAV_PERMISSIONS.EXCHANGE_ADD } },
   { prefix: "/exchange/list", access: { kind: "permission", permission: NAV_PERMISSIONS.EXCHANGE_LIST } },
+  { prefix: "/exchange/statement", access: { kind: "permission", permission: NAV_PERMISSIONS.EXCHANGE_STATEMENT } },
   { prefix: "/player/add", access: { kind: "permission", permission: NAV_PERMISSIONS.PLAYER_ADD } },
   { prefix: "/player/list", access: { kind: "permission", permission: NAV_PERMISSIONS.PLAYER_LIST } },
   { prefix: "/player/edit", access: { kind: "permission", permission: NAV_PERMISSIONS.PLAYER_EDIT } },

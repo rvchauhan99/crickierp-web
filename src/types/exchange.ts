@@ -57,3 +57,34 @@ export type ExchangeListResult = {
     totalPages: number;
   };
 };
+
+export type ExchangeStatementEntryType = "all" | "deposit" | "withdrawal";
+
+export type ExchangeStatementRow = {
+  kind: "deposit" | "withdrawal";
+  refId: string;
+  at: string;
+  label: string;
+  playerId: string;
+  amount: number;
+  direction: "credit" | "debit";
+  balanceAfter: number;
+  bonusMemo?: number;
+  utr?: string;
+};
+
+export type ExchangeStatementResponse = {
+  exchange: {
+    _id: string;
+    name: string;
+    provider: string;
+    openingBalance: number;
+  };
+  periodOpeningBalance: number;
+  periodClosingBalance: number;
+  totalCredits: number;
+  totalDebits: number;
+  totalDepositOutflow: number;
+  totalWithdrawalInflow: number;
+  rows: ExchangeStatementRow[];
+};
