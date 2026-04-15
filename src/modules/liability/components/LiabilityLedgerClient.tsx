@@ -8,13 +8,25 @@ import {
   IconCalendar, 
   IconArrowUpRight, 
   IconArrowDownRight, 
-  IconInfoCircle 
+  IconInfoCircle,
+  IconDownload,
+  IconFileSpreadsheet,
+  IconFileText
 } from "@tabler/icons-react";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel 
+} from "@/components/ui/shadcn/dropdown-menu";
 import { FieldLabel } from "@/components/common/FieldLabel";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { AutocompleteField, type AutocompleteOption } from "@/components/common/AutocompleteField";
-import { getLiabilityPersonLedger, listLiabilityPersonsNormalized } from "@/services/liabilityService";
+import { exportLiabilityLedger, getLiabilityPersonLedger, listLiabilityPersonsNormalized } from "@/services/liabilityService";
+import { useExport } from "@/hooks/useExport";
 import type { LiabilityLedgerResponse } from "@/types/liability";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { DATE_PRESETS } from "@/modules/dashboard/components/DashboardFilterBar";
@@ -83,6 +95,18 @@ export function LiabilityLedgerClient() {
   const handlePrint = () => {
     window.print();
   };
+
+  const { exporting, handleExport } = useExport((params) => exportLiabilityLedger(personId, params), {
+    fileName: `liability-ledger-${personId}-${new Date().toISOString().split("T")[0]}.xlsx`,
+  });
+
+  const onExportClick = useCallback(() => {
+    if (!personId) return;
+    handleExport({
+      fromDate: fromDate || undefined,
+      toDate: toDate || undefined,
+    });
+  }, [handleExport, personId, fromDate, toDate]);
 
   const totalCredits = ledger?.rows.reduce((acc, r) => acc + r.credit, 0) ?? 0;
   const totalDebits = ledger?.rows.reduce((acc, r) => acc + r.debit, 0) ?? 0;
@@ -238,11 +262,28 @@ export function LiabilityLedgerClient() {
                 <span>Generated: {new Date().toLocaleDateString('en-IN', {day: '2-digit', month: 'short', year:'numeric', hour: '2-digit', minute: '2-digit'})}</span>
               </div>
             </div>
-            <div className="no-print">
-              <Button onClick={handlePrint} variant="outline" className="gap-2">
-                <IconPrinter className="w-4 h-4" />
-                Print PDF
-              </Button>
+            <div className="no-print flex items-center gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  disabled={exporting}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-4 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <IconDownload className="w-4 h-4" />
+                  {exporting ? "Exporting..." : "Export"}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuLabel className="" inset={false}>Choose Format</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={onExportClick} className="cursor-pointer">
+                    <IconFileSpreadsheet className="mr-2 h-4 w-4 text-emerald-600" />
+                    <span>Excel (.xlsx)</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handlePrint} className="cursor-pointer">
+                    <IconFileText className="mr-2 h-4 w-4 text-rose-600" />
+                    <span>PDF Report (.pdf)</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 

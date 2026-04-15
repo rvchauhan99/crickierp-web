@@ -8,6 +8,7 @@ import PaginatedTableReference, {
 import PaginationControlsReference from "@/components/common/PaginationControlsReference";
 import { TableStatusBadge } from "@/components/common/TableStatusBadge";
 import { useListingQueryStateReference } from "@/hooks/useListingQueryStateReference";
+import { useExport } from "@/hooks/useExport";
 import { tableColumnPresets } from "@/lib/tableStylePresets";
 import { exportDeposits, listDepositsNormalized } from "@/services/depositService";
 import type { DepositRow } from "@/types/deposit";
@@ -59,7 +60,6 @@ export function DepositFinalListClient() {
   } = listingState;
 
   const [totalCount, setTotalCount] = useState(0);
-  const [exporting, setExporting] = useState(false);
   const [cachedUsers, setCachedUsers] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -114,47 +114,36 @@ export function DepositFinalListClient() {
     [filters, q],
   );
 
-  const handleExport = useCallback(async () => {
-    setExporting(true);
-    try {
-      const blob = await exportDeposits("final", {
-        page: 1,
-        limit,
-        sortBy: sortBy || "createdAt",
-        sortOrder: sortOrder || "desc",
-        q: toOptionalFilterValue(q || ""),
-        utr: toOptionalFilterValue(filters.utr || ""),
-        utr_op: toOptionalFilterValue(filters.utr_op || ""),
-        bankName: toOptionalFilterValue(filters.bankName || ""),
-        bankName_op: toOptionalFilterValue(filters.bankName_op || ""),
-        bankId: toOptionalFilterValue(filters.bankId || ""),
-        status: toOptionalFilterValue(filters.status || ""),
-        amount: toOptionalFilterValue(filters.amount || ""),
-        amount_to: toOptionalFilterValue(filters.amount_to || ""),
-        amount_op: toOptionalFilterValue(filters.amount_op || ""),
-        totalAmount: toOptionalFilterValue(filters.totalAmount || ""),
-        totalAmount_to: toOptionalFilterValue(filters.totalAmount_to || ""),
-        totalAmount_op: toOptionalFilterValue(filters.totalAmount_op || ""),
-        player: toOptionalFilterValue(filters.player || ""),
-        createdBy: toOptionalFilterValue(filters.createdBy || ""),
-        createdAt_from: toOptionalFilterValue(filters.createdAt_from || ""),
-        createdAt_to: toOptionalFilterValue(filters.createdAt_to || ""),
-        createdAt_op: toOptionalFilterValue(filters.createdAt_op || ""),
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `deposits-final-${new Date().toISOString().split("T")[0]}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch {
-      window.alert("Failed to export.");
-    } finally {
-      setExporting(false);
-    }
-  }, [filters, sortBy, sortOrder, q, limit]);
+  const { exporting, handleExport } = useExport((params) => exportDeposits("final", params), {
+    fileName: `deposits-final-${new Date().toISOString().split("T")[0]}.xlsx`,
+  });
+
+  const onExportClick = useCallback(() => {
+    handleExport({
+      page: 1,
+      limit: 10000,
+      sortBy: sortBy || "createdAt",
+      sortOrder: sortOrder || "desc",
+      q: toOptionalFilterValue(q || ""),
+      utr: toOptionalFilterValue(filters.utr || ""),
+      utr_op: toOptionalFilterValue(filters.utr_op || ""),
+      bankName: toOptionalFilterValue(filters.bankName || ""),
+      bankName_op: toOptionalFilterValue(filters.bankName_op || ""),
+      bankId: toOptionalFilterValue(filters.bankId || ""),
+      status: toOptionalFilterValue(filters.status || ""),
+      amount: toOptionalFilterValue(filters.amount || ""),
+      amount_to: toOptionalFilterValue(filters.amount_to || ""),
+      amount_op: toOptionalFilterValue(filters.amount_op || ""),
+      totalAmount: toOptionalFilterValue(filters.totalAmount || ""),
+      totalAmount_to: toOptionalFilterValue(filters.totalAmount_to || ""),
+      totalAmount_op: toOptionalFilterValue(filters.totalAmount_op || ""),
+      player: toOptionalFilterValue(filters.player || ""),
+      createdBy: toOptionalFilterValue(filters.createdBy || ""),
+      createdAt_from: toOptionalFilterValue(filters.createdAt_from || ""),
+      createdAt_to: toOptionalFilterValue(filters.createdAt_to || ""),
+      createdAt_op: toOptionalFilterValue(filters.createdAt_op || ""),
+    });
+  }, [handleExport, filters, sortBy, sortOrder, q]);
 
   const columns = useMemo<PaginatedTableReferenceColumn[]>(
     () => [
@@ -258,7 +247,7 @@ export function DepositFinalListClient() {
       secondaryButtonLabel="Reset filters"
       onSecondaryClick={() => clearFilters({ keepQuickSearch: true })}
       exportButtonLabel="Export"
-      onExportClick={handleExport}
+      onExportClick={onExportClick}
       exportDisabled={exporting}
       filters={
         <DepositFinalListFilterPanel

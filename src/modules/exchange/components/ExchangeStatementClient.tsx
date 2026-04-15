@@ -5,6 +5,7 @@ import {
   IconArrowDownRight,
   IconArrowUpRight,
   IconCalendar,
+  IconPrinter,
   IconFilter,
   IconInfoCircle,
 } from "@tabler/icons-react";
@@ -102,8 +103,54 @@ export function ExchangeStatementClient() {
     }
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   return (
-    <div className="space-y-4 pb-8 max-w-[1400px] mx-auto">
+    <>
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          #print-container, #print-container * {
+            visibility: visible;
+          }
+          #print-container {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            padding: 20px;
+          }
+          .no-print {
+            display: none !important;
+          }
+          @page {
+            size: A4 landscape;
+            margin: 1cm;
+          }
+          table {
+            page-break-inside: auto;
+          }
+          tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+          }
+          thead {
+            display: table-header-group;
+          }
+          tfoot {
+            display: table-footer-group;
+          }
+        }
+      `,
+        }}
+      />
+      <div className="space-y-4 pb-8 max-w-[1400px] mx-auto no-print">
       <div>
         <h1 className="text-xl font-bold tracking-tight text-slate-900 leading-tight">Exchange Statement</h1>
         <p className="text-xs text-slate-400 mt-0.5">
@@ -217,11 +264,28 @@ export function ExchangeStatementClient() {
           </div>
         )}
       </div>
+      </div>
 
       {statement && (
-        <div className="max-w-[1400px] mx-auto bg-white border border-slate-200 shadow-sm rounded-xl overflow-hidden">
+        <div
+          id="print-container"
+          className="max-w-[1400px] mx-auto bg-white border border-slate-200 shadow-sm rounded-xl overflow-hidden print:border-none print:shadow-none print:rounded-none"
+        >
           <div className="p-6 border-b border-slate-200 bg-slate-50/50">
-            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">{statement.exchange.name}</h2>
+            <div className="flex items-start justify-between gap-3">
+              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">{statement.exchange.name}</h2>
+              <div className="no-print">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-8 text-xs gap-2"
+                  leftIcon={<IconPrinter size={14} />}
+                  onClick={handlePrint}
+                >
+                  Print PDF
+                </Button>
+              </div>
+            </div>
             <p className="text-slate-600 font-medium text-lg mt-0.5">{statement.exchange.provider}</p>
             <div className="flex items-center gap-3 mt-3 text-sm text-slate-500">
               <span>
@@ -351,6 +415,6 @@ export function ExchangeStatementClient() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

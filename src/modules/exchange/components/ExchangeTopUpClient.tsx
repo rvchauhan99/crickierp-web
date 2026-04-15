@@ -1,13 +1,22 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { IconCheck, IconFilter, IconRefresh } from "@tabler/icons-react";
+import { IconCheck, IconFilter, IconRefresh, IconDownload, IconFileSpreadsheet, IconFileText } from "@tabler/icons-react";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel 
+} from "@/components/ui/shadcn/dropdown-menu";
 import { AutocompleteField, type AutocompleteOption } from "@/components/common/AutocompleteField";
 import { FieldLabel } from "@/components/common/FieldLabel";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { getApiErrorMessage } from "@/lib/apiError";
-import { createExchangeTopup, listExchanges, listExchangeTopups } from "@/services/exchangeService";
+import { createExchangeTopup, listExchanges, listExchangeTopups, exportExchangeTopups } from "@/services/exchangeService";
+import { useExport } from "@/hooks/useExport";
 import type { ExchangeTopupRow } from "@/types/exchange";
 
 function formatAmount(value: number) {
@@ -60,6 +69,17 @@ export function ExchangeTopUpClient() {
       setLoading(false);
     }
   }, [exchangeId]);
+
+  const { exporting, handleExport } = useExport((params) => exportExchangeTopups(params), {
+    fileName: `exchange-topups-${new Date().toISOString().split("T")[0]}.xlsx`,
+  });
+
+  const onExportClick = useCallback(() => {
+    handleExport({
+      exchangeId: exchangeId.trim() || undefined,
+      sortOrder: "desc",
+    });
+  }, [handleExport, exchangeId]);
 
   const submitTopup = async () => {
     if (!exchangeId.trim()) {
@@ -138,6 +158,27 @@ export function ExchangeTopUpClient() {
             <IconRefresh className="w-4 h-4" />
             Refresh
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              disabled={exporting}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-4 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <IconDownload className="w-4 h-4" />
+              {exporting ? "Exporting..." : "Export"}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-48">
+              <DropdownMenuLabel className="" inset={false}>Choose Format</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onExportClick} className="cursor-pointer">
+                <IconFileSpreadsheet className="mr-2 h-4 w-4 text-emerald-600" />
+                <span>Excel (.xlsx)</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => window.print()} className="cursor-pointer">
+                <IconFileText className="mr-2 h-4 w-4 text-rose-600" />
+                <span>PDF Report (.pdf)</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {currentBalance != null ? (
             <div className="ml-auto text-sm text-slate-700">
               Current Balance: <span className="font-semibold">{formatAmount(currentBalance)}</span>

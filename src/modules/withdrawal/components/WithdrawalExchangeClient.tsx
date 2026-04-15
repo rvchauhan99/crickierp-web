@@ -24,7 +24,9 @@ import {
   listSavedAccountsForPlayer,
   listWithdrawalsNormalized,
   updateWithdrawal,
+  exportWithdrawals,
 } from "@/services/withdrawalService";
+import { useExport } from "@/hooks/useExport";
 import { listPlayersNormalized } from "@/services/playerService";
 import { userService } from "@/services/userService";
 import type { SavedWithdrawalAccount, WithdrawalRow } from "@/types/withdrawal";
@@ -295,6 +297,35 @@ export function WithdrawalExchangeClient() {
     },
     [setFilter],
   );
+
+  const { exporting, handleExport } = useExport((params) => exportWithdrawals(params), {
+    fileName: `withdrawals-exchange-${new Date().toISOString().split("T")[0]}.xlsx`,
+  });
+
+  const onExportClick = useCallback(() => {
+    handleExport({
+      view: "exchange",
+      page: 1,
+      limit: 10000,
+      sortBy: sortBy || "createdAt",
+      sortOrder: sortOrder || "desc",
+      utr: toOptionalFilterValue(filters.utr || ""),
+      utr_op: toOptionalFilterValue(filters.utr_op || ""),
+      playerName: toOptionalFilterValue(filters.playerName || ""),
+      playerName_op: toOptionalFilterValue(filters.playerName_op || ""),
+      bankName: toOptionalFilterValue(filters.bankName || ""),
+      bankName_op: toOptionalFilterValue(filters.bankName_op || ""),
+      status: withdrawalStatusApiParam(filters.status),
+      amount: toOptionalFilterValue(filters.amount || ""),
+      amount_to: toOptionalFilterValue(filters.amount_to || ""),
+      amount_op: toOptionalFilterValue(filters.amount_op || ""),
+      createdBy: toOptionalFilterValue(filters.createdBy || ""),
+      approvedBy: toOptionalFilterValue(filters.approvedBy || ""),
+      createdAt_from: toOptionalFilterValue(filters.createdAt_from || ""),
+      createdAt_to: toOptionalFilterValue(filters.createdAt_to || ""),
+      createdAt_op: toOptionalFilterValue(filters.createdAt_op || ""),
+    });
+  }, [handleExport, filters, sortBy, sortOrder]);
 
   const fetcher = useCallback(async (params: Record<string, unknown>) => {
     return listWithdrawalsNormalized("exchange", params);
@@ -587,6 +618,9 @@ export function WithdrawalExchangeClient() {
           fullWidth
           secondaryButtonLabel="Reset filters"
           onSecondaryClick={() => clearFilters({ keepQuickSearch: true })}
+          exportButtonLabel="Export"
+          onExportClick={onExportClick}
+          exportDisabled={exporting}
         >
           <PaginatedTableReference
             key={tableKey}

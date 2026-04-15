@@ -18,10 +18,10 @@ import PaginatedTableReference, {
 } from "@/components/common/PaginatedTableReference";
 import PaginationControlsReference from "@/components/common/PaginationControlsReference";
 import {
-  getExpenseAnalysisRecords,
-  getExpenseAnalysisSummary,
-  type ExpenseAnalysisFilterParams,
-} from "@/services/expenseService";
+  reportService,
+} from "@/services/reportService";
+import type { ExpenseAnalysisFilterParams } from "@/services/expenseService";
+import { useExport } from "@/hooks/useExport";
 import type { ExpenseRow } from "@/types/expense";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { useListingQueryStateReference } from "@/hooks/useListingQueryStateReference";
@@ -117,7 +117,7 @@ export default function ExpenseAnalysisPage() {
     (async () => {
       setSummaryLoading(true);
       try {
-        const s = await getExpenseAnalysisSummary({ ...filterParams, signal: ac.signal });
+        const s = await reportService.expenseAnalysisSummary({ ...filterParams, signal: ac.signal });
         if (!cancelled) setSummary(s);
       } catch (e: unknown) {
         if (axios.isCancel(e)) return;
@@ -137,14 +137,9 @@ export default function ExpenseAnalysisPage() {
     async (params: Record<string, unknown>) => {
       const p = Number(params.page) || 1;
       const l = Number(params.limit) || 20;
-      const sb = (str(params, "sortBy") || "expenseDate") as
-        | "createdAt"
-        | "expenseDate"
-        | "amount"
-        | "status"
-        | "bankName";
+      const sb = (str(params, "sortBy") || "expenseDate") as "createdAt" | "expenseDate" | "amount";
       const so = str(params, "sortOrder") === "asc" ? "asc" : "desc";
-      return getExpenseAnalysisRecords({
+      return reportService.expenseAnalysisRecords({
         ...filterParams,
         page: p,
         pageSize: l,
@@ -154,6 +149,18 @@ export default function ExpenseAnalysisPage() {
     },
     [filterParams],
   );
+
+  const { exporting, handleExport } = useExport((params) => reportService.exportExpenseAnalysis(params), {
+    fileName: `expense-analysis-${new Date().toISOString().split("T")[0]}.xlsx`,
+  });
+
+  const onExportClick = useCallback(() => {
+    handleExport({
+      ...filterParams,
+      sortBy: sortBy || "expenseDate",
+      sortOrder: sortOrder || "desc",
+    });
+  }, [handleExport, filterParams, sortBy, sortOrder]);
 
   const handlePreset = (preset: (typeof DATE_PRESETS)[0]) => {
     const dates = preset.fn();
@@ -318,6 +325,9 @@ export default function ExpenseAnalysisPage() {
             title="Detailed Audit Log"
             description="Complete list of expenses matching your current dashboard filters."
             fullWidth
+            exportButtonLabel="Export Report"
+            onExportClick={onExportClick}
+            exportDisabled={exporting}
           >
             <PaginatedTableReference
               columns={columns}

@@ -320,3 +320,17 @@ export async function listExchangeTopups(params?: {
     meta: response.data.meta ?? { page: 1, pageSize: 20, total: 0 },
   };
 }
+
+export async function exportExchangeTopups(params?: {
+  exchangeId?: string;
+  sortOrder?: "asc" | "desc";
+}): Promise<Blob> {
+  const response = await apiClient.get("/exchange-topup/export", {
+    params: {
+      exchangeId: params?.exchangeId,
+      sortOrder: params?.sortOrder ?? "desc",
+    },
+    responseType: "blob",
+  });
+  return response.data;
+}

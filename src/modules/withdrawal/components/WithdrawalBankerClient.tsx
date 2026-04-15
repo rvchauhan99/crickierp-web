@@ -33,7 +33,9 @@ import {
   listWithdrawalsNormalized,
   patchWithdrawalStatus,
   updateWithdrawalBankerPayout,
+  exportWithdrawals,
 } from "@/services/withdrawalService";
+import { useExport } from "@/hooks/useExport";
 import { listBanksNormalized } from "@/services/bankService";
 import { userService } from "@/services/userService";
 import type { WithdrawalRow } from "@/types/withdrawal";
@@ -179,9 +181,40 @@ export function WithdrawalBankerClient() {
   );
 
   const handleWithdrawalColumnFilterChange = useCallback(
-    (k: string, v: string) => setFilter(k, v),
+    (key: string, value: string) => {
+      setFilter(key, value);
+    },
     [setFilter],
   );
+
+  const { exporting, handleExport } = useExport((params) => exportWithdrawals(params), {
+    fileName: `withdrawals-banker-${new Date().toISOString().split("T")[0]}.xlsx`,
+  });
+
+  const onExportClick = useCallback(() => {
+    handleExport({
+      view: "banker",
+      page: 1,
+      limit: 10000,
+      sortBy: sortBy || "createdAt",
+      sortOrder: sortOrder || "desc",
+      utr: toOptionalFilterValue(filters.utr || ""),
+      utr_op: toOptionalFilterValue(filters.utr_op || ""),
+      playerName: toOptionalFilterValue(filters.playerName || ""),
+      playerName_op: toOptionalFilterValue(filters.playerName_op || ""),
+      bankName: toOptionalFilterValue(filters.bankName || ""),
+      bankName_op: toOptionalFilterValue(filters.bankName_op || ""),
+      status: toOptionalFilterValue(filters.status || ""),
+      amount: toOptionalFilterValue(filters.amount || ""),
+      amount_to: toOptionalFilterValue(filters.amount_to || ""),
+      amount_op: toOptionalFilterValue(filters.amount_op || ""),
+      createdBy: toOptionalFilterValue(filters.createdBy || ""),
+      approvedBy: toOptionalFilterValue(filters.approvedBy || ""),
+      createdAt_from: toOptionalFilterValue(filters.createdAt_from || ""),
+      createdAt_to: toOptionalFilterValue(filters.createdAt_to || ""),
+      createdAt_op: toOptionalFilterValue(filters.createdAt_op || ""),
+    });
+  }, [handleExport, filters, sortBy, sortOrder]);
 
   const [totalCount, setTotalCount] = useState(0);
   const [tableKey, setTableKey] = useState(0);
@@ -424,6 +457,9 @@ export function WithdrawalBankerClient() {
         fullWidth
         secondaryButtonLabel="Reset filters"
         onSecondaryClick={() => clearFilters({ keepQuickSearch: true })}
+        exportButtonLabel="Export"
+        onExportClick={onExportClick}
+        exportDisabled={exporting}
       >
         <div className="flex min-h-0 flex-1 flex-col">
           {!selectedWithdrawal && (

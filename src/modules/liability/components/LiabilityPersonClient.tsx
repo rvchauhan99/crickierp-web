@@ -16,11 +16,17 @@ import { Button } from "@/components/ui/Button";
 import { TableStatusBadge } from "@/components/common/TableStatusBadge";
 import { useListingQueryStateReference } from "@/hooks/useListingQueryStateReference";
 import { tableColumnPresets } from "@/lib/tableStylePresets";
-import { createLiabilityPerson, listLiabilityPersonsNormalized, updateLiabilityPerson } from "@/services/liabilityService";
+import { createLiabilityPerson, exportLiabilityPersons, listLiabilityPersonsNormalized, updateLiabilityPerson } from "@/services/liabilityService";
+import { useExport } from "@/hooks/useExport";
 import { getApiErrorMessage } from "@/lib/apiError";
 import type { LiabilityPersonRow } from "@/types/liability";
 
 const FILTER_KEYS = ["isActive"];
+
+function toOptionalFilterValue(value: string): string | undefined {
+  const trimmed = value.trim();
+  return trimmed === "" ? undefined : trimmed;
+}
 
 export function LiabilityPersonClient() {
   const listingState = useListingQueryStateReference({
@@ -56,10 +62,24 @@ export function LiabilityPersonClient() {
 
   const filterParams = useMemo(
     () => ({
-      isActive: filters.isActive || undefined,
+      isActive: toOptionalFilterValue(filters.isActive || ""),
     }),
     [filters.isActive],
   );
+
+  const { exporting, handleExport } = useExport((params) => exportLiabilityPersons(params), {
+    fileName: `liability-persons-${new Date().toISOString().split("T")[0]}.xlsx`,
+  });
+
+  const onExportClick = useCallback(() => {
+    handleExport({
+      page: 1,
+      limit: 10000,
+      sortBy: sortBy || "createdAt",
+      sortOrder: sortOrder || "desc",
+      ...filterParams,
+    });
+  }, [handleExport, filterParams, sortBy, sortOrder]);
 
   const onSubmit = async () => {
     if (!name.trim()) {
@@ -220,6 +240,9 @@ export function LiabilityPersonClient() {
         fullWidth
         secondaryButtonLabel="Reset filters"
         onSecondaryClick={() => clearFilters({ keepQuickSearch: true })}
+        exportButtonLabel="Export"
+        onExportClick={onExportClick}
+        exportDisabled={exporting}
       >
         <PaginatedTableReference
           key={tableKey}

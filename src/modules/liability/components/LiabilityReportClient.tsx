@@ -9,8 +9,19 @@ import {
   IconScale, 
   IconSearch, 
   IconCircleCheck, 
-  IconCircleX 
+  IconCircleX, 
+  IconDownload,
+  IconFileSpreadsheet,
+  IconFileText
 } from "@tabler/icons-react";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel 
+} from "@/components/ui/shadcn/dropdown-menu";
 import { getLiabilityPersonWiseReport, getLiabilitySummaryReport } from "@/services/liabilityService";
 import type { LiabilityPersonWiseReportRow, LiabilitySummaryReport } from "@/types/liability";
 import { getApiErrorMessage } from "@/lib/apiError";
@@ -128,10 +139,24 @@ export function LiabilityReportClient() {
               />
             </div>
             {summary && (
-              <Button onClick={handlePrint} variant="outline" className="h-9 text-xs gap-2 px-4 shadow-sm">
-                <IconPrinter className="w-3.5 h-3.5" />
-                Print PDF
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-[var(--border)] bg-transparent px-4 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50">
+                  <IconDownload className="w-3.5 h-3.5" />
+                  Export
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuLabel className="" inset={false}>Choose Format</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => { /* Implement Excel export for summary if backend supports it */ }} className="cursor-pointer opacity-50 cursor-not-allowed">
+                    <IconFileSpreadsheet className="mr-2 h-4 w-4 text-emerald-600" />
+                    <span>Excel (Coming soon)</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handlePrint} className="cursor-pointer">
+                    <IconFileText className="mr-2 h-4 w-4 text-rose-600" />
+                    <span>PDF Report (.pdf)</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
         </div>

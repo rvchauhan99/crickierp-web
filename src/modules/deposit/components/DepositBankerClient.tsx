@@ -20,9 +20,11 @@ import { useListingQueryStateReference } from "@/hooks/useListingQueryStateRefer
 import { tableColumnPresets } from "@/lib/tableStylePresets";
 import {
   createDeposit,
+  exportDeposits,
   listDepositsNormalized,
   updateDeposit,
 } from "@/services/depositService";
+import { useExport } from "@/hooks/useExport";
 import {
   depositStatusApiParam,
   depositStatusColumnSelectValue,
@@ -189,6 +191,30 @@ export function DepositBankerClient() {
     },
     [setFilter],
   );
+
+  const { exporting, handleExport } = useExport((params) => exportDeposits("banker", params), {
+    fileName: `deposits-banker-${new Date().toISOString().split("T")[0]}.xlsx`,
+  });
+
+  const onExportClick = useCallback(() => {
+    handleExport({
+      page: 1,
+      limit: 10000,
+      sortBy: sortBy || "createdAt",
+      sortOrder: sortOrder || "desc",
+      utr: toOptionalFilterValue(filters.utr || ""),
+      utr_op: toOptionalFilterValue(filters.utr_op || ""),
+      bankName: toOptionalFilterValue(filters.bankName || ""),
+      bankName_op: toOptionalFilterValue(filters.bankName_op || ""),
+      status: depositStatusApiParam(filters.status),
+      amount: toOptionalFilterValue(filters.amount || ""),
+      amount_to: toOptionalFilterValue(filters.amount_to || ""),
+      amount_op: toOptionalFilterValue(filters.amount_op || ""),
+      createdAt_from: toOptionalFilterValue(filters.createdAt_from || ""),
+      createdAt_to: toOptionalFilterValue(filters.createdAt_to || ""),
+      createdAt_op: toOptionalFilterValue(filters.createdAt_op || ""),
+    });
+  }, [handleExport, filters, sortBy, sortOrder]);
 
   const fetcher = useCallback(async (params: Record<string, unknown>) => {
     return listDepositsNormalized("banker", params);
@@ -357,6 +383,9 @@ export function DepositBankerClient() {
         fullWidth
         secondaryButtonLabel="Reset filters"
         onSecondaryClick={() => clearFilters({ keepQuickSearch: true })}
+        exportButtonLabel="Export"
+        onExportClick={onExportClick}
+        exportDisabled={exporting}
       >
         <PaginatedTableReference
           key={tableKey}

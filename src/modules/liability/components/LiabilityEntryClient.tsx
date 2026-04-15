@@ -15,7 +15,8 @@ import PaginatedTableReference, {
 import PaginationControlsReference from "@/components/common/PaginationControlsReference";
 import { useListingQueryStateReference } from "@/hooks/useListingQueryStateReference";
 import { tableColumnPresets } from "@/lib/tableStylePresets";
-import { createLiabilityEntry, listLiabilityEntriesNormalized, listLiabilityPersonsNormalized } from "@/services/liabilityService";
+import { createLiabilityEntry, exportLiabilityEntries, listLiabilityEntriesNormalized, listLiabilityPersonsNormalized } from "@/services/liabilityService";
+import { useExport } from "@/hooks/useExport";
 import { listBanksNormalized } from "@/services/bankService";
 import { getApiErrorMessage } from "@/lib/apiError";
 import type { LiabilityAccountType, LiabilityEntryRow, LiabilityEntryType } from "@/types/liability";
@@ -24,6 +25,11 @@ const FILTER_KEYS = ["entryType", "accountType", "accountId", "entryDate_from", 
 
 function todayYmd(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function toOptionalFilterValue(value: string): string | undefined {
+  const trimmed = value.trim();
+  return trimmed === "" ? undefined : trimmed;
 }
 
 export function LiabilityEntryClient() {
@@ -79,14 +85,28 @@ export function LiabilityEntryClient() {
 
   const filterParams = useMemo(
     () => ({
-      entryType: filters.entryType || undefined,
-      accountType: filters.accountType || undefined,
-      accountId: filters.accountId || undefined,
-      entryDate_from: filters.entryDate_from || undefined,
-      entryDate_to: filters.entryDate_to || undefined,
+      entryType: toOptionalFilterValue(filters.entryType || ""),
+      accountType: toOptionalFilterValue(filters.accountType || ""),
+      accountId: toOptionalFilterValue(filters.accountId || ""),
+      entryDate_from: toOptionalFilterValue(filters.entryDate_from || ""),
+      entryDate_to: toOptionalFilterValue(filters.entryDate_to || ""),
     }),
     [filters],
   );
+
+  const { exporting, handleExport } = useExport((params) => exportLiabilityEntries(params), {
+    fileName: `liability-entries-${new Date().toISOString().split("T")[0]}.xlsx`,
+  });
+
+  const onExportClick = useCallback(() => {
+    handleExport({
+      page: 1,
+      limit: 10000,
+      sortBy: sortBy || "createdAt",
+      sortOrder: sortOrder || "desc",
+      ...filterParams,
+    });
+  }, [handleExport, filterParams, sortBy, sortOrder]);
 
   const resetForm = useCallback(() => {
     setEntryDate(todayYmd());
@@ -235,6 +255,9 @@ export function LiabilityEntryClient() {
         fullWidth
         secondaryButtonLabel="Reset filters"
         onSecondaryClick={() => clearFilters({ keepQuickSearch: true })}
+        exportButtonLabel="Export"
+        onExportClick={onExportClick}
+        exportDisabled={exporting}
       >
         <PaginatedTableReference
           key={tableKey}

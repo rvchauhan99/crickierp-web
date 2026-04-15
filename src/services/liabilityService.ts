@@ -194,3 +194,30 @@ export async function getLiabilityPersonWiseReport(): Promise<LiabilityPersonWis
   );
   return Array.isArray(res.data?.data) ? res.data.data : [];
 }
+
+export async function exportLiabilityPersons(params: Record<string, unknown>): Promise<Blob> {
+  const response = await apiClient.get("/liability/persons/export", {
+    params,
+    responseType: "blob",
+  });
+  return response.data;
+}
+
+export async function exportLiabilityEntries(params: Record<string, unknown>): Promise<Blob> {
+  const response = await apiClient.get("/liability/entries/export", {
+    params,
+    responseType: "blob",
+  });
+  return response.data;
+}
+
+export async function exportLiabilityLedger(
+  personId: string,
+  params: Record<string, unknown>,
+): Promise<Blob> {
+  const response = await apiClient.get(`/liability/persons/${personId}/ledger/export`, {
+    params,
+    responseType: "blob",
+  });
+  return response.data;
+}

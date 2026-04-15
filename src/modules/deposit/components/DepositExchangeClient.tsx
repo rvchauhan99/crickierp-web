@@ -31,6 +31,7 @@ import {
   exportDeposits,
   listDepositsNormalized,
 } from "@/services/depositService";
+import { useExport } from "@/hooks/useExport";
 import { depositStatusApiParam, depositStatusColumnSelectValue } from "@/modules/deposit/depositListingStatusFilter";
 import { getPlayerById, listPlayersNormalized } from "@/services/playerService";
 import type { DepositRow } from "@/types/deposit";
@@ -195,7 +196,6 @@ export function DepositExchangeClient() {
 
   const [totalCount, setTotalCount] = useState(0);
   const [tableKey, setTableKey] = useState(0);
-  const [exporting, setExporting] = useState(false);
   const [selectedDeposit, setSelectedDeposit] = useState<DepositRow | null>(null);
   const [playerId, setPlayerId] = useState("");
   const [bonus, setBonus] = useState("0");
@@ -320,45 +320,34 @@ export function DepositExchangeClient() {
     clearActionForm();
   }, [clearFilters, clearActionForm]);
 
-  const handleExport = useCallback(async () => {
-    setExporting(true);
-    try {
-      const blob = await exportDeposits("exchange", {
-        page: 1,
-        limit: 20,
-        sortBy: sortBy || "createdAt",
-        sortOrder: sortOrder || "desc",
-        utr: toOptionalFilterValue(filters.utr || ""),
-        utr_op: toOptionalFilterValue(filters.utr_op || ""),
-        bankName: toOptionalFilterValue(filters.bankName || ""),
-        bankName_op: toOptionalFilterValue(filters.bankName_op || ""),
-        bankId: toOptionalFilterValue(filters.bankId || ""),
-        status: depositStatusApiParam(filters.status),
-        amount: toOptionalFilterValue(filters.amount || ""),
-        amount_to: toOptionalFilterValue(filters.amount_to || ""),
-        amount_op: toOptionalFilterValue(filters.amount_op || ""),
-        totalAmount: toOptionalFilterValue(filters.totalAmount || ""),
-        totalAmount_to: toOptionalFilterValue(filters.totalAmount_to || ""),
-        totalAmount_op: toOptionalFilterValue(filters.totalAmount_op || ""),
-        createdBy: toOptionalFilterValue(filters.createdBy || ""),
-        createdAt_from: toOptionalFilterValue(filters.createdAt_from || ""),
-        createdAt_to: toOptionalFilterValue(filters.createdAt_to || ""),
-        createdAt_op: toOptionalFilterValue(filters.createdAt_op || ""),
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `deposits-exchange-${new Date().toISOString().split("T")[0]}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch {
-      window.alert("Failed to export.");
-    } finally {
-      setExporting(false);
-    }
-  }, [filters, sortBy, sortOrder]);
+  const { exporting, handleExport } = useExport((params) => exportDeposits("exchange", params), {
+    fileName: `deposits-exchange-${new Date().toISOString().split("T")[0]}.xlsx`,
+  });
+
+  const onExportClick = useCallback(() => {
+    handleExport({
+      page: 1,
+      limit: 10000,
+      sortBy: sortBy || "createdAt",
+      sortOrder: sortOrder || "desc",
+      utr: toOptionalFilterValue(filters.utr || ""),
+      utr_op: toOptionalFilterValue(filters.utr_op || ""),
+      bankName: toOptionalFilterValue(filters.bankName || ""),
+      bankName_op: toOptionalFilterValue(filters.bankName_op || ""),
+      bankId: toOptionalFilterValue(filters.bankId || ""),
+      status: depositStatusApiParam(filters.status),
+      amount: toOptionalFilterValue(filters.amount || ""),
+      amount_to: toOptionalFilterValue(filters.amount_to || ""),
+      amount_op: toOptionalFilterValue(filters.amount_op || ""),
+      totalAmount: toOptionalFilterValue(filters.totalAmount || ""),
+      totalAmount_to: toOptionalFilterValue(filters.totalAmount_to || ""),
+      totalAmount_op: toOptionalFilterValue(filters.totalAmount_op || ""),
+      createdBy: toOptionalFilterValue(filters.createdBy || ""),
+      createdAt_from: toOptionalFilterValue(filters.createdAt_from || ""),
+      createdAt_to: toOptionalFilterValue(filters.createdAt_to || ""),
+      createdAt_op: toOptionalFilterValue(filters.createdAt_op || ""),
+    });
+  }, [handleExport, filters, sortBy, sortOrder]);
 
   const onApprove = useCallback(async () => {
     if (!selectedDeposit) {
@@ -611,7 +600,7 @@ export function DepositExchangeClient() {
         secondaryButtonLabel="Reset filters"
         onSecondaryClick={handleResetFilters}
         exportButtonLabel={exporting ? "Exporting…" : "Export"}
-        onExportClick={handleExport}
+        onExportClick={onExportClick}
         exportDisabled={exporting}
       >
         <div className="flex min-h-0 flex-1 flex-col">

@@ -8,6 +8,7 @@ import PaginatedTableReference, {
 import PaginationControlsReference from "@/components/common/PaginationControlsReference";
 import { TableStatusBadge } from "@/components/common/TableStatusBadge";
 import { useListingQueryStateReference } from "@/hooks/useListingQueryStateReference";
+import { useExport } from "@/hooks/useExport";
 import { tableColumnPresets } from "@/lib/tableStylePresets";
 import { exportWithdrawals, listWithdrawalsNormalized } from "@/services/withdrawalService";
 import type { WithdrawalRow } from "@/types/withdrawal";
@@ -41,8 +42,6 @@ export function WithdrawalFinalListClient() {
   } = listingState;
 
   const [totalCount, setTotalCount] = useState(0);
-  const [exporting, setExporting] = useState(false);
-
   const fetcher = useCallback(async (params: Record<string, unknown>) => {
     return listWithdrawalsNormalized("final", params);
   }, []);
@@ -72,49 +71,38 @@ export function WithdrawalFinalListClient() {
     [filters, q],
   );
 
-  const handleExport = useCallback(async () => {
-    setExporting(true);
-    try {
-      const blob = await exportWithdrawals({
-        view: "final",
-        page: 1,
-        limit,
-        sortBy: sortBy || "createdAt",
-        sortOrder: sortOrder || "desc",
-        q: toOptionalFilterValue(q || ""),
-        utr: toOptionalFilterValue(filters.utr || ""),
-        utr_op: toOptionalFilterValue(filters.utr_op || ""),
-        playerName: toOptionalFilterValue(filters.playerName || ""),
-        playerName_op: toOptionalFilterValue(filters.playerName_op || ""),
-        bankName: toOptionalFilterValue(filters.bankName || ""),
-        bankName_op: toOptionalFilterValue(filters.bankName_op || ""),
-        status: withdrawalStatusApiParam(filters.status),
-        amount: toOptionalFilterValue(filters.amount || ""),
-        amount_to: toOptionalFilterValue(filters.amount_to || ""),
-        amount_op: toOptionalFilterValue(filters.amount_op || ""),
-        payableAmount: toOptionalFilterValue(filters.payableAmount || ""),
-        payableAmount_to: toOptionalFilterValue(filters.payableAmount_to || ""),
-        payableAmount_op: toOptionalFilterValue(filters.payableAmount_op || ""),
-        createdBy: toOptionalFilterValue(filters.createdBy || ""),
-        approvedBy: toOptionalFilterValue(filters.approvedBy || ""),
-        createdAt_from: toOptionalFilterValue(filters.createdAt_from || ""),
-        createdAt_to: toOptionalFilterValue(filters.createdAt_to || ""),
-        createdAt_op: toOptionalFilterValue(filters.createdAt_op || ""),
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `withdrawals-final-${new Date().toISOString().split("T")[0]}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch {
-      window.alert("Failed to export.");
-    } finally {
-      setExporting(false);
-    }
-  }, [filters, sortBy, sortOrder, q, limit]);
+  const { exporting, handleExport } = useExport(exportWithdrawals, {
+    fileName: `withdrawals-final-${new Date().toISOString().split("T")[0]}.xlsx`,
+  });
+
+  const onExportClick = useCallback(() => {
+    handleExport({
+      view: "final",
+      page: 1,
+      limit: 10000,
+      sortBy: sortBy || "createdAt",
+      sortOrder: sortOrder || "desc",
+      q: toOptionalFilterValue(q || ""),
+      utr: toOptionalFilterValue(filters.utr || ""),
+      utr_op: toOptionalFilterValue(filters.utr_op || ""),
+      playerName: toOptionalFilterValue(filters.playerName || ""),
+      playerName_op: toOptionalFilterValue(filters.playerName_op || ""),
+      bankName: toOptionalFilterValue(filters.bankName || ""),
+      bankName_op: toOptionalFilterValue(filters.bankName_op || ""),
+      status: withdrawalStatusApiParam(filters.status),
+      amount: toOptionalFilterValue(filters.amount || ""),
+      amount_to: toOptionalFilterValue(filters.amount_to || ""),
+      amount_op: toOptionalFilterValue(filters.amount_op || ""),
+      payableAmount: toOptionalFilterValue(filters.payableAmount || ""),
+      payableAmount_to: toOptionalFilterValue(filters.payableAmount_to || ""),
+      payableAmount_op: toOptionalFilterValue(filters.payableAmount_op || ""),
+      createdBy: toOptionalFilterValue(filters.createdBy || ""),
+      approvedBy: toOptionalFilterValue(filters.approvedBy || ""),
+      createdAt_from: toOptionalFilterValue(filters.createdAt_from || ""),
+      createdAt_to: toOptionalFilterValue(filters.createdAt_to || ""),
+      createdAt_op: toOptionalFilterValue(filters.createdAt_op || ""),
+    });
+  }, [handleExport, filters, sortBy, sortOrder, q]);
 
   const columns = useMemo<PaginatedTableReferenceColumn[]>(
     () => [
@@ -207,7 +195,7 @@ export function WithdrawalFinalListClient() {
       secondaryButtonLabel="Reset filters"
       onSecondaryClick={() => clearFilters({ keepQuickSearch: true })}
       exportButtonLabel="Export"
-      onExportClick={handleExport}
+      onExportClick={onExportClick}
       exportDisabled={exporting}
       filters={
         <WithdrawalFinalListFilterPanel

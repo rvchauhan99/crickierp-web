@@ -29,4 +29,38 @@ export const reportService = {
     const res = await apiClient.get("/reports/audit-entities");
     return res.data as { success?: boolean; data?: string[] };
   },
+
+  exportDashboardSummary: async (params?: Record<string, unknown>) => {
+    const res = await apiClient.get("/reports/dashboard-summary/export", {
+      params,
+      responseType: "blob",
+    });
+    return res.data;
+  },
+
+  expenseAnalysisSummary: async (params?: Record<string, unknown>) => {
+    const res = await apiClient.get("/reports/expense-analysis/summary", { params });
+    return res.data;
+  },
+
+  expenseAnalysisRecords: async (params?: Record<string, unknown>) => {
+    const res = await apiClient.get("/reports/expense-analysis/records", { params });
+    return res.data;
+  },
+
+  exportExpenseAnalysis: async (params?: Record<string, unknown>) => {
+    const res = await apiClient.get("/reports/expense-analysis/export", {
+      params,
+      responseType: "blob",
+    });
+    return res.data;
+  },
+
+  exportTransactionHistory: async (params?: Record<string, unknown>) => {
+    const res = await apiClient.get("/reports/transaction-history/export", {
+      params,
+      responseType: "blob",
+    });
+    return res.data;
+  },
 };

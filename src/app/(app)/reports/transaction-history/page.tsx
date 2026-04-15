@@ -13,6 +13,7 @@ import { tableColumnPresets } from "@/lib/tableStylePresets";
 import { formatAuditActor, formatAuditDetails, buildUserLabel, type UserPickRow } from "@/lib/auditRowFormat";
 import { reportService } from "@/services/reportService";
 import { userService } from "@/services/userService";
+import { useExport } from "@/hooks/useExport";
 import type { AuditRow } from "@/types/financial";
 
 export default function TransactionHistoryPage() {
@@ -100,14 +101,24 @@ export default function TransactionHistoryPage() {
     setEntity("");
     setAction("");
     setActorId("");
-    setActiveSearch("");
-    setActiveFromDate("");
-    setActiveToDate("");
-    setActiveEntity("");
-    setActiveAction("");
     setActiveActorId("");
     setPage(1);
   };
+
+  const { exporting, handleExport } = useExport((params) => reportService.exportTransactionHistory(params), {
+    fileName: `audit-history-${new Date().toISOString().split("T")[0]}.xlsx`,
+  });
+
+  const onExportClick = useCallback(() => {
+    handleExport({
+      search: activeSearch || undefined,
+      fromDate: activeFromDate || undefined,
+      toDate: activeToDate || undefined,
+      entity: activeEntity || undefined,
+      action: activeAction || undefined,
+      actorId: activeActorId || undefined,
+    });
+  }, [handleExport, activeSearch, activeFromDate, activeToDate, activeEntity, activeAction, activeActorId]);
 
   const columns = useMemo(
     () => [
@@ -172,6 +183,9 @@ export default function TransactionHistoryPage() {
       title="Reports / Transaction History"
       fullWidth
       density="compact"
+      onExportClick={onExportClick}
+      exportDisabled={exporting}
+      exportButtonLabel="Export Log"
       filters={
         <div className="flex w-full flex-col gap-3">
           <div className="flex flex-wrap items-end gap-2">
