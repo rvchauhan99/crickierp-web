@@ -52,6 +52,10 @@ export type DashboardSummary = {
   users: {
     total: number;
   };
+  todayMetrics: {
+    newPlayersToday: number;
+    firstTimeDepositAmountToday: number;
+  };
   exchangesBreakdown?: {
     exchangeId: string;
     name: string;
@@ -61,6 +65,8 @@ export type DashboardSummary = {
     withdrawalApproved: number;
     bonusGiven: number;
     bonusRecovered: number;
+    newPlayersToday: number;
+    firstTimeDepositAmountToday: number;
     netPL: number;
     netBonus: number;
   }[];
@@ -171,6 +177,7 @@ export function DashboardKPIs({ summary, loading = false }: Props) {
   const pnl = summary?.pnl;
   const ex = summary?.exchanges;
   const us = summary?.users;
+  const tm = summary?.todayMetrics;
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -320,6 +327,28 @@ export function DashboardKPIs({ summary, loading = false }: Props) {
         icon={<IconUsers className="w-5 h-5 text-sky-600" />}
         iconBg="bg-sky-50"
         valueColor="text-sky-700"
+      />
+
+      {/* 9. New Players Today */}
+      <KPICard
+        loading={loading}
+        title="New Players Today"
+        value={formatCount(tm?.newPlayersToday ?? 0)}
+        subtitle="IST calendar day"
+        icon={<IconUsers className="w-5 h-5 text-indigo-600" />}
+        iconBg="bg-indigo-50"
+        valueColor="text-indigo-700"
+      />
+
+      {/* 10. First-Time Deposit Today */}
+      <KPICard
+        loading={loading}
+        title="First-Time Deposit Today"
+        value={formatAmount(tm?.firstTimeDepositAmountToday ?? 0)}
+        subtitle="Sum of first verified/finalized deposits (IST)"
+        icon={<IconArrowUpRight className="w-5 h-5 text-emerald-600" />}
+        iconBg="bg-emerald-50"
+        valueColor="text-emerald-700"
       />
     </div>
   );

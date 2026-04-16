@@ -21,6 +21,7 @@ import { DashboardRecentActivity, type RecentActivityItem } from "./DashboardRec
 import { DashboardExchangeSummary } from "./DashboardExchangeSummary";
 import { reportService } from "@/services/reportService";
 import { cn } from "@/lib/cn";
+import { Button } from "@/components/ui/Button";
 
 function getInitialFilters(): DashboardFilters {
   const preset = DATE_PRESETS.find((p) => p.label === DEFAULT_PRESET);
@@ -104,6 +105,7 @@ export function DashboardContent() {
         pnl: data.pnl ?? { gross: 0, net: 0 },
         exchanges: data.exchanges ?? { total: 0, active: 0 },
         users: data.users ?? { total: 0 },
+        todayMetrics: data.todayMetrics ?? { newPlayersToday: 0, firstTimeDepositAmountToday: 0 },
         exchangesBreakdown: Array.isArray(data.exchangesBreakdown) ? data.exchangesBreakdown : [],
       });
       setTrendData(Array.isArray(data.trendData) ? data.trendData : []);

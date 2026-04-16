@@ -7,6 +7,8 @@ import {
   IconTrendingUp,
   IconTrendingDown,
   IconBuildingStore,
+  IconUsers,
+  IconCash,
 } from "@tabler/icons-react";
 import { cn } from "@/lib/cn";
 import { type DashboardSummary } from "./DashboardKPIs";
@@ -68,7 +70,7 @@ export function DashboardExchangeSummary({ exchangesBreakdown, loading = false }
             </div>
 
             {/* Metrics Grid */}
-            <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
               {/* Deposit */}
               <div className="space-y-1">
                 <p className="text-[10px] uppercase font-semibold text-slate-500 tracking-wider">Deposits</p>
@@ -117,6 +119,26 @@ export function DashboardExchangeSummary({ exchangesBreakdown, loading = false }
                     : <IconTrendingDown className="w-3 h-3 mr-0.5" />
                   }
                   Profit
+                </div>
+              </div>
+
+              {/* New Players Today */}
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase font-semibold text-slate-500 tracking-wider">New Players</p>
+                <p className="text-base font-bold text-indigo-700">{ex.newPlayersToday.toLocaleString("en-IN")}</p>
+                <div className="flex items-center text-[10px] text-indigo-600">
+                  <IconUsers className="w-3 h-3 mr-0.5" />
+                  Today (IST)
+                </div>
+              </div>
+
+              {/* First-Time Deposit Today */}
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase font-semibold text-slate-500 tracking-wider">1st Deposit</p>
+                <p className="text-base font-bold text-emerald-700">{formatAmount(ex.firstTimeDepositAmountToday)}</p>
+                <div className="flex items-center text-[10px] text-emerald-600">
+                  <IconCash className="w-3 h-3 mr-0.5" />
+                  Today (IST)
                 </div>
               </div>
             </div>
