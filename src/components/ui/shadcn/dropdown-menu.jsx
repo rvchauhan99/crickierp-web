@@ -11,12 +11,15 @@ export function DropdownMenuPortal(props) {
   return <MenuPrimitive.Portal data-slot="dropdown-menu-portal" {...props} />;
 }
 
-export function DropdownMenuTrigger(props) {
+export function DropdownMenuTrigger({ asChild, children, ...props }) {
   return (
     <MenuPrimitive.Trigger
       data-slot="dropdown-menu-trigger"
+      render={asChild ? children : undefined}
       {...props}
-    />
+    >
+      {asChild ? undefined : children}
+    </MenuPrimitive.Trigger>
   );
 }
 

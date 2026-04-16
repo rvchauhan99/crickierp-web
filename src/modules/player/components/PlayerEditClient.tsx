@@ -217,14 +217,20 @@ export function PlayerEditClient() {
         <FormActions className="justify-between px-5 py-4">
           <Button
             type="button"
-            variant="success"
-            leftIcon={<IconCheck size={18} />}
+            loading={saving}
+            startIcon={<IconCheck size={18} />}
             onClick={() => void onSave()}
-            disabled={saving || loadingDetails || !canEdit}
+            disabled={loadingDetails || !canEdit}
           >
-            {saving ? "Saving…" : "Save"}
+            Save
           </Button>
-          <Button type="button" variant="danger" leftIcon={<IconX size={18} />} onClick={resetForm} disabled={saving}>
+          <Button 
+            type="button" 
+            variant="secondary" 
+            startIcon={<IconX size={18} />} 
+            onClick={resetForm} 
+            disabled={saving}
+          >
             Clear
           </Button>
         </FormActions>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { IconCheck, IconX } from "@tabler/icons-react";
 import type { MasterField } from "@/types/masters";
 import { cn } from "@/lib/cn";
 import type { MasterModelKey } from "@/lib/mastersSchemas";
@@ -240,18 +241,33 @@ export function MasterForm({
       {!viewMode && (
         <div className="flex justify-end gap-2 pt-2">
           {onCancel && (
-            <Button type="button" variant="secondary" onClick={onCancel} disabled={loading}>
+            <Button 
+              type="button" 
+              variant="secondary" 
+              onClick={onCancel} 
+              disabled={loading}
+              startIcon={<IconX size={16} />}
+            >
               Cancel
             </Button>
           )}
-          <Button type="submit" disabled={loading}>
-            {loading ? "Saving…" : submitLabel}
+          <Button 
+            type="submit" 
+            loading={loading}
+            startIcon={<IconCheck size={16} />}
+          >
+            {submitLabel}
           </Button>
         </div>
       )}
       {viewMode && onCancel && (
         <div className="flex justify-end pt-2">
-          <Button type="button" variant="secondary" onClick={onCancel}>
+          <Button 
+            type="button" 
+            variant="secondary" 
+            onClick={onCancel}
+            startIcon={<IconX size={16} />}
+          >
             Close
           </Button>
         </div>

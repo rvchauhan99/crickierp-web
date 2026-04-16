@@ -467,11 +467,13 @@ export function WithdrawalExchangeClient() {
         ...tableColumnPresets.actionsCol,
         render: (row: WithdrawalRow) => (
           <div className="flex gap-2">
-            {row.status === "requested" && (
+            {row.status === "requested" ? (
               <Button size="icon" variant="secondary" onClick={() => handleEdit(row)} title="Edit withdrawal">
                 <IconPencil size={18} />
               </Button>
-            ) || "—"}
+            ) : (
+              "—"
+            )}
           </div>
         ),
       },
@@ -597,13 +599,13 @@ export function WithdrawalExchangeClient() {
             <Button
               type="button"
               variant="success"
-              leftIcon={<IconCheck size={18} />}
+              startIcon={<IconCheck size={18} />}
               onClick={onSubmit}
               disabled={loading}
             >
               {loading ? "Saving…" : editingId ? "Update" : "Save"}
             </Button>
-            <Button type="button" variant="danger" leftIcon={<IconX size={18} />} onClick={reset} disabled={loading}>
+            <Button type="button" variant="danger" startIcon={<IconX size={18} />} onClick={reset} disabled={loading}>
               {editingId ? "Cancel" : "Clear"}
             </Button>
           </FormActions>

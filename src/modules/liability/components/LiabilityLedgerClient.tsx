@@ -198,20 +198,22 @@ export function LiabilityLedgerClient() {
             <div className="flex items-center gap-1.5 min-w-max">
               <IconCalendar className="w-4 h-4 text-slate-400" />
               <span className="text-[11px] uppercase font-semibold tracking-wider text-slate-500 mr-2">Range:</span>
-              {DATE_PRESETS.filter(p => !['Last 6M', 'This Year'].includes(p.label)).map((p) => (
-                <button
-                  key={p.label}
-                  onClick={() => handlePreset(p)}
-                  className={cn(
-                    "text-[10px] px-2.5 py-1 rounded-full border transition-all",
-                    activePreset === p.label
-                      ? "bg-[var(--brand-primary)] text-white border-[var(--brand-primary)] font-semibold shadow-sm"
-                      : "bg-white border-slate-200 text-slate-600 hover:border-[var(--brand-primary)]/50"
-                  )}
-                >
-                  {p.label}
-                </button>
-              ))}
+              <div className="flex flex-wrap gap-1">
+                {DATE_PRESETS.filter(p => !['Last 6M', 'This Year'].includes(p.label)).map((p) => (
+                  <Button
+                    key={p.label}
+                    size="xs"
+                    variant={activePreset === p.label ? "primary" : "secondary"}
+                    onClick={() => handlePreset(p)}
+                    className={cn(
+                      "text-[10px] px-2.5 h-6 rounded-full font-semibold",
+                      activePreset === p.label ? "shadow-sm" : "bg-white border-slate-200 font-medium"
+                    )}
+                  >
+                    {p.label}
+                  </Button>
+                ))}
+              </div>
             </div>
 
             <div className="h-5 w-px bg-slate-200" />
@@ -234,9 +236,13 @@ export function LiabilityLedgerClient() {
             
             <div className="h-5 w-px bg-slate-200" />
 
-            <Button onClick={onLoad} disabled={loading} className="h-8 text-xs font-semibold px-4 ml-auto gap-2">
-              <IconFilter className="w-3.5 h-3.5" />
-              {loading ? "Generating..." : "Generate Statement"}
+            <Button 
+              onClick={onLoad} 
+              loading={loading} 
+              className="h-8 text-xs font-semibold px-4 ml-auto"
+              startIcon={<IconFilter size={16} />}
+            >
+              Generate Statement
             </Button>
           </div>
           
@@ -264,12 +270,14 @@ export function LiabilityLedgerClient() {
             </div>
             <div className="no-print flex items-center gap-2">
               <DropdownMenu>
-                <DropdownMenuTrigger
-                  disabled={exporting}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-4 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <IconDownload className="w-4 h-4" />
-                  {exporting ? "Exporting..." : "Export"}
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="secondary"
+                    loading={exporting}
+                    startIcon={<IconDownload size={18} />}
+                  >
+                    Export
+                  </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
                   <DropdownMenuLabel className="" inset={false}>Choose Format</DropdownMenuLabel>

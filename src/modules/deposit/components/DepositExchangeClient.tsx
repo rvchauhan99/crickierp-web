@@ -744,7 +744,7 @@ export function DepositExchangeClient() {
               <Button
                 type="button"
                 variant="success"
-                leftIcon={<IconCheck size={16} />}
+                startIcon={<IconCheck size={16} />}
                 disabled={!canActOnSelection || !playerId.trim()}
                 onClick={() => void onApprove()}
                 className="w-full justify-center"
@@ -754,7 +754,7 @@ export function DepositExchangeClient() {
               <Button
                 type="button"
                 variant="danger"
-                leftIcon={<IconX size={16} />}
+                startIcon={<IconX size={16} />}
                 disabled={!canActOnSelection}
                 onClick={() => {
                   if (!selectedDeposit || selectedDeposit.status !== "pending") return;
@@ -769,7 +769,7 @@ export function DepositExchangeClient() {
               <Button
                 type="button"
                 variant="secondary"
-                leftIcon={<IconRefresh size={16} />}
+                startIcon={<IconRefresh size={16} />}
                 onClick={closeSidebar}
                 className="w-full justify-center"
               >

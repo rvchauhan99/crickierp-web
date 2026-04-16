@@ -9,6 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel 
 } from "@/components/ui/shadcn/dropdown-menu";
+import { Button } from "@/components/ui/Button";
 
 type Props = PropsWithChildren<{
   title: string;
@@ -57,22 +58,26 @@ export function ListingPageContainer({
   const builtActions = !actions ? (
     <div className="flex items-center gap-1.5 flex-wrap">
       {onSecondaryClick && secondaryButtonLabel && (
-        <button
+        <Button
           type="button"
-          className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+          variant="secondary"
+          size="sm"
           onClick={onSecondaryClick}
         >
           {secondaryButtonLabel}
-        </button>
+        </Button>
       )}
       {onExportClick && exportButtonLabel && (
         <DropdownMenu>
-          <DropdownMenuTrigger
-            className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-1"
-            disabled={exportDisabled}
-          >
-            <IconDownload className="h-4 w-4" />
-            {exportButtonLabel}
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={exportDisabled}
+              startIcon={<IconDownload />}
+            >
+              {exportButtonLabel}
+            </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuLabel className="" inset={false}>Choose Format</DropdownMenuLabel>
@@ -92,24 +97,25 @@ export function ListingPageContainer({
         </DropdownMenu>
       )}
       {onImportClick && importButtonLabel && (
-        <button
+        <Button
           type="button"
-          className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+          variant="secondary"
+          size="sm"
+          startIcon={<IconUpload />}
           onClick={onImportClick}
         >
-          <IconUpload className="h-4 w-4" />
           {importButtonLabel}
-        </button>
+        </Button>
       )}
       {onAddClick && addButtonLabel && (
-        <button
+        <Button
           type="button"
-          className="flex items-center gap-1.5 rounded-md bg-[var(--brand-primary)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--brand-primary-hover)]"
+          size="sm"
+          startIcon={<IconPlus />}
           onClick={onAddClick}
         >
-          <IconPlus className="h-4 w-4" />
           {addButtonLabel}
-        </button>
+        </Button>
       )}
     </div>
   ) : null;

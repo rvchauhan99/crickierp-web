@@ -140,9 +140,14 @@ export function LiabilityReportClient() {
             </div>
             {summary && (
               <DropdownMenu>
-                <DropdownMenuTrigger className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-[var(--border)] bg-transparent px-4 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50">
-                  <IconDownload className="w-3.5 h-3.5" />
-                  Export
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    startIcon={<IconDownload size={16} />}
+                  >
+                    Export
+                  </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
                   <DropdownMenuLabel className="" inset={false}>Choose Format</DropdownMenuLabel>

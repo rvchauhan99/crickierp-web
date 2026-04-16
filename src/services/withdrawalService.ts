@@ -7,11 +7,34 @@ function toOptionalParam(value: unknown): string | undefined {
   return text === "" ? undefined : text;
 }
 
+type UserLike = {
+  _id?: unknown;
+  id?: unknown;
+  fullName?: unknown;
+  username?: unknown;
+};
+
+function parseUserRef(user: unknown): { id?: string; label?: string } {
+  if (!user) return {};
+  if (typeof user === "string") return { id: user };
+  if (typeof user !== "object") return {};
+
+  const row = user as UserLike;
+  const idRaw = row._id ?? row.id;
+  const id = idRaw != null ? String(idRaw).trim() : undefined;
+  const fullName = row.fullName != null ? String(row.fullName).trim() : "";
+  const username = row.username != null ? String(row.username).trim() : "";
+  const label = fullName && username ? `${fullName} (${username})` : fullName || username || undefined;
+  return { id, label };
+}
+
 function normalizeWithdrawal(row: Record<string, unknown>): WithdrawalRow {
   const id = String(row._id ?? row.id ?? "");
   const st = row.status;
   const status: WithdrawalRow["status"] =
     st === "requested" || st === "approved" || st === "rejected" || st === "finalized" ? st : "requested";
+  const createdByRef = parseUserRef(row.createdBy);
+  const approvedByRef = parseUserRef(row.approvedBy);
 
   return {
     _id: id,
@@ -36,10 +59,12 @@ function normalizeWithdrawal(row: Record<string, unknown>): WithdrawalRow {
     status,
     createdAt: row.createdAt != null ? String(row.createdAt) : undefined,
     updatedAt: row.updatedAt != null ? String(row.updatedAt) : undefined,
-    createdBy: row.createdBy != null ? String(row.createdBy) : undefined,
-    createdByName: row.createdByName != null ? String(row.createdByName) : undefined,
-    approvedBy: row.approvedBy != null ? String(row.approvedBy) : undefined,
-    approvedByName: row.approvedByName != null ? String(row.approvedByName) : undefined,
+    createdBy: createdByRef.id,
+    createdByName:
+      row.createdByName != null ? String(row.createdByName) : createdByRef.label,
+    approvedBy: approvedByRef.id,
+    approvedByName:
+      row.approvedByName != null ? String(row.approvedByName) : approvedByRef.label,
   };
 }
 
@@ -67,12 +92,19 @@ export async function exportWithdrawals(params: Record<string, unknown>): Promis
   return response.data;
 }
 
+export type LastBankerPayoutMeta = { bankId: string; bankName: string } | null | undefined;
+
 export async function listWithdrawalsNormalized(
   view: WithdrawalView,
   params: Record<string, unknown>,
 ): Promise<{
   data: WithdrawalRow[];
-  meta: { total: number; page: number; pageSize: number };
+  meta: {
+    total: number;
+    page: number;
+    pageSize: number;
+    lastBankerPayout?: LastBankerPayoutMeta;
+  };
 }> {
   const page = Number(params.page) || 1;
   const limit = Number(params.limit) || 20;
@@ -90,7 +122,12 @@ export async function listWithdrawalsNormalized(
   const response = await apiClient.get<{
     success: boolean;
     data: Record<string, unknown>[];
-    meta: { total: number; page: number; pageSize: number };
+    meta: {
+      total: number;
+      page: number;
+      pageSize: number;
+      lastBankerPayout?: LastBankerPayoutMeta;
+    };
   }>("/withdrawal", {
     params: {
       view,
@@ -122,12 +159,14 @@ export async function listWithdrawalsNormalized(
 
   const rows = Array.isArray(response.data?.data) ? response.data.data : [];
   const meta = response.data?.meta;
+  const lastBankerPayout = meta?.lastBankerPayout;
   return {
     data: rows.map((row) => normalizeWithdrawal(row)),
     meta: {
       total: Number(meta?.total ?? 0),
       page: Number(meta?.page ?? page),
       pageSize: Number(meta?.pageSize ?? limit),
+      ...(view === "banker" ? { lastBankerPayout } : {}),
     },
   };
 }

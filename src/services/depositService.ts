@@ -90,12 +90,19 @@ export async function updateDeposit(id: string, input: DepositCreateInput): Prom
   return response.data?.data;
 }
 
+export type LastBankerDepositMeta = { bankId: string; bankName: string } | null | undefined;
+
 export async function listDepositsNormalized(
   view: DepositView,
   params: Record<string, unknown>,
 ): Promise<{
   data: DepositRow[];
-  meta: { total: number; page: number; pageSize: number };
+  meta: {
+    total: number;
+    page: number;
+    pageSize: number;
+    lastBankerDeposit?: LastBankerDepositMeta;
+  };
 }> {
   const page = Number(params.page) || 1;
   const limit = Number(params.limit) || 20;
@@ -113,7 +120,12 @@ export async function listDepositsNormalized(
   const response = await apiClient.get<{
     success: boolean;
     data: Record<string, unknown>[];
-    meta: { total: number; page: number; pageSize: number };
+    meta: {
+      total: number;
+      page: number;
+      pageSize: number;
+      lastBankerDeposit?: LastBankerDepositMeta;
+    };
   }>("/deposit", {
     params: {
       view,
@@ -144,12 +156,14 @@ export async function listDepositsNormalized(
 
   const rows = Array.isArray(response.data?.data) ? response.data.data : [];
   const meta = response.data?.meta;
+  const lastBankerDeposit = meta?.lastBankerDeposit;
   return {
     data: rows.map((row) => normalizeDeposit(row)),
     meta: {
       total: Number(meta?.total ?? 0),
       page: Number(meta?.page ?? page),
       pageSize: Number(meta?.pageSize ?? limit),
+      ...(view === "banker" ? { lastBankerDeposit } : {}),
     },
   };
 }

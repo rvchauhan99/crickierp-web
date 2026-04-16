@@ -640,7 +640,7 @@ export function ExpenseAuditClient() {
               <div className="flex flex-col gap-2 pt-2 border-t border-[var(--border)]">
                 <Button
                   variant="success"
-                  leftIcon={<IconCheck size={18} />}
+                  startIcon={<IconCheck size={18} />}
                   onClick={() => void onApproveSubmit()}
                   disabled={selectedExpense.status !== "pending_audit" || actionLoading}
                   className="w-full justify-center"
@@ -649,7 +649,7 @@ export function ExpenseAuditClient() {
                 </Button>
                 <Button
                   variant="danger"
-                  leftIcon={<IconX size={18} />}
+                  startIcon={<IconX size={18} />}
                   onClick={() => {
                     setRejectOpen(true);
                     setRejectReasonId("");
@@ -662,7 +662,7 @@ export function ExpenseAuditClient() {
                 </Button>
                 <Button
                   variant="secondary"
-                  leftIcon={<IconRefresh size={18} />}
+                  startIcon={<IconRefresh size={18} />}
                   onClick={closeSidebar}
                   className="w-full justify-center"
                 >

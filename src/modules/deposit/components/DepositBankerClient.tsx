@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { IconCheck, IconPencil, IconX } from "@tabler/icons-react";
 import { AutocompleteField, type AutocompleteOption } from "@/components/common/AutocompleteField";
@@ -75,6 +75,13 @@ export function DepositBankerClient() {
     listingState;
 
   const [bankId, setBankId] = useState("");
+  const [bankAutocompleteDefault, setBankAutocompleteDefault] = useState<AutocompleteOption | null>(null);
+  const bankIdRef = useRef(bankId);
+  const hasConsumedInitialListMetaRef = useRef(false);
+
+  useEffect(() => {
+    bankIdRef.current = bankId;
+  }, [bankId]);
   const [utr, setUtr] = useState("");
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
@@ -121,7 +128,6 @@ export function DepositBankerClient() {
       toast.success("Deposit recorded successfully.");
       setUtr("");
       setAmount("");
-      setBankId("");
       setErrors({});
       setTableKey((k) => k + 1);
     } catch (error: unknown) {
@@ -133,6 +139,7 @@ export function DepositBankerClient() {
 
   const reset = () => {
     setBankId("");
+    setBankAutocompleteDefault(null);
     setUtr("");
     setAmount("");
     setErrors({});
@@ -217,7 +224,16 @@ export function DepositBankerClient() {
   }, [handleExport, filters, sortBy, sortOrder]);
 
   const fetcher = useCallback(async (params: Record<string, unknown>) => {
-    return listDepositsNormalized("banker", params);
+    const res = await listDepositsNormalized("banker", params);
+    if (!hasConsumedInitialListMetaRef.current) {
+      hasConsumedInitialListMetaRef.current = true;
+      const hint = res.meta.lastBankerDeposit;
+      if (hint?.bankId && bankIdRef.current === "") {
+        setBankId(hint.bankId);
+        setBankAutocompleteDefault({ value: hint.bankId, label: hint.bankName });
+      }
+    }
+    return res;
   }, []);
 
   const columns = useMemo<PaginatedTableReferenceColumn[]>(
@@ -300,7 +316,7 @@ export function DepositBankerClient() {
               type="button"
               size="sm"
               variant="secondary"
-              leftIcon={<IconPencil size={16} />}
+              startIcon={<IconPencil size={16} />}
               onClick={() => {
                 setEditDeposit(row);
                 setEditBankId(row.bankId ?? "");
@@ -337,6 +353,7 @@ export function DepositBankerClient() {
               loadOptions={loadBankOptions}
               placeholder="Search bank..."
               emptyText="No banks found"
+              defaultOption={bankAutocompleteDefault}
             />
             <FieldError message={errors.bankId} />
           </div>
@@ -362,13 +379,13 @@ export function DepositBankerClient() {
           <Button
             type="button"
             variant="success"
-            leftIcon={<IconCheck size={18} />}
+            startIcon={<IconCheck size={18} />}
             onClick={onSubmit}
             disabled={loading}
           >
             {loading ? "Saving…" : "Save"}
           </Button>
-          <Button type="button" variant="danger" leftIcon={<IconX size={18} />} onClick={reset} disabled={loading}>
+          <Button type="button" variant="danger" startIcon={<IconX size={18} />} onClick={reset} disabled={loading}>
             Clear
           </Button>
         </FormActions>

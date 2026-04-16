@@ -1,7 +1,5 @@
 /** Apply-time mapping for expense final list filters (no operator UI). */
 
-const CONTAINS = "contains";
-
 function parseNum(s: string): number | null {
   const t = s.trim();
   if (t === "") return null;
@@ -71,10 +69,12 @@ export function buildDateRangeApiParams(
     return { [`${prefix}_from`]: "", [`${prefix}_to`]: "", [`${prefix}_op`]: "" };
   }
   if (f && t) {
-    return { [`${prefix}_from`]: f, [`${prefix}_to`]: t, [`${prefix}_op`]: "inRange" };
+    const from = f <= t ? f : t;
+    const to = f <= t ? t : f;
+    return { [`${prefix}_from`]: from, [`${prefix}_to`]: to, [`${prefix}_op`]: "inRange" };
   }
   if (f && !t) {
-    return { [`${prefix}_from`]: f, [`${prefix}_to`]: "", [`${prefix}_op`]: "equals" };
+    return { [`${prefix}_from`]: f, [`${prefix}_to`]: "", [`${prefix}_op`]: "" };
   }
   return { [`${prefix}_from`]: "", [`${prefix}_to`]: t, [`${prefix}_op`]: "" };
 }

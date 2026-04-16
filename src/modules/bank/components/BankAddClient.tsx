@@ -144,13 +144,13 @@ export function BankAddClient() {
           <Button
             type="button"
             variant="success"
-            leftIcon={<IconCheck size={18} />}
+            startIcon={<IconCheck size={18} />}
             onClick={onSubmit}
             disabled={loading}
           >
             {loading ? "Saving…" : "Save"}
           </Button>
-          <Button type="button" variant="danger" leftIcon={<IconX size={18} />} onClick={reset} disabled={loading}>
+          <Button type="button" variant="danger" startIcon={<IconX size={18} />} onClick={reset} disabled={loading}>
             Cancel
           </Button>
         </FormActions>

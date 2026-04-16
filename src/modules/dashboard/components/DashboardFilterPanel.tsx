@@ -86,37 +86,36 @@ export function DashboardFilterPanel({
       {/* Quick Bar Level */}
       <div className="flex flex-wrap items-center gap-2 p-3 min-h-[52px]">
         {/* Toggle Button */}
-        <button
+        <Button
           type="button"
+          variant="secondary"
+          size="sm"
           onClick={() => setOpen(!open)}
-          className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 transition-colors rounded-lg border border-slate-200 focus:outline-none shrink-0"
+          className="flex items-center gap-2 h-9 px-3 shrink-0"
+          startIcon={<IconFilter size={14} />}
+          endIcon={open ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
         >
-          <span className="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-tight">
-            <IconFilter size={14} /> Advanced Filters
+          <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-tight">
+            Advanced Filters
             {activeCount > 0 && (
               <span className="inline-flex items-center justify-center h-4 px-1 leading-none bg-green-100 text-green-700 border border-green-200 rounded text-[10px]">
                 {activeCount}
               </span>
             )}
           </span>
-          {open ? (
-            <IconChevronUp size={14} className="text-slate-400" />
-          ) : (
-            <IconChevronDown size={14} className="text-slate-400" />
-          )}
-        </button>
+        </Button>
 
         {/* Clear filters shortcut */}
         {activeCount > 0 && (
           <Button
             type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 shrink-0 px-2 text-[10px] font-semibold uppercase tracking-tight border-slate-200 text-slate-600 hover:bg-red-50 hover:text-red-700 hover:border-red-200"
+            variant="ghost"
+            size="xs"
+            className="h-8 shrink-0 px-2 text-[10px] font-semibold uppercase tracking-tight text-slate-500 hover:text-red-700 hover:bg-red-50"
             onClick={handleClear}
             disabled={loading}
+            startIcon={<IconX size={12} />}
           >
-            <IconX size={12} className="mr-0.5" />
             Clear filters
           </Button>
         )}
@@ -131,32 +130,32 @@ export function DashboardFilterPanel({
         </div>
         <div className="flex flex-wrap items-center gap-1">
           {DATE_PRESETS.map((p) => (
-            <button
+            <Button
               key={p.label}
+              size="xs"
+              variant={activePreset === p.label ? "primary" : "secondary"}
               onClick={() => onPreset(p)}
               disabled={loading}
               className={cn(
-                "text-[11px] px-2.5 py-1 rounded-full border font-medium transition-all",
-                activePreset === p.label
-                  ? "bg-[var(--brand-primary)] text-white border-[var(--brand-primary)] shadow-sm"
-                  : "bg-white border-slate-200 text-slate-500 hover:border-[var(--brand-primary)]/50 hover:text-[var(--brand-primary)]",
+                "h-7 rounded-full text-[11px] px-3 font-medium transition-all",
+                activePreset !== p.label && "bg-white border-slate-200 text-slate-500 hover:border-[var(--brand-primary)]/50 hover:text-[var(--brand-primary)]"
               )}
             >
               {p.label}
-            </button>
+            </Button>
           ))}
         </div>
 
         {/* Refresh / Reset right side */}
         <div className="ml-auto flex items-center gap-2">
            <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             onClick={handleClear}
             disabled={loading}
-            className="h-8 text-xs px-2.5 gap-1"
+            className="h-8 text-xs px-2.5"
+            startIcon={<IconRefresh className="w-3.5 h-3.5" />}
           >
-            <IconRefresh className="w-3.5 h-3.5" />
             Reset
           </Button>
         </div>
@@ -267,8 +266,25 @@ export function DashboardFilterPanel({
           </div>
 
           <div className="col-span-1 sm:col-span-2 md:col-span-3 lg:col-span-4 flex items-center justify-end gap-2 pt-2 border-t border-slate-200 mt-2">
-            <Button variant="outline" size="sm" onClick={handleClear} disabled={loading} className="w-24">Clear</Button>
-            <Button size="sm" onClick={handleApply} disabled={loading} className="w-24">Apply</Button>
+            <Button 
+              variant="secondary" 
+              size="sm" 
+              onClick={handleClear} 
+              disabled={loading} 
+              className="w-24"
+              startIcon={<IconX size={14} />}
+            >
+              Clear
+            </Button>
+            <Button 
+              size="sm" 
+              onClick={handleApply} 
+              disabled={loading} 
+              className="w-24"
+              startIcon={<IconFilter size={14} />}
+            >
+              Apply
+            </Button>
           </div>
         </div>
       )}

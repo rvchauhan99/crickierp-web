@@ -279,7 +279,7 @@ export function ExchangeStatementClient() {
                   type="button"
                   variant="outline"
                   className="h-8 text-xs gap-2"
-                  leftIcon={<IconPrinter size={14} />}
+                  startIcon={<IconPrinter size={14} />}
                   onClick={handlePrint}
                 >
                   Print PDF

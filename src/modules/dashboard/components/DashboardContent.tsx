@@ -199,14 +199,15 @@ export function DashboardContent() {
 
         <div className="flex items-center gap-2 no-print">
           <DropdownMenu>
-            <DropdownMenuTrigger
-              disabled={exporting || loading}
-              className={cn(
-                "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:border-[var(--brand-primary)]/50 hover:text-[var(--brand-primary)] transition-all disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-1",
-              )}
-            >
-              <IconDownload className="w-3.5 h-3.5" />
-              {exporting ? "Exporting..." : "Export Report"}
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={exporting || loading}
+                startIcon={<IconDownload />}
+              >
+                Export Report
+              </Button>
             </DropdownMenuTrigger>
             <DropdownMenuPortal>
               <DropdownMenuContent align="end" className="w-48">
@@ -223,16 +224,15 @@ export function DashboardContent() {
               </DropdownMenuContent>
             </DropdownMenuPortal>
           </DropdownMenu>
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => setRefreshToken((t) => t + 1)}
-            disabled={loading}
-            className={cn(
-              "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:border-[var(--brand-primary)]/50 hover:text-[var(--brand-primary)] transition-all disabled:opacity-50",
-            )}
+            loading={loading}
+            startIcon={<IconRefresh className={cn(loading && "animate-spin")} />}
           >
-            <IconRefresh className={cn("w-3.5 h-3.5", loading && "animate-spin")} />
             Refresh
-          </button>
+          </Button>
         </div>
       </div>
 

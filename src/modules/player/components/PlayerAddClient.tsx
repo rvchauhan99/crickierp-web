@@ -310,14 +310,19 @@ export function PlayerAddClient() {
         <FormActions className="justify-between px-5 py-4">
           <Button
             type="button"
-            variant="success"
-            leftIcon={<IconCheck size={18} />}
+            loading={manualLoading}
+            startIcon={<IconCheck size={18} />}
             onClick={onManualSave}
+          >
+            Save
+          </Button>
+          <Button 
+            type="button" 
+            variant="secondary" 
+            startIcon={<IconX size={18} />} 
+            onClick={resetManual} 
             disabled={manualLoading}
           >
-            {manualLoading ? "Saving…" : "Save"}
-          </Button>
-          <Button type="button" variant="danger" leftIcon={<IconX size={18} />} onClick={resetManual} disabled={manualLoading}>
             Cancel
           </Button>
         </FormActions>
@@ -338,29 +343,30 @@ export function PlayerAddClient() {
               className="block w-full text-sm text-[var(--text-secondary)] file:mr-3 file:rounded-md file:border file:border-[var(--border)] file:bg-white file:px-3 file:py-1.5"
               onChange={(e) => setBulkFile(e.target.files?.[0] ?? null)}
             />
-            <button
+            <Button
               type="button"
+              variant="link"
+              size="xs"
               onClick={onDownloadSample}
-              className="mt-2 text-sm font-medium text-[var(--brand-primary)] underline underline-offset-2 hover:opacity-90"
+              className="mt-2 h-auto p-0"
             >
               Download sample CSV
-            </button>
+            </Button>
           </div>
         </div>
         <FormActions className="justify-between px-5 py-3">
           <Button
             type="button"
-            variant="success"
-            leftIcon={<IconCheck size={18} />}
+            loading={bulkLoading}
+            startIcon={<IconCheck size={18} />}
             onClick={onBulkSave}
-            disabled={bulkLoading}
           >
-            {bulkLoading ? "Uploading…" : "Save"}
+            Save
           </Button>
           <Button
             type="button"
-            variant="danger"
-            leftIcon={<IconX size={18} />}
+            variant="secondary"
+            startIcon={<IconX size={18} />}
             onClick={() => {
               setBulkFile(null);
               if (fileInputRef.current) fileInputRef.current.value = "";

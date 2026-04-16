@@ -150,21 +150,30 @@ export function ExchangeTopUpClient() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={submitTopup} disabled={submitting} className="gap-2">
-            <IconCheck className="w-4 h-4" />
-            {submitting ? "Posting..." : "Post Top Up"}
+          <Button 
+            onClick={submitTopup} 
+            loading={submitting}
+            startIcon={<IconCheck size={18} />}
+          >
+            Post Top Up
           </Button>
-          <Button variant="outline" onClick={refreshTopups} disabled={loading} className="gap-2">
-            <IconRefresh className="w-4 h-4" />
+          <Button 
+            variant="outline" 
+            onClick={refreshTopups} 
+            loading={loading}
+            startIcon={<IconRefresh size={18} className={cn(loading && "animate-spin")} />}
+          >
             Refresh
           </Button>
           <DropdownMenu>
-            <DropdownMenuTrigger
-              disabled={exporting}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-4 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <IconDownload className="w-4 h-4" />
-              {exporting ? "Exporting..." : "Export"}
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="secondary"
+                loading={exporting}
+                startIcon={<IconDownload size={18} />}
+              >
+                Export
+              </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-48">
               <DropdownMenuLabel className="" inset={false}>Choose Format</DropdownMenuLabel>

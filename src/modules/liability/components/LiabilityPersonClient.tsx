@@ -154,7 +154,7 @@ export function LiabilityPersonClient() {
           <Button
             size="sm"
             variant="secondary"
-            leftIcon={<IconPencil size={14} />}
+            startIcon={<IconPencil size={14} />}
             onClick={() => {
               setEditingId(r.id);
               setName(r.name);
@@ -222,12 +222,12 @@ export function LiabilityPersonClient() {
             type="button"
             onClick={() => void onSubmit()}
             disabled={loading}
-            leftIcon={editingId ? <IconDeviceFloppy size={16} /> : <IconPlus size={16} />}
+            startIcon={editingId ? <IconDeviceFloppy size={16} /> : <IconPlus size={16} />}
           >
             {loading ? "Saving..." : editingId ? "Update Person" : "Add Person"}
           </Button>
           {editingId && (
-            <Button type="button" variant="secondary" onClick={resetForm} leftIcon={<IconX size={16} />}>
+            <Button type="button" variant="secondary" onClick={resetForm} startIcon={<IconX size={16} />}>
               Cancel Edit
             </Button>
           )}
