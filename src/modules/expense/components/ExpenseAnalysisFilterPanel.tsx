@@ -95,9 +95,7 @@ export function ExpenseAnalysisFilterPanel({ q, filters, setQ, setFilters, onCle
   }, [filters, q]);
 
   useEffect(() => {
-    const rest = { ...appliedState };
-    delete rest.q;
-    setLocal(rest);
+    setLocal(appliedState);
   }, [appliedState]);
 
   useEffect(() => {
