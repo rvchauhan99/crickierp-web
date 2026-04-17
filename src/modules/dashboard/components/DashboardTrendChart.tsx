@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import { IconChartBar, IconChartArea } from "@tabler/icons-react";
 import { cn } from "@/lib/cn";
+import { formatDashboardCurrency } from "../utils/formatCurrency";
 
 const SKELETON_BAR_HEIGHTS = [32, 58, 41, 76, 43, 67, 52, 37, 70, 46, 63, 35, 55, 48];
 
@@ -29,12 +30,6 @@ export type TrendDataPoint = {
 interface Props {
   data: TrendDataPoint[];
   loading?: boolean;
-}
-
-function formatAmount(value: number) {
-  if (value >= 10_00_000) return `₹${(value / 10_00_000).toFixed(1)}L`;
-  if (value >= 1000) return `₹${(value / 1000).toFixed(1)}K`;
-  return `₹${value}`;
 }
 
 function formatShortDate(dateStr: string) {
@@ -63,7 +58,7 @@ const CustomTooltip = ({
             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
             {p.name}
           </span>
-          <span className="font-semibold text-slate-800">{formatAmount(p.value)}</span>
+          <span className="font-semibold text-slate-800">{formatDashboardCurrency(p.value)}</span>
         </div>
       ))}
     </div>
@@ -155,11 +150,11 @@ export function DashboardTrendChart({ data, loading }: Props) {
                   interval="preserveStartEnd"
                 />
                 <YAxis
-                  tickFormatter={formatAmount}
+                  tickFormatter={formatDashboardCurrency}
                   tick={{ fontSize: 10, fill: "#94a3b8" }}
                   axisLine={false}
                   tickLine={false}
-                  width={52}
+                  width={96}
                 />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend
@@ -200,11 +195,11 @@ export function DashboardTrendChart({ data, loading }: Props) {
                   interval="preserveStartEnd"
                 />
                 <YAxis
-                  tickFormatter={formatAmount}
+                  tickFormatter={formatDashboardCurrency}
                   tick={{ fontSize: 10, fill: "#94a3b8" }}
                   axisLine={false}
                   tickLine={false}
-                  width={52}
+                  width={96}
                 />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend
