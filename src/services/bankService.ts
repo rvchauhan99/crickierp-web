@@ -41,6 +41,8 @@ function normalizeBank(row: Record<string, unknown>): BankRow {
     ifsc: String(row.ifsc ?? ""),
     openingBalance: Number(row.openingBalance ?? 0),
     currentBalance: row.currentBalance != null ? Number(row.currentBalance) : undefined,
+    closingBalanceActual:
+      row.closingBalanceActual != null ? Number(row.closingBalanceActual) : undefined,
     status: (row.status === "deactive" ? "deactive" : "active") as BankRow["status"],
     createdAt: row.createdAt != null ? String(row.createdAt) : undefined,
     updatedAt: row.updatedAt != null ? String(row.updatedAt) : undefined,

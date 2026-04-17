@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   IconChevronDown,
   IconChevronUp,
@@ -26,7 +26,6 @@ import { listBanksNormalized } from "@/services/bankService";
 import { listExpenseTypes } from "@/services/expenseService";
 import { userService } from "@/services/userService";
 import {
-  EXPENSE_FINAL_FILTER_KEYS,
   emptyExpenseFinalFilters,
   type ExpenseFinalFilterKey,
 } from "@/modules/expense/expenseFinalListConstants";
@@ -36,20 +35,6 @@ import {
   buildExpenseDateApiParams,
   displayNumericRangePair,
 } from "@/modules/expense/expenseFinalListFilterMapping";
-
-// We'll simulate DateField if it's just an input type=date
-const DateField = ({ name, value, onChange, label }: any) => (
-  <div className="space-y-1">
-    {label && <Label className="text-[10px] text-slate-500 uppercase tracking-tight">{label}</Label>}
-    <Input
-      type="date"
-      name={name}
-      value={value}
-      onChange={onChange}
-      className="h-8 text-xs border-slate-200"
-    />
-  </div>
-);
 
 const STATUS_OPTIONS = [
   { label: "Pending audit", value: "pending_audit" },
@@ -86,21 +71,32 @@ interface Props {
   onClear: () => void;
 }
 
+type UserOptionRow = {
+  _id?: string;
+  id?: string;
+  fullName?: string;
+  username?: string;
+};
+
 export function ExpenseAnalysisFilterPanel({ q, filters, setQ, setFilters, onClear }: Props) {
   const [open, setOpen] = useState(false);
   const [local, setLocal] = useState(() => ({ ...emptyExpenseFinalFilters(), ...filters }));
   const [quickSearch, setQuickSearch] = useState(q);
-  const debounceQRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
+  const appliedState = useMemo(() => {
     const am = displayNumericRangePair(filters.amount, filters.amount_to, filters.amount_op);
-    setLocal({
+    return {
       ...emptyExpenseFinalFilters(),
       ...filters,
       amount: am.from,
       amount_to: am.to,
-    });
-  }, [filters]);
+      q: q.trim(),
+    };
+  }, [filters, q]);
+
+  useEffect(() => {
+    setLocal(appliedState);
+  }, [appliedState]);
 
   useEffect(() => {
     setQuickSearch(q);
@@ -111,6 +107,7 @@ export function ExpenseAnalysisFilterPanel({ q, filters, setQ, setFilters, onCle
   }, []);
 
   const handleApply = useCallback(() => {
+    setQ(quickSearch, false);
     const next = {
       ...emptyExpenseFinalFilters(),
       expenseTypeId: local.expenseTypeId,
@@ -121,16 +118,16 @@ export function ExpenseAnalysisFilterPanel({ q, filters, setQ, setFilters, onCle
       approvedBy: local.approvedBy,
       ...buildCreatedAtApiParams(local.createdAt_from, local.createdAt_to),
       ...buildExpenseDateApiParams(local.expenseDate_from, local.expenseDate_to),
-      q: quickSearch,
     };
     setFilters(next, true, false);
     setOpen(false);
-  }, [local, quickSearch, setFilters]);
+  }, [local, quickSearch, setFilters, setQ]);
 
   // Options loaders
   const loadUserOptions = useCallback(async (query: string) => {
     const res = await userService.list({ q: query || undefined, page: 1, limit: 20 });
-    return (res.data as any[]).map(u => ({ value: u._id || u.id, label: u.fullName || u.username }));
+    const rows = Array.isArray(res.data) ? (res.data as UserOptionRow[]) : [];
+    return rows.map((u) => ({ value: u._id || u.id || "", label: u.fullName || u.username || "" }));
   }, []);
 
   const loadBankOptions = useCallback(async (query: string) => {
@@ -147,52 +144,62 @@ export function ExpenseAnalysisFilterPanel({ q, filters, setQ, setFilters, onCle
   }, []);
 
   const activeCount = useMemo(() => {
-    let n = quickSearch.trim() ? 1 : 0;
-    Object.entries(local).forEach(([key, val]) => {
-      if (SKIP_CHIP_KEYS.has(key as any)) return;
+    let n = appliedState.q ? 1 : 0;
+    Object.entries(appliedState).forEach(([key, val]) => {
+      if (key === "q") return;
+      if (SKIP_CHIP_KEYS.has(key as ExpenseFinalFilterKey)) return;
       if (val?.trim()) n++;
     });
     return n;
-  }, [local, quickSearch]);
+  }, [appliedState]);
 
   const appliedChips = useMemo(() => {
     const labels: string[] = [];
-    if (quickSearch.trim()) labels.push("Search");
-    Object.entries(local).forEach(([key, val]) => {
-      if (SKIP_CHIP_KEYS.has(key as any)) return;
+    if (appliedState.q) labels.push("Search");
+    Object.entries(appliedState).forEach(([key, val]) => {
+      if (key === "q") return;
+      if (SKIP_CHIP_KEYS.has(key as ExpenseFinalFilterKey)) return;
       if (val?.trim()) labels.push(CHIP_LABELS[key as keyof typeof CHIP_LABELS] || key);
     });
     return labels;
-  }, [local, quickSearch]);
+  }, [appliedState]);
 
   return (
     <Card className="rounded-xl shadow-sm border-slate-200 bg-white overflow-visible">
       {/* Top Bar */}
       <div className="flex flex-col sm:flex-row items-center gap-2 px-3 py-2 h-auto sm:h-12">
-        <button
+        <Button
           type="button"
+          variant="secondary"
+          size="sm"
           onClick={() => setOpen(!open)}
-          className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 transition-colors rounded-lg border border-slate-200 focus:outline-none shrink-0"
+          className="flex items-center h-9 px-3 shrink-0"
+          startIcon={<IconFilter size={14} />}
+          endIcon={open ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
         >
-          <span className="flex items-center gap-2 text-[10px] font-bold text-slate-700 uppercase tracking-tight">
-            <IconFilter size={14} /> Advanced Filters
+          <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-tight">
+            Advanced Filters
             {activeCount > 0 && (
               <Badge variant="success" className="text-[10px] h-4 px-1 leading-none">
                 {activeCount}
               </Badge>
             )}
           </span>
-          {open ? <IconChevronUp size={14} className="text-slate-400" /> : <IconChevronDown size={14} className="text-slate-400" />}
-        </button>
+        </Button>
 
         {(activeCount > 0 || quickSearch) && (
           <Button
-            variant="outline"
-            size="sm"
-            onClick={() => { setLocal(emptyExpenseFinalFilters()); setQuickSearch(""); onClear(); }}
-            className="h-8 shrink-0 px-2 text-[10px] font-bold uppercase tracking-tight border-slate-200 text-slate-600 hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition-all"
+            variant="ghost"
+            size="xs"
+            onClick={() => {
+              setLocal(emptyExpenseFinalFilters());
+              setQuickSearch("");
+              onClear();
+            }}
+            className="h-8 shrink-0 px-2 text-[10px] font-bold uppercase tracking-tight text-slate-600 hover:text-red-700 hover:bg-red-50 transition-all"
+            startIcon={<IconX size={12} />}
           >
-            <IconX size={12} className="mr-1" /> Clear
+            Clear
           </Button>
         )}
 
@@ -209,7 +216,10 @@ export function ExpenseAnalysisFilterPanel({ q, filters, setQ, setFilters, onCle
           <Input
             value={quickSearch}
             onChange={(e) => setQuickSearch(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && setQ(quickSearch)}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter") return;
+              setQ(quickSearch, false);
+            }}
             placeholder="Quick search..."
             className="h-9 pl-9 text-xs border-slate-200 rounded-lg focus:ring-brand-primary"
           />
@@ -341,8 +351,28 @@ export function ExpenseAnalysisFilterPanel({ q, filters, setQ, setFilters, onCle
           </div>
 
           <div className="lg:col-span-6 flex items-center justify-end gap-2 pt-2 border-t border-slate-50">
-            <Button variant="outline" size="sm" onClick={() => { setLocal(emptyExpenseFinalFilters()); onClear(); setOpen(false); }} className="h-8 text-[11px] font-bold uppercase tracking-tight px-4">Reset</Button>
-            <Button size="sm" onClick={handleApply} className="h-8 text-[11px] font-bold uppercase tracking-tight px-4 bg-brand-primary">Apply Filters</Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setLocal(emptyExpenseFinalFilters());
+                setQuickSearch("");
+                onClear();
+                setOpen(false);
+              }}
+              className="h-8 text-[11px] font-bold uppercase tracking-tight px-4"
+              startIcon={<IconX size={14} />}
+            >
+              Reset
+            </Button>
+            <Button 
+              size="sm" 
+              onClick={handleApply} 
+              className="h-8 text-[11px] font-bold uppercase tracking-tight px-4"
+              startIcon={<IconFilter size={14} />}
+            >
+              Apply Filters
+            </Button>
           </div>
         </div>
       )}

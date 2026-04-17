@@ -8,6 +8,7 @@ import PaginatedTableReference, {
 import PaginationControlsReference from "@/components/common/PaginationControlsReference";
 import { TableStatusBadge } from "@/components/common/TableStatusBadge";
 import { useListingQueryStateReference } from "@/hooks/useListingQueryStateReference";
+import { useExport } from "@/hooks/useExport";
 import { tableColumnPresets } from "@/lib/tableStylePresets";
 import { exportBanks, listBanksNormalized } from "@/services/bankService";
 import { userService } from "@/services/userService";
@@ -75,20 +76,42 @@ export function BankListClient() {
   });
   const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setFilter, setSort, clearFilters } =
     listingState;
-
   const [totalCount, setTotalCount] = useState(0);
-  const [exporting, setExporting] = useState(false);
   const [cachedUsers, setCachedUsers] = useState<Record<string, string>>({});
+
+  const { exporting, handleExport } = useExport(exportBanks, {
+    fileName: `banks-${new Date().toISOString().split("T")[0]}.xlsx`,
+  });
+
+  const onExportClick = useCallback(() => {
+    handleExport({
+      page: 1,
+      limit: 10000,
+      sortBy: (sortBy || "createdAt") as string,
+      sortOrder: (sortOrder === "asc" ? "asc" : "desc") as "asc" | "desc",
+      holderName: toOptionalFilterValue(filters.holderName || ""),
+      holderName_op: toOptionalFilterValue(filters.holderName_op || ""),
+      bankName: toOptionalFilterValue(filters.bankName || ""),
+      bankName_op: toOptionalFilterValue(filters.bankName_op || ""),
+      accountNumber: toOptionalFilterValue(filters.accountNumber || ""),
+      accountNumber_op: toOptionalFilterValue(filters.accountNumber_op || ""),
+      ifsc: toOptionalFilterValue(filters.ifsc || ""),
+      ifsc_op: toOptionalFilterValue(filters.ifsc_op || ""),
+      openingBalance: toOptionalFilterValue(filters.openingBalance || ""),
+      openingBalance_to: toOptionalFilterValue(filters.openingBalance_to || ""),
+      openingBalance_op: toOptionalFilterValue(filters.openingBalance_op || ""),
+      status: toOptionalFilterValue(filters.status || ""),
+      createdBy: toOptionalFilterValue(filters.createdBy || ""),
+      createdAt_from: toOptionalFilterValue(filters.createdAt_from || ""),
+      createdAt_to: toOptionalFilterValue(filters.createdAt_to || ""),
+      createdAt_op: toOptionalFilterValue(filters.createdAt_op || ""),
+    });
+  }, [handleExport, filters, sortBy, sortOrder]);
 
   useEffect(() => {
     let active = true;
     userService
-      .list({
-        page: 1,
-        limit: 500,
-        sortBy: "fullName",
-        sortOrder: "asc",
-      })
+      .list({ page: 1, limit: 500, sortBy: "fullName", sortOrder: "asc" })
       .then((response) => {
         if (!active) return;
         const rows = Array.isArray(response?.data) ? (response.data as ExchangeUserRow[]) : [];
@@ -130,9 +153,7 @@ export function BankListClient() {
           .filter((row): row is AutocompleteOption => row !== null);
         setCachedUsers((prev) => {
           const next = { ...prev };
-          for (const option of options) {
-            next[option.value] = option.label;
-          }
+          for (const option of options) next[option.value] = option.label;
           return next;
         });
         return options;
@@ -143,66 +164,22 @@ export function BankListClient() {
     [],
   );
 
-  const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
   const creatorNameById = useMemo(() => new Map(Object.entries(cachedUsers)), [cachedUsers]);
+
+  const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
 
   const handleColumnFilterChange = useCallback(
     (key: string, value: string) => {
+      if (key === "status" && value === "") {
+        setFilter("status", "all");
+        return;
+      }
       setFilter(key, value);
     },
     [setFilter],
   );
 
-  const fetcher = useCallback(async (params: Record<string, unknown>) => {
-    return listBanksNormalized(params);
-  }, []);
-
-  const handleExport = useCallback(async () => {
-    setExporting(true);
-    try {
-      const blob = await exportBanks({
-        page: 1,
-        limit: 20,
-        sortBy: (sortBy || "createdAt") as
-          | "createdAt"
-          | "holderName"
-          | "bankName"
-          | "accountNumber"
-          | "ifsc"
-          | "openingBalance"
-          | "status",
-        sortOrder: (sortOrder === "asc" ? "asc" : "desc") as "asc" | "desc",
-        holderName: toOptionalFilterValue(filters.holderName || ""),
-        holderName_op: toOptionalFilterValue(filters.holderName_op || ""),
-        bankName: toOptionalFilterValue(filters.bankName || ""),
-        bankName_op: toOptionalFilterValue(filters.bankName_op || ""),
-        accountNumber: toOptionalFilterValue(filters.accountNumber || ""),
-        accountNumber_op: toOptionalFilterValue(filters.accountNumber_op || ""),
-        ifsc: toOptionalFilterValue(filters.ifsc || ""),
-        ifsc_op: toOptionalFilterValue(filters.ifsc_op || ""),
-        openingBalance: toOptionalFilterValue(filters.openingBalance || ""),
-        openingBalance_to: toOptionalFilterValue(filters.openingBalance_to || ""),
-        openingBalance_op: toOptionalFilterValue(filters.openingBalance_op || ""),
-        status: toOptionalFilterValue(filters.status || ""),
-        createdBy: toOptionalFilterValue(filters.createdBy || ""),
-        createdAt_from: toOptionalFilterValue(filters.createdAt_from || ""),
-        createdAt_to: toOptionalFilterValue(filters.createdAt_to || ""),
-        createdAt_op: toOptionalFilterValue(filters.createdAt_op || ""),
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `banks-${new Date().toISOString().split("T")[0]}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch {
-      window.alert("Failed to export banks.");
-    } finally {
-      setExporting(false);
-    }
-  }, [filters, sortBy, sortOrder]);
+  const fetcher = useCallback(async (params: Record<string, unknown>) => listBanksNormalized(params), []);
 
   const columns = useMemo<PaginatedTableReferenceColumn[]>(
     () => [
@@ -263,6 +240,14 @@ export function BankListClient() {
         defaultFilterOperator: "equals",
       },
       {
+        field: "closingBalanceActual",
+        label: "Closing Balance",
+        render: (row: BankRow) =>
+          row.closingBalanceActual ?? row.currentBalance ?? row.openingBalance,
+        sortable: false,
+        minWidth: 150,
+      },
+      {
         field: "status",
         label: "Status",
         filterType: "select" as const,
@@ -317,7 +302,7 @@ export function BankListClient() {
       secondaryButtonLabel="Reset filters"
       onSecondaryClick={() => clearFilters({ keepQuickSearch: true })}
       exportButtonLabel="Export"
-      onExportClick={handleExport}
+      onExportClick={onExportClick}
       exportDisabled={exporting}
     >
       <PaginatedTableReference

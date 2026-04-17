@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import {
   IconRefresh,
@@ -18,10 +18,10 @@ import PaginatedTableReference, {
 } from "@/components/common/PaginatedTableReference";
 import PaginationControlsReference from "@/components/common/PaginationControlsReference";
 import {
-  getExpenseAnalysisRecords,
-  getExpenseAnalysisSummary,
-  type ExpenseAnalysisFilterParams,
-} from "@/services/expenseService";
+  reportService,
+} from "@/services/reportService";
+import type { ExpenseAnalysisFilterParams } from "@/services/expenseService";
+import { useExport } from "@/hooks/useExport";
 import type { ExpenseRow } from "@/types/expense";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { useListingQueryStateReference } from "@/hooks/useListingQueryStateReference";
@@ -33,12 +33,62 @@ import { ExpenseAnalysisFilterPanel } from "@/modules/expense/components/Expense
 import { EXPENSE_FINAL_FILTER_KEYS } from "@/modules/expense/expenseFinalListConstants";
 import { toast } from "sonner";
 
+function toLocalYmd(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 const DATE_PRESETS = [
-  { label: "Today", fn: () => { const d = new Date().toISOString().split("T")[0]; return { expenseDate_from: d, expenseDate_to: d }; } },
-  { label: "This Week", fn: () => { const n = new Date(), dy = n.getDay(), m = new Date(n); m.setDate(n.getDate() - (dy === 0 ? 6 : dy - 1)); const e = new Date(m); e.setDate(m.getDate() + 6); return { expenseDate_from: m.toISOString().split("T")[0], expenseDate_to: e.toISOString().split("T")[0] }; } },
-  { label: "This Month", fn: () => { const n = new Date(); return { expenseDate_from: new Date(n.getFullYear(), n.getMonth(), 1).toISOString().split("T")[0], expenseDate_to: new Date(n.getFullYear(), n.getMonth() + 1, 0).toISOString().split("T")[0] }; } },
-  { label: "Last 3M", fn: () => { const n = new Date(), p = new Date(n); p.setMonth(n.getMonth() - 3); return { expenseDate_from: p.toISOString().split("T")[0], expenseDate_to: n.toISOString().split("T")[0] }; } },
-  { label: "This Year", fn: () => { const n = new Date(); return { expenseDate_from: new Date(n.getFullYear(), 0, 1).toISOString().split("T")[0], expenseDate_to: new Date(n.getFullYear(), 11, 31).toISOString().split("T")[0] }; } },
+  {
+    label: "Today",
+    fn: () => {
+      const d = toLocalYmd(new Date());
+      return { expenseDate_from: d, expenseDate_to: d };
+    },
+  },
+  {
+    label: "This Week",
+    fn: () => {
+      const n = new Date();
+      const dy = n.getDay();
+      const m = new Date(n);
+      m.setDate(n.getDate() - (dy === 0 ? 6 : dy - 1));
+      const e = new Date(m);
+      e.setDate(m.getDate() + 6);
+      return { expenseDate_from: toLocalYmd(m), expenseDate_to: toLocalYmd(e) };
+    },
+  },
+  {
+    label: "This Month",
+    fn: () => {
+      const n = new Date();
+      return {
+        expenseDate_from: toLocalYmd(new Date(n.getFullYear(), n.getMonth(), 1)),
+        expenseDate_to: toLocalYmd(new Date(n.getFullYear(), n.getMonth() + 1, 0)),
+      };
+    },
+  },
+  {
+    label: "Last 3M",
+    fn: () => {
+      const n = new Date();
+      const p = new Date(n);
+      p.setMonth(n.getMonth() - 3);
+      return { expenseDate_from: toLocalYmd(p), expenseDate_to: toLocalYmd(n) };
+    },
+  },
+  {
+    label: "This Year",
+    fn: () => {
+      const n = new Date();
+      return {
+        expenseDate_from: toLocalYmd(new Date(n.getFullYear(), 0, 1)),
+        expenseDate_to: toLocalYmd(new Date(n.getFullYear(), 11, 31)),
+      };
+    },
+  },
 ];
 
 const STATUS_TABS = [
@@ -59,6 +109,26 @@ function str(params: Record<string, unknown>, key: string): string {
   return String(v);
 }
 
+function buildExpenseAnalysisApiParams(q: string, filters: Record<string, string>): ExpenseAnalysisFilterParams {
+  return {
+    search: toOptionalFilterValue(q || ""),
+    status: toOptionalFilterValue(filters.status || ""),
+    expenseTypeId: toOptionalFilterValue(filters.expenseTypeId || ""),
+    bankId: toOptionalFilterValue(filters.bankId || ""),
+    amount: toOptionalFilterValue(filters.amount || ""),
+    amount_to: toOptionalFilterValue(filters.amount_to || ""),
+    amount_op: toOptionalFilterValue(filters.amount_op || ""),
+    createdBy: toOptionalFilterValue(filters.createdBy || ""),
+    approvedBy: toOptionalFilterValue(filters.approvedBy || ""),
+    createdAt_from: toOptionalFilterValue(filters.createdAt_from || ""),
+    createdAt_to: toOptionalFilterValue(filters.createdAt_to || ""),
+    createdAt_op: toOptionalFilterValue(filters.createdAt_op || ""),
+    expenseDate_from: toOptionalFilterValue(filters.expenseDate_from || ""),
+    expenseDate_to: toOptionalFilterValue(filters.expenseDate_to || ""),
+    expenseDate_op: toOptionalFilterValue(filters.expenseDate_op || ""),
+  };
+}
+
 export default function ExpenseAnalysisPage() {
   const listingState = useListingQueryStateReference({
     defaultLimit: 20,
@@ -73,7 +143,6 @@ export default function ExpenseAnalysisPage() {
     setPage,
     setLimit,
     setFilters,
-    setFilter,
     setSort,
     clearFilters,
     q,
@@ -88,26 +157,15 @@ export default function ExpenseAnalysisPage() {
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const [activePreset, setActivePreset] = useState<string | null>(null);
+  const defaultTodayInitializedRef = useRef(false);
+
+  /** Stable key so the summary effect does not re-run when `filters` is a new object with the same values. */
+  const filtersIdentityKey = useMemo(() => JSON.stringify(filters), [filters]);
 
   const filterParams = useMemo<ExpenseAnalysisFilterParams>(
-    () => ({
-      search: toOptionalFilterValue(q || ""),
-      status: toOptionalFilterValue(filters.status || ""),
-      expenseTypeId: toOptionalFilterValue(filters.expenseTypeId || ""),
-      bankId: toOptionalFilterValue(filters.bankId || ""),
-      amount: toOptionalFilterValue(filters.amount || ""),
-      amount_to: toOptionalFilterValue(filters.amount_to || ""),
-      amount_op: toOptionalFilterValue(filters.amount_op || ""),
-      createdBy: toOptionalFilterValue(filters.createdBy || ""),
-      approvedBy: toOptionalFilterValue(filters.approvedBy || ""),
-      createdAt_from: toOptionalFilterValue(filters.createdAt_from || ""),
-      createdAt_to: toOptionalFilterValue(filters.createdAt_to || ""),
-      createdAt_op: toOptionalFilterValue(filters.createdAt_op || ""),
-      expenseDate_from: toOptionalFilterValue(filters.expenseDate_from || ""),
-      expenseDate_to: toOptionalFilterValue(filters.expenseDate_to || ""),
-      expenseDate_op: toOptionalFilterValue(filters.expenseDate_op || ""),
-    }),
-    [filters, q],
+    () => buildExpenseAnalysisApiParams(q, filters),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `filtersIdentityKey` captures filter values; `filters` is current when the key changes.
+    [filtersIdentityKey, q],
   );
 
   useEffect(() => {
@@ -117,7 +175,7 @@ export default function ExpenseAnalysisPage() {
     (async () => {
       setSummaryLoading(true);
       try {
-        const s = await getExpenseAnalysisSummary({ ...filterParams, signal: ac.signal });
+        const s = await reportService.expenseAnalysisSummary({ ...filterParams, signal: ac.signal });
         if (!cancelled) setSummary(s);
       } catch (e: unknown) {
         if (axios.isCancel(e)) return;
@@ -137,14 +195,9 @@ export default function ExpenseAnalysisPage() {
     async (params: Record<string, unknown>) => {
       const p = Number(params.page) || 1;
       const l = Number(params.limit) || 20;
-      const sb = (str(params, "sortBy") || "expenseDate") as
-        | "createdAt"
-        | "expenseDate"
-        | "amount"
-        | "status"
-        | "bankName";
+      const sb = (str(params, "sortBy") || "expenseDate") as "createdAt" | "expenseDate" | "amount";
       const so = str(params, "sortOrder") === "asc" ? "asc" : "desc";
-      return getExpenseAnalysisRecords({
+      return reportService.expenseAnalysisRecords({
         ...filterParams,
         page: p,
         pageSize: l,
@@ -155,17 +208,72 @@ export default function ExpenseAnalysisPage() {
     [filterParams],
   );
 
+  const { exporting, handleExport } = useExport((params) => reportService.exportExpenseAnalysis(params), {
+    fileName: `expense-analysis-${new Date().toISOString().split("T")[0]}.xlsx`,
+  });
+
+  const onExportClick = useCallback(() => {
+    handleExport({
+      ...filterParams,
+      sortBy: sortBy || "expenseDate",
+      sortOrder: sortOrder || "desc",
+    });
+  }, [handleExport, filterParams, sortBy, sortOrder]);
+
+  const resetAllFilters = useCallback(() => {
+    clearFilters({ keepQuickSearch: false });
+    setActivePreset(null);
+  }, [clearFilters]);
+
   const handlePreset = (preset: (typeof DATE_PRESETS)[0]) => {
     const dates = preset.fn();
-    setFilters({ ...filters, ...dates });
+    setFilters({
+      ...filters,
+      ...dates,
+      expenseDate_op: "inRange",
+    }, true, false);
     setActivePreset(preset.label);
-    setPage(1);
   };
 
   const handleStatusTab = (val: string | null) => {
-    setFilter("status", val || "");
-    setPage(1);
+    setFilters(
+      {
+        ...filters,
+        status: val || "",
+      },
+      true,
+      false,
+    );
   };
+
+  useEffect(() => {
+    if (defaultTodayInitializedRef.current) return;
+    const hasExpenseDate =
+      String(filters.expenseDate_from ?? "").trim() !== "" ||
+      String(filters.expenseDate_to ?? "").trim() !== "";
+    const today = toLocalYmd(new Date());
+
+    if (hasExpenseDate) {
+      setActivePreset(
+        filters.expenseDate_from === today && filters.expenseDate_to === today ? "Today" : null,
+      );
+      defaultTodayInitializedRef.current = true;
+      return;
+    }
+
+    setFilters(
+      {
+        ...filters,
+        expenseDate_from: today,
+        expenseDate_to: today,
+        expenseDate_op: "inRange",
+      },
+      true,
+      false,
+    );
+    setActivePreset("Today");
+    defaultTodayInitializedRef.current = true;
+  }, [filters, setFilters]);
 
   const columns = useMemo<PaginatedTableReferenceColumn[]>(
     () => [
@@ -249,11 +357,7 @@ export default function ExpenseAnalysisPage() {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => {
-                clearFilters();
-                setActivePreset(null);
-                setQ("");
-              }}
+              onClick={resetAllFilters}
               className="h-8 text-xs gap-1 px-3 rounded-full"
             >
               <IconRefresh size={14} /> Reset All
@@ -267,11 +371,7 @@ export default function ExpenseAnalysisPage() {
             filters={filters as Record<string, string>}
             setQ={setQ}
             setFilters={setFilters as (f: Record<string, string>) => void}
-            onClear={() => {
-              clearFilters();
-              setActivePreset(null);
-              setQ("");
-            }}
+            onClear={resetAllFilters}
           />
         </div>
 
@@ -318,6 +418,9 @@ export default function ExpenseAnalysisPage() {
             title="Detailed Audit Log"
             description="Complete list of expenses matching your current dashboard filters."
             fullWidth
+            exportButtonLabel="Export Report"
+            onExportClick={onExportClick}
+            exportDisabled={exporting}
           >
             <PaginatedTableReference
               columns={columns}

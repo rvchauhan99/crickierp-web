@@ -12,6 +12,14 @@ const PREFIX_RULES: { prefix: string; access: RouteAccess }[] = [
   { prefix: "/sub-admin/edit", access: { kind: "permission", permission: NAV_PERMISSIONS.SUB_ADMIN_EDIT } },
   { prefix: "/exchange/add", access: { kind: "permission", permission: NAV_PERMISSIONS.EXCHANGE_ADD } },
   { prefix: "/exchange/list", access: { kind: "permission", permission: NAV_PERMISSIONS.EXCHANGE_LIST } },
+  { prefix: "/exchange/statement", access: { kind: "permission", permission: NAV_PERMISSIONS.EXCHANGE_STATEMENT } },
+  {
+    prefix: "/exchange/top-up",
+    access: {
+      kind: "anyPermission",
+      permissions: [NAV_PERMISSIONS.EXCHANGE_TOPUP_ADD, NAV_PERMISSIONS.EXCHANGE_TOPUP_LIST],
+    },
+  },
   { prefix: "/player/add", access: { kind: "permission", permission: NAV_PERMISSIONS.PLAYER_ADD } },
   { prefix: "/player/list", access: { kind: "permission", permission: NAV_PERMISSIONS.PLAYER_LIST } },
   { prefix: "/player/edit", access: { kind: "permission", permission: NAV_PERMISSIONS.PLAYER_EDIT } },
@@ -39,6 +47,28 @@ const PREFIX_RULES: { prefix: string; access: RouteAccess }[] = [
   { prefix: "/expense/add", access: { kind: "permission", permission: NAV_PERMISSIONS.EXPENSE_ADD } },
   { prefix: "/expense/list", access: { kind: "permission", permission: NAV_PERMISSIONS.EXPENSE_LIST } },
   { prefix: "/expense/audit", access: { kind: "permission", permission: NAV_PERMISSIONS.EXPENSE_AUDIT } },
+  {
+    prefix: "/liability/persons",
+    access: {
+      kind: "anyPermission",
+      permissions: [NAV_PERMISSIONS.LIABILITY_PERSON_ADD, NAV_PERMISSIONS.LIABILITY_PERSON_LIST],
+    },
+  },
+  {
+    prefix: "/liability/entries",
+    access: {
+      kind: "anyPermission",
+      permissions: [NAV_PERMISSIONS.LIABILITY_ENTRY_ADD, NAV_PERMISSIONS.LIABILITY_ENTRY_LIST],
+    },
+  },
+  {
+    prefix: "/liability/ledger",
+    access: { kind: "permission", permission: NAV_PERMISSIONS.LIABILITY_LEDGER_VIEW },
+  },
+  {
+    prefix: "/reports/liability",
+    access: { kind: "permission", permission: NAV_PERMISSIONS.LIABILITY_REPORT_VIEW },
+  },
   { prefix: "/reports/transaction-history", access: { kind: "permission", permission: NAV_PERMISSIONS.REPORTS_TRANSACTION_HISTORY } },
   { prefix: "/reports/expense-analysis", access: { kind: "permission", permission: NAV_PERMISSIONS.REPORTS_EXPENSE_ANALYSIS } },
   { prefix: "/user-history", access: { kind: "permission", permission: NAV_PERMISSIONS.USER_HISTORY_VIEW } },

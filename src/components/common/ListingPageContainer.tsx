@@ -1,6 +1,15 @@
 import { PropsWithChildren, ReactNode } from "react";
-import { IconPlus, IconDownload, IconUpload } from "@tabler/icons-react";
+import { IconPlus, IconDownload, IconUpload, IconFileSpreadsheet, IconFileText } from "@tabler/icons-react";
 import { cn } from "@/lib/cn";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel 
+} from "@/components/ui/shadcn/dropdown-menu";
+import { Button } from "@/components/ui/Button";
 
 type Props = PropsWithChildren<{
   title: string;
@@ -15,6 +24,7 @@ type Props = PropsWithChildren<{
   onAddClick?: () => void;
   exportButtonLabel?: string;
   onExportClick?: () => void;
+  onPrintClick?: () => void;
   exportDisabled?: boolean;
   importButtonLabel?: string;
   onImportClick?: () => void;
@@ -34,6 +44,7 @@ export function ListingPageContainer({
   onAddClick,
   exportButtonLabel,
   onExportClick,
+  onPrintClick,
   exportDisabled = false,
   importButtonLabel,
   onImportClick,
@@ -47,44 +58,64 @@ export function ListingPageContainer({
   const builtActions = !actions ? (
     <div className="flex items-center gap-1.5 flex-wrap">
       {onSecondaryClick && secondaryButtonLabel && (
-        <button
+        <Button
           type="button"
-          className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+          variant="secondary"
+          size="sm"
           onClick={onSecondaryClick}
         >
           {secondaryButtonLabel}
-        </button>
+        </Button>
       )}
       {onExportClick && exportButtonLabel && (
-        <button
-          type="button"
-          className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-          onClick={onExportClick}
-          disabled={exportDisabled}
-        >
-          <IconDownload className="h-4 w-4" />
-          {exportButtonLabel}
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={exportDisabled}
+              startIcon={<IconDownload />}
+            >
+              {exportButtonLabel}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuLabel className="" inset={false}>Choose Format</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onExportClick} className="cursor-pointer">
+              <IconFileSpreadsheet className="mr-2 h-4 w-4 text-emerald-600" />
+              <span>Excel (.xlsx)</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              onClick={onPrintClick || (() => window.print())} 
+              className="cursor-pointer"
+            >
+              <IconFileText className="mr-2 h-4 w-4 text-rose-600" />
+              <span>PDF Report (.pdf)</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       )}
       {onImportClick && importButtonLabel && (
-        <button
+        <Button
           type="button"
-          className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+          variant="secondary"
+          size="sm"
+          startIcon={<IconUpload />}
           onClick={onImportClick}
         >
-          <IconUpload className="h-4 w-4" />
           {importButtonLabel}
-        </button>
+        </Button>
       )}
       {onAddClick && addButtonLabel && (
-        <button
+        <Button
           type="button"
-          className="flex items-center gap-1.5 rounded-md bg-[var(--brand-primary)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--brand-primary-hover)]"
+          size="sm"
+          startIcon={<IconPlus />}
           onClick={onAddClick}
         >
-          <IconPlus className="h-4 w-4" />
           {addButtonLabel}
-        </button>
+        </Button>
       )}
     </div>
   ) : null;

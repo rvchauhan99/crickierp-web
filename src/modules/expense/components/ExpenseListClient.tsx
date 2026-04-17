@@ -21,6 +21,7 @@ import {
 import type { ExpenseRow } from "@/types/expense";
 import { EXPENSE_FINAL_FILTER_KEYS } from "@/modules/expense/expenseFinalListConstants";
 import { ExpenseFinalListFilterPanel } from "@/modules/expense/components/ExpenseFinalListFilterPanel";
+import { useExport } from "@/hooks/useExport";
 
 function toOptionalFilterValue(value: string): string | undefined {
   const trimmed = value.trim();
@@ -68,7 +69,6 @@ export function ExpenseListClient() {
   } = listingState;
 
   const [totalCount, setTotalCount] = useState(0);
-  const [exporting, setExporting] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<ExpenseRow | null>(null);
   const [viewingDocIndex, setViewingDocIndex] = useState<number | null>(null);
 
@@ -97,30 +97,19 @@ export function ExpenseListClient() {
     [filters, q],
   );
 
-  const handleExport = useCallback(async () => {
-    setExporting(true);
-    try {
-      const blob = await exportExpenses({
-        page: 1,
-        limit,
-        sortBy: sortBy || "createdAt",
-        sortOrder: sortOrder || "desc",
-        ...filterParams,
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `expenses-${new Date().toISOString().split("T")[0]}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch {
-      window.alert("Failed to export.");
-    } finally {
-      setExporting(false);
-    }
-  }, [filterParams, sortBy, sortOrder, limit]);
+  const { exporting, handleExport } = useExport((params) => exportExpenses(params), {
+    fileName: `expenses-${new Date().toISOString().split("T")[0]}.xlsx`,
+  });
+
+  const onExportClick = useCallback(() => {
+    handleExport({
+      page: 1,
+      limit: 10000,
+      sortBy: sortBy || "createdAt",
+      sortOrder: sortOrder || "desc",
+      ...filterParams,
+    });
+  }, [handleExport, filterParams, sortBy, sortOrder]);
 
   const closeSidebar = useCallback(() => {
     setSelectedExpense(null);
@@ -225,7 +214,7 @@ export function ExpenseListClient() {
       secondaryButtonLabel="Reset filters"
       onSecondaryClick={() => clearFilters({ keepQuickSearch: true })}
       exportButtonLabel="Export"
-      onExportClick={handleExport}
+      onExportClick={onExportClick}
       exportDisabled={exporting}
       filters={
         <ExpenseFinalListFilterPanel

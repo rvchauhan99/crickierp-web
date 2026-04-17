@@ -31,6 +31,7 @@ import {
   exportDeposits,
   listDepositsNormalized,
 } from "@/services/depositService";
+import { useExport } from "@/hooks/useExport";
 import { depositStatusApiParam, depositStatusColumnSelectValue } from "@/modules/deposit/depositListingStatusFilter";
 import { getPlayerById, listPlayersNormalized } from "@/services/playerService";
 import type { DepositRow } from "@/types/deposit";
@@ -138,12 +139,12 @@ function DepositDetailCard({ deposit }: { deposit: DepositRow }) {
     {
       icon: <IconClock className="size-4 shrink-0 text-[var(--brand-primary)]" />,
       label: "Due time",
-      value: formatRelative(deposit.createdAt),
+      value: formatRelative(deposit.entryAt ?? deposit.createdAt),
     },
     {
       icon: <IconClock className="size-4 shrink-0 text-gray-400" />,
-      label: "Created at",
-      value: formatDate(deposit.createdAt),
+      label: "Transaction at",
+      value: formatDate(deposit.entryAt ?? deposit.createdAt),
     },
   ];
 
@@ -195,7 +196,6 @@ export function DepositExchangeClient() {
 
   const [totalCount, setTotalCount] = useState(0);
   const [tableKey, setTableKey] = useState(0);
-  const [exporting, setExporting] = useState(false);
   const [selectedDeposit, setSelectedDeposit] = useState<DepositRow | null>(null);
   const [playerId, setPlayerId] = useState("");
   const [bonus, setBonus] = useState("0");
@@ -320,45 +320,34 @@ export function DepositExchangeClient() {
     clearActionForm();
   }, [clearFilters, clearActionForm]);
 
-  const handleExport = useCallback(async () => {
-    setExporting(true);
-    try {
-      const blob = await exportDeposits("exchange", {
-        page: 1,
-        limit: 20,
-        sortBy: sortBy || "createdAt",
-        sortOrder: sortOrder || "desc",
-        utr: toOptionalFilterValue(filters.utr || ""),
-        utr_op: toOptionalFilterValue(filters.utr_op || ""),
-        bankName: toOptionalFilterValue(filters.bankName || ""),
-        bankName_op: toOptionalFilterValue(filters.bankName_op || ""),
-        bankId: toOptionalFilterValue(filters.bankId || ""),
-        status: depositStatusApiParam(filters.status),
-        amount: toOptionalFilterValue(filters.amount || ""),
-        amount_to: toOptionalFilterValue(filters.amount_to || ""),
-        amount_op: toOptionalFilterValue(filters.amount_op || ""),
-        totalAmount: toOptionalFilterValue(filters.totalAmount || ""),
-        totalAmount_to: toOptionalFilterValue(filters.totalAmount_to || ""),
-        totalAmount_op: toOptionalFilterValue(filters.totalAmount_op || ""),
-        createdBy: toOptionalFilterValue(filters.createdBy || ""),
-        createdAt_from: toOptionalFilterValue(filters.createdAt_from || ""),
-        createdAt_to: toOptionalFilterValue(filters.createdAt_to || ""),
-        createdAt_op: toOptionalFilterValue(filters.createdAt_op || ""),
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `deposits-exchange-${new Date().toISOString().split("T")[0]}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch {
-      window.alert("Failed to export.");
-    } finally {
-      setExporting(false);
-    }
-  }, [filters, sortBy, sortOrder]);
+  const { exporting, handleExport } = useExport((params) => exportDeposits("exchange", params), {
+    fileName: `deposits-exchange-${new Date().toISOString().split("T")[0]}.xlsx`,
+  });
+
+  const onExportClick = useCallback(() => {
+    handleExport({
+      page: 1,
+      limit: 10000,
+      sortBy: sortBy || "createdAt",
+      sortOrder: sortOrder || "desc",
+      utr: toOptionalFilterValue(filters.utr || ""),
+      utr_op: toOptionalFilterValue(filters.utr_op || ""),
+      bankName: toOptionalFilterValue(filters.bankName || ""),
+      bankName_op: toOptionalFilterValue(filters.bankName_op || ""),
+      bankId: toOptionalFilterValue(filters.bankId || ""),
+      status: depositStatusApiParam(filters.status),
+      amount: toOptionalFilterValue(filters.amount || ""),
+      amount_to: toOptionalFilterValue(filters.amount_to || ""),
+      amount_op: toOptionalFilterValue(filters.amount_op || ""),
+      totalAmount: toOptionalFilterValue(filters.totalAmount || ""),
+      totalAmount_to: toOptionalFilterValue(filters.totalAmount_to || ""),
+      totalAmount_op: toOptionalFilterValue(filters.totalAmount_op || ""),
+      createdBy: toOptionalFilterValue(filters.createdBy || ""),
+      createdAt_from: toOptionalFilterValue(filters.createdAt_from || ""),
+      createdAt_to: toOptionalFilterValue(filters.createdAt_to || ""),
+      createdAt_op: toOptionalFilterValue(filters.createdAt_op || ""),
+    });
+  }, [handleExport, filters, sortBy, sortOrder]);
 
   const onApprove = useCallback(async () => {
     if (!selectedDeposit) {
@@ -541,7 +530,7 @@ export function DepositExchangeClient() {
         sortable: false,
         minWidth: 110,
         render: (row: DepositRow) => (
-          <span className="text-xs text-gray-500">{formatRelative(row.createdAt)}</span>
+          <span className="text-xs text-gray-500">{formatRelative(row.entryAt ?? row.createdAt)}</span>
         ),
       },
       {
@@ -563,7 +552,7 @@ export function DepositExchangeClient() {
       },
       {
         field: "createdAt",
-        label: "Created at",
+        label: "Transaction at",
         sortable: true,
         filterType: "date" as const,
         filterKey: "createdAt_from",
@@ -571,7 +560,7 @@ export function DepositExchangeClient() {
         operatorKey: "createdAt_op",
         ...tableColumnPresets.dateCol,
         render: (row: DepositRow) =>
-          row.createdAt ? new Date(row.createdAt).toLocaleString() : "—",
+          row.entryAt || row.createdAt ? new Date(row.entryAt ?? row.createdAt!).toLocaleString() : "—",
       },
       {
         field: "actions",
@@ -611,7 +600,7 @@ export function DepositExchangeClient() {
         secondaryButtonLabel="Reset filters"
         onSecondaryClick={handleResetFilters}
         exportButtonLabel={exporting ? "Exporting…" : "Export"}
-        onExportClick={handleExport}
+        onExportClick={onExportClick}
         exportDisabled={exporting}
       >
         <div className="flex min-h-0 flex-1 flex-col">
@@ -755,7 +744,7 @@ export function DepositExchangeClient() {
               <Button
                 type="button"
                 variant="success"
-                leftIcon={<IconCheck size={16} />}
+                startIcon={<IconCheck size={16} />}
                 disabled={!canActOnSelection || !playerId.trim()}
                 onClick={() => void onApprove()}
                 className="w-full justify-center"
@@ -765,7 +754,7 @@ export function DepositExchangeClient() {
               <Button
                 type="button"
                 variant="danger"
-                leftIcon={<IconX size={16} />}
+                startIcon={<IconX size={16} />}
                 disabled={!canActOnSelection}
                 onClick={() => {
                   if (!selectedDeposit || selectedDeposit.status !== "pending") return;
@@ -780,7 +769,7 @@ export function DepositExchangeClient() {
               <Button
                 type="button"
                 variant="secondary"
-                leftIcon={<IconRefresh size={16} />}
+                startIcon={<IconRefresh size={16} />}
                 onClick={closeSidebar}
                 className="w-full justify-center"
               >

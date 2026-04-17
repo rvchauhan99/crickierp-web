@@ -10,6 +10,34 @@ export type WithdrawalCreateInput = {
   ifsc: string;
   amount: number;
   reverseBonus?: number;
+  requestedAt?: string;
+};
+
+export type WithdrawalAmendmentSnapshot = {
+  amount?: number;
+  reverseBonus?: number;
+  payableAmount?: number;
+  payoutBankId?: string;
+  payoutBankName?: string;
+  utr?: string;
+};
+
+export type WithdrawalAmendmentEntry = {
+  at: string;
+  by?: unknown;
+  reason: string;
+  old: WithdrawalAmendmentSnapshot;
+  new: WithdrawalAmendmentSnapshot;
+};
+
+export type WithdrawalAmendInput = {
+  amount: number;
+  reverseBonus: number;
+  payoutBankId: string;
+  utr: string;
+  requestedAt?: string;
+  reasonId: string;
+  remark?: string;
 };
 
 export type WithdrawalRow = {
@@ -27,6 +55,7 @@ export type WithdrawalRow = {
   payoutBankId?: string;
   payoutBankName?: string;
   utr?: string;
+  requestedAt?: string;
   status: WithdrawalStatus;
   createdAt?: string;
   updatedAt?: string;
@@ -34,6 +63,11 @@ export type WithdrawalRow = {
   createdByName?: string;
   approvedBy?: string;
   approvedByName?: string;
+  amendmentCount?: number;
+  lastAmendedAt?: string;
+  lastAmendedBy?: unknown;
+  lastAmendedByName?: string;
+  amendmentHistory?: WithdrawalAmendmentEntry[];
 };
 
 export type SavedWithdrawalAccount = {

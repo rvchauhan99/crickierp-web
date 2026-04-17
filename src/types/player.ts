@@ -38,3 +38,34 @@ export type PlayerImportResult = {
   updated: number;
   skipped: number;
 };
+
+export type PlayerImportJobStatus = "queued" | "processing" | "completed" | "failed" | "cancelled";
+
+export type PlayerImportJobProgress = {
+  totalRows: number;
+  processedRows: number;
+  successRows: number;
+  failedRows: number;
+  skippedRows: number;
+};
+
+export type PlayerImportJobSummary = {
+  id: string;
+  status: PlayerImportJobStatus;
+  fileName: string;
+  failureReason?: string;
+  progress: PlayerImportJobProgress;
+  errorSample: Array<{
+    row: number;
+    message: string;
+    reason?: string;
+    rowData?: {
+      exchange_name: string;
+      player_id: string;
+      phone: string;
+      bonus_percentage: string;
+      first_deposit_bonus_percentage: string;
+    };
+  }>;
+  errorCsvAvailable?: boolean;
+};

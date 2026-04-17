@@ -2,6 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ListingPageContainer } from "@/components/common/ListingPageContainer";
+import { 
+  IconEye, 
+  IconEdit, 
+  IconTrash, 
+  IconX, 
+  IconFilter, 
+  IconChevronDown, 
+  IconChevronUp 
+} from "@tabler/icons-react";
 import PaginatedTableReference, {
   type PaginatedTableReferenceColumn,
 } from "@/components/common/PaginatedTableReference";
@@ -174,26 +183,30 @@ export function MastersPageClient() {
             <Button
               type="button"
               variant="secondary"
-              className="!px-2 !py-1 text-xs"
+              size="xs"
               onClick={() => void openView(id)}
+              startIcon={<IconEye size={14} />}
             >
               View
             </Button>
             <Button
               type="button"
               variant="secondary"
-              className="!px-2 !py-1 text-xs"
+              size="xs"
               onClick={() => void openEdit(id)}
               disabled={Boolean(row.deletedAt)}
+              startIcon={<IconEdit size={14} />}
             >
               Edit
             </Button>
             <Button
               type="button"
-              variant="secondary"
-              className="!px-2 !py-1 text-xs"
+              variant="ghost"
+              size="xs"
+              className="text-danger hover:text-danger hover:bg-red-50"
               onClick={() => void confirmDelete(id)}
               disabled={Boolean(row.deletedAt)}
+              startIcon={<IconTrash size={14} />}
             >
               Delete
             </Button>
@@ -288,19 +301,21 @@ export function MastersPageClient() {
             <p className="text-sm text-gray-500">Loading…</p>
           ) : (
             filteredMasters.map((m) => (
-              <button
+              <Button
                 key={m.modelKey}
                 type="button"
+                variant={selectedMaster?.modelKey === m.modelKey ? "primary" : "ghost"}
+                fullWidth
                 onClick={() => setSelectedMaster(m)}
                 className={cn(
-                  "w-full rounded-md border px-3 py-2 text-left text-sm transition-colors",
+                  "justify-start text-sm h-9",
                   selectedMaster?.modelKey === m.modelKey
-                    ? "border-[var(--border)] bg-[#142847] text-white"
-                    : "border-transparent bg-gray-50 text-gray-800 hover:bg-gray-100",
+                    ? "bg-[#142847] hover:bg-[#142847]/90"
+                    : "text-gray-700 font-normal hover:bg-gray-100"
                 )}
               >
                 {m.name}
-              </button>
+              </Button>
             ))
           )}
         </nav>
@@ -374,9 +389,14 @@ export function MastersPageClient() {
           <div className="card max-h-[90vh] w-full max-w-2xl overflow-y-auto p-4">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold">Add {selectedMaster.name}</h3>
-              <button type="button" className="text-sm text-gray-500 hover:text-gray-800" onClick={() => setShowAdd(false)}>
-                Close
-              </button>
+              <Button 
+                type="button" 
+                variant="ghost" 
+                size="icon-sm" 
+                onClick={() => setShowAdd(false)}
+              >
+                <IconX size={18} />
+              </Button>
             </div>
             {fields.length === 0 ? (
               <p className="text-sm text-gray-500">Loading form…</p>
@@ -412,17 +432,18 @@ export function MastersPageClient() {
           <div className="card max-h-[90vh] w-full max-w-2xl overflow-y-auto p-4">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold">Edit {selectedMaster.name}</h3>
-              <button
+              <Button
                 type="button"
-                className="text-sm text-gray-500 hover:text-gray-800"
+                variant="ghost"
+                size="icon-sm"
                 onClick={() => {
                   setShowEdit(false);
                   setEditingId(null);
                   setDetailRecord(null);
                 }}
               >
-                Close
-              </button>
+                <IconX size={18} />
+              </Button>
             </div>
             {recordLoading || !detailRecord ? (
               <p className="text-sm text-gray-500">Loading…</p>
@@ -465,16 +486,17 @@ export function MastersPageClient() {
           <div className="card max-h-[90vh] w-full max-w-2xl overflow-y-auto p-4">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold">View {selectedMaster.name}</h3>
-              <button
+              <Button
                 type="button"
-                className="text-sm text-gray-500 hover:text-gray-800"
+                variant="ghost"
+                size="icon-sm"
                 onClick={() => {
                   setShowView(false);
                   setDetailRecord(null);
                 }}
               >
-                Close
-              </button>
+                <IconX size={18} />
+              </Button>
             </div>
             {recordLoading || !detailRecord ? (
               <p className="text-sm text-gray-500">Loading…</p>

@@ -266,7 +266,70 @@ textarea:-moz-focusring {
 }
 
 input:focus,
-select:focus,
 textarea:focus {
   outline: none;
+}
+
+/* ─────────── Print Styles ─────────── */
+@media print {
+  /* Hide non-printable UI elements */
+  .app-sidebar,
+  .app-sidebar-trigger,
+  .app-topbar,
+  .no-print,
+  [role="dialog"],
+  [role="menu"],
+  button,
+  .listing-filters-collapsed,
+  .listing-filters-panel {
+    display: none !important;
+  }
+
+  /* Reset layout for print */
+  body, 
+  main,
+  #root,
+  .app-layout-content {
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
+    display: block !important;
+  }
+
+  /* Container adjustments */
+  .mx-auto {
+    margin: 0 !important;
+    max-width: none !important;
+  }
+
+  /* Table adjustments */
+  table {
+    page-break-inside: auto;
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 10px !important; /* Smaller text for dense reports */
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  /* Page configuration */
+  @page {
+    size: auto;
+    margin: 15mm;
+  }
+
+  /* Brand Colors in Print */
+  .text-brand-primary {
+    color: #1d4ed8 !important;
+    -webkit-print-color-adjust: exact;
+  }
 }

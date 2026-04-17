@@ -3,6 +3,7 @@
 import React from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { IconChartDonut } from "@tabler/icons-react";
+import { formatDashboardCurrency } from "../utils/formatCurrency";
 
 export type PLDonutSummary = {
   deposit: { verifiedAmount: number };
@@ -17,12 +18,6 @@ interface Props {
 
 const COLORS = ["#15803d", "#c62828", "#c27803"];
 const SEGMENTS = ["Deposits (Verified)", "Withdrawals (Approved)", "Expenses (Approved)"];
-
-function formatAmount(value: number) {
-  if (value >= 10_00_000) return `₹${(value / 10_00_000).toFixed(1)}L`;
-  if (value >= 1000) return `₹${(value / 1000).toFixed(1)}K`;
-  return `₹${value}`;
-}
 
 const CustomTooltip = ({
   active,
@@ -39,7 +34,7 @@ const CustomTooltip = ({
         <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: p.payload.fill }} />
         <span className="text-slate-600">{p.name}</span>
       </div>
-      <p className="font-semibold text-slate-800 mt-1 text-sm">{formatAmount(p.value)}</p>
+      <p className="font-semibold text-slate-800 mt-1 text-sm">{formatDashboardCurrency(p.value)}</p>
     </div>
   );
 };
@@ -126,7 +121,7 @@ export function DashboardPLDonut({ summary, loading }: Props) {
                     <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
                     <span className="text-xs text-slate-500">{item.label}</span>
                   </div>
-                  <span className="text-xs font-semibold text-slate-700">{formatAmount(item.value)}</span>
+                  <span className="text-xs font-semibold text-slate-700">{formatDashboardCurrency(item.value)}</span>
                 </div>
               ))}
             </div>

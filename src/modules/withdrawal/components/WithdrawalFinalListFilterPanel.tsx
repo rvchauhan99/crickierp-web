@@ -18,6 +18,7 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { Input } from "@/components/ui/Input";
+import { Button } from "@/components/ui/Button";
 import { Label } from "@/components/ui/shadcn/label";
 import {
   Select,
@@ -62,17 +63,23 @@ const STATUS_OPTIONS = [
   { label: "Finalized", value: "finalized" },
 ];
 
+const HAS_AMENDMENT_OPTIONS = [
+  { label: "Has amendments", value: "yes" },
+  { label: "No amendments", value: "no" },
+];
+
 const CHIP_LABELS: Partial<Record<WithdrawalFinalFilterKey | "q", string>> = {
   q: "Search",
   utr: "UTR",
   bankName: "Bank name",
   playerName: "Player name",
   status: "Status",
+  hasAmendment: "Amendments",
   amount: "Requested",
   payableAmount: "Payable",
   createdBy: "Created by",
   approvedBy: "Approved by",
-  createdAt_from: "Created",
+  createdAt_from: "Transaction date",
 };
 
 /** Keys counted once for chips / count (skip bound fields counted with parent). */
@@ -212,6 +219,7 @@ export function WithdrawalFinalListFilterPanel({
       playerName: local.playerName,
       ...textOps,
       status: local.status,
+      hasAmendment: local.hasAmendment,
       ...buildAmountApiParams(local.amount, local.amount_to),
       ...buildPayableAmountApiParams(local.payableAmount, local.payableAmount_to),
       createdBy: local.createdBy,
@@ -269,7 +277,7 @@ export function WithdrawalFinalListFilterPanel({
         continue;
       }
       if (key === "createdAt_from") {
-        if (local.createdAt_from?.trim() || local.createdAt_to?.trim()) labels.push("Created");
+        if (local.createdAt_from?.trim() || local.createdAt_to?.trim()) labels.push("Transaction date");
         continue;
       }
       const v = local[key]?.trim();
@@ -283,13 +291,16 @@ export function WithdrawalFinalListFilterPanel({
   return (
     <div className="border-0 bg-transparent p-0 shadow-none">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
-        <button
+        <Button
           type="button"
+          variant="secondary"
+          size="sm"
           onClick={() => setOpen(!open)}
-          className="flex shrink-0 items-center gap-2 rounded-lg border border-[var(--border)] bg-white px-3 py-2 transition-colors hover:bg-slate-50"
+          className="flex shrink-0 items-center h-9"
+          startIcon={<IconFilter size={16} stroke={1.5} />}
+          endIcon={open ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
         >
-          <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-tight text-[#1b365d]">
-            <IconFilter size={16} stroke={1.5} />
+          <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-tight">
             Advanced filters
             {activeCount > 0 && (
               <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800">
@@ -297,12 +308,7 @@ export function WithdrawalFinalListFilterPanel({
               </span>
             )}
           </span>
-          {open ? (
-            <IconChevronUp size={16} className="text-slate-400" />
-          ) : (
-            <IconChevronDown size={16} className="text-slate-400" />
-          )}
-        </button>
+        </Button>
 
         <div className="no-scrollbar flex min-h-9 flex-1 items-center gap-1.5 overflow-x-auto py-0.5">
           {chipLabels.map((label, i) => (
@@ -334,14 +340,16 @@ export function WithdrawalFinalListFilterPanel({
             }}
           />
           {quickSearch ? (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-xs"
               className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-600"
               onClick={() => handleQuickSearchChange("")}
               aria-label="Clear search"
             >
-              <IconX size={16} />
-            </button>
+              <IconX size={14} />
+            </Button>
           ) : null}
         </div>
       </div>
@@ -392,6 +400,28 @@ export function WithdrawalFinalListFilterPanel({
                   All
                 </SelectItem>
                 {STATUS_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value} className="text-sm">
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-slate-600">Amendments</Label>
+            <Select
+              value={local.hasAmendment || "__all__"}
+              onValueChange={(v: string) => handleChange("hasAmendment", v === "__all__" ? "" : v)}
+            >
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue placeholder="All" />
+              </SelectTrigger>
+              <SelectContent className="">
+                <SelectItem value="__all__" className="text-sm">
+                  All
+                </SelectItem>
+                {HAS_AMENDMENT_OPTIONS.map((o) => (
                   <SelectItem key={o.value} value={o.value} className="text-sm">
                     {o.label}
                   </SelectItem>
@@ -473,7 +503,7 @@ export function WithdrawalFinalListFilterPanel({
           </div>
 
           <div className="space-y-1.5 sm:col-span-2 lg:col-span-2 xl:col-span-2">
-            <Label className="text-xs text-slate-600">Created at (from / to)</Label>
+            <Label className="text-xs text-slate-600">Transaction date (from / to)</Label>
             <div className="flex flex-wrap items-end gap-2">
               <div className="min-w-[140px] max-w-[220px] flex-1">
                 <DateField
@@ -495,20 +525,23 @@ export function WithdrawalFinalListFilterPanel({
           </div>
 
           <div className="col-span-1 flex items-end justify-end gap-2 sm:col-span-2 lg:col-span-3 xl:col-span-4">
-            <button
+            <Button
               type="button"
-              className="h-9 rounded-md border border-[var(--border)] bg-white px-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+              variant="secondary"
+              size="sm"
               onClick={handleClear}
+              startIcon={<IconX size={14} />}
             >
               Clear
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              className="h-9 rounded-md bg-[var(--brand-primary)] px-3 text-sm font-medium text-white transition-colors hover:bg-[var(--brand-primary-hover)]"
+              size="sm"
               onClick={handleApply}
+              startIcon={<IconFilter size={14} />}
             >
               Apply
-            </button>
+            </Button>
           </div>
         </div>
       )}

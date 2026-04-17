@@ -12,6 +12,7 @@ import { exportPlayers, listPlayersNormalized } from "@/services/playerService";
 import { userService } from "@/services/userService";
 import type { PlayerRow } from "@/types/player";
 import type { AutocompleteOption } from "@/components/common/AutocompleteField";
+import { useExport } from "@/hooks/useExport";
 
 const COLUMN_FILTER_KEYS = [
   "playerId",
@@ -82,7 +83,6 @@ export function PlayerListClient() {
     listingState;
 
   const [totalCount, setTotalCount] = useState(0);
-  const [exporting, setExporting] = useState(false);
   const [cachedUsers, setCachedUsers] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -162,42 +162,31 @@ export function PlayerListClient() {
     return listPlayersNormalized(params);
   }, []);
 
-  const handleExport = useCallback(async () => {
-    setExporting(true);
-    try {
-      const blob = await exportPlayers({
-        page: 1,
-        limit: 20,
-        sortBy: (sortBy || "createdAt") as "createdAt" | "playerId" | "phone" | "bonusPercentage",
-        sortOrder: (sortOrder === "asc" ? "asc" : "desc") as "asc" | "desc",
-        playerId: toOptionalFilterValue(filters.playerId || ""),
-        playerId_op: toOptionalFilterValue(filters.playerId_op || ""),
-        phone: toOptionalFilterValue(filters.phone || ""),
-        phone_op: toOptionalFilterValue(filters.phone_op || ""),
-        exchangeName: toOptionalFilterValue(filters.exchangeName || ""),
-        exchangeName_op: toOptionalFilterValue(filters.exchangeName_op || ""),
-        bonusPercentage: toOptionalFilterValue(filters.bonusPercentage || ""),
-        bonusPercentage_to: toOptionalFilterValue(filters.bonusPercentage_to || ""),
-        bonusPercentage_op: toOptionalFilterValue(filters.bonusPercentage_op || ""),
-        createdBy: toOptionalFilterValue(filters.createdBy || ""),
-        createdAt_from: toOptionalFilterValue(filters.createdAt_from || ""),
-        createdAt_to: toOptionalFilterValue(filters.createdAt_to || ""),
-        createdAt_op: toOptionalFilterValue(filters.createdAt_op || ""),
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `players-${new Date().toISOString().split("T")[0]}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch {
-      window.alert("Failed to export players.");
-    } finally {
-      setExporting(false);
-    }
-  }, [filters, sortBy, sortOrder]);
+  const { exporting, handleExport } = useExport((params) => exportPlayers(params), {
+    fileName: `players-${new Date().toISOString().split("T")[0]}.xlsx`,
+  });
+
+  const onExportClick = useCallback(() => {
+    handleExport({
+      page: 1,
+      limit: 10000,
+      sortBy: (sortBy || "createdAt") as "createdAt" | "playerId" | "phone" | "bonusPercentage",
+      sortOrder: (sortOrder === "asc" ? "asc" : "desc") as "asc" | "desc",
+      playerId: toOptionalFilterValue(filters.playerId || ""),
+      playerId_op: toOptionalFilterValue(filters.playerId_op || ""),
+      phone: toOptionalFilterValue(filters.phone || ""),
+      phone_op: toOptionalFilterValue(filters.phone_op || ""),
+      exchangeName: toOptionalFilterValue(filters.exchangeName || ""),
+      exchangeName_op: toOptionalFilterValue(filters.exchangeName_op || ""),
+      bonusPercentage: toOptionalFilterValue(filters.bonusPercentage || ""),
+      bonusPercentage_to: toOptionalFilterValue(filters.bonusPercentage_to || ""),
+      bonusPercentage_op: toOptionalFilterValue(filters.bonusPercentage_op || ""),
+      createdBy: toOptionalFilterValue(filters.createdBy || ""),
+      createdAt_from: toOptionalFilterValue(filters.createdAt_from || ""),
+      createdAt_to: toOptionalFilterValue(filters.createdAt_to || ""),
+      createdAt_op: toOptionalFilterValue(filters.createdAt_op || ""),
+    });
+  }, [handleExport, filters, sortBy, sortOrder]);
 
   const columns = useMemo<PaginatedTableReferenceColumn[]>(
     () => [
@@ -289,7 +278,7 @@ export function PlayerListClient() {
       secondaryButtonLabel="Reset filters"
       onSecondaryClick={() => clearFilters({ keepQuickSearch: true })}
       exportButtonLabel="Export"
-      onExportClick={handleExport}
+      onExportClick={onExportClick}
       exportDisabled={exporting}
     >
       <PaginatedTableReference

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { IconCheck, IconPencil, IconX } from "@tabler/icons-react";
 import { AutocompleteField, type AutocompleteOption } from "@/components/common/AutocompleteField";
@@ -20,9 +20,11 @@ import { useListingQueryStateReference } from "@/hooks/useListingQueryStateRefer
 import { tableColumnPresets } from "@/lib/tableStylePresets";
 import {
   createDeposit,
+  exportDeposits,
   listDepositsNormalized,
   updateDeposit,
 } from "@/services/depositService";
+import { useExport } from "@/hooks/useExport";
 import {
   depositStatusApiParam,
   depositStatusColumnSelectValue,
@@ -64,6 +66,12 @@ function formatRelative(iso?: string): string {
   return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
+function getCurrentDateTimeLocal(): string {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+
 export function DepositBankerClient() {
   const listingState = useListingQueryStateReference({
     defaultLimit: 20,
@@ -73,8 +81,16 @@ export function DepositBankerClient() {
     listingState;
 
   const [bankId, setBankId] = useState("");
+  const [bankAutocompleteDefault, setBankAutocompleteDefault] = useState<AutocompleteOption | null>(null);
+  const bankIdRef = useRef(bankId);
+  const hasConsumedInitialListMetaRef = useRef(false);
+
+  useEffect(() => {
+    bankIdRef.current = bankId;
+  }, [bankId]);
   const [utr, setUtr] = useState("");
   const [amount, setAmount] = useState("");
+  const [entryAt, setEntryAt] = useState(getCurrentDateTimeLocal());
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ bankId?: string; utr?: string; amount?: string }>({});
   const [totalCount, setTotalCount] = useState(0);
@@ -115,11 +131,16 @@ export function DepositBankerClient() {
 
     setLoading(true);
     try {
-      await createDeposit({ bankId: bankId.trim(), utr: utr.trim(), amount: amt });
+      await createDeposit({
+        bankId: bankId.trim(),
+        utr: utr.trim(),
+        amount: amt,
+        entryAt,
+      });
       toast.success("Deposit recorded successfully.");
       setUtr("");
       setAmount("");
-      setBankId("");
+      setEntryAt(getCurrentDateTimeLocal());
       setErrors({});
       setTableKey((k) => k + 1);
     } catch (error: unknown) {
@@ -131,8 +152,10 @@ export function DepositBankerClient() {
 
   const reset = () => {
     setBankId("");
+    setBankAutocompleteDefault(null);
     setUtr("");
     setAmount("");
+    setEntryAt(getCurrentDateTimeLocal());
     setErrors({});
   };
 
@@ -190,8 +213,41 @@ export function DepositBankerClient() {
     [setFilter],
   );
 
+  const { exporting, handleExport } = useExport((params) => exportDeposits("banker", params), {
+    fileName: `deposits-banker-${new Date().toISOString().split("T")[0]}.xlsx`,
+  });
+
+  const onExportClick = useCallback(() => {
+    handleExport({
+      page: 1,
+      limit: 10000,
+      sortBy: sortBy || "createdAt",
+      sortOrder: sortOrder || "desc",
+      utr: toOptionalFilterValue(filters.utr || ""),
+      utr_op: toOptionalFilterValue(filters.utr_op || ""),
+      bankName: toOptionalFilterValue(filters.bankName || ""),
+      bankName_op: toOptionalFilterValue(filters.bankName_op || ""),
+      status: depositStatusApiParam(filters.status),
+      amount: toOptionalFilterValue(filters.amount || ""),
+      amount_to: toOptionalFilterValue(filters.amount_to || ""),
+      amount_op: toOptionalFilterValue(filters.amount_op || ""),
+      createdAt_from: toOptionalFilterValue(filters.createdAt_from || ""),
+      createdAt_to: toOptionalFilterValue(filters.createdAt_to || ""),
+      createdAt_op: toOptionalFilterValue(filters.createdAt_op || ""),
+    });
+  }, [handleExport, filters, sortBy, sortOrder]);
+
   const fetcher = useCallback(async (params: Record<string, unknown>) => {
-    return listDepositsNormalized("banker", params);
+    const res = await listDepositsNormalized("banker", params);
+    if (!hasConsumedInitialListMetaRef.current) {
+      hasConsumedInitialListMetaRef.current = true;
+      const hint = res.meta.lastBankerDeposit;
+      if (hint?.bankId && bankIdRef.current === "") {
+        setBankId(hint.bankId);
+        setBankAutocompleteDefault({ value: hint.bankId, label: hint.bankName });
+      }
+    }
+    return res;
   }, []);
 
   const columns = useMemo<PaginatedTableReferenceColumn[]>(
@@ -249,18 +305,19 @@ export function DepositBankerClient() {
         label: "Due time",
         sortable: false,
         minWidth: 120,
-        render: (row: DepositRow) => formatRelative(row.createdAt),
+        render: (row: DepositRow) => formatRelative(row.entryAt ?? row.createdAt),
       },
       {
         field: "createdAt",
-        label: "Created at",
+        label: "Transaction at",
         sortable: true,
         filterType: "date" as const,
         filterKey: "createdAt_from",
         filterKeyTo: "createdAt_to",
         operatorKey: "createdAt_op",
         ...tableColumnPresets.dateCol,
-        render: (row: DepositRow) => (row.createdAt ? new Date(row.createdAt).toLocaleString() : "—"),
+        render: (row: DepositRow) =>
+          row.entryAt || row.createdAt ? new Date(row.entryAt ?? row.createdAt!).toLocaleString() : "—",
       },
       {
         field: "actions",
@@ -274,7 +331,7 @@ export function DepositBankerClient() {
               type="button"
               size="sm"
               variant="secondary"
-              leftIcon={<IconPencil size={16} />}
+              startIcon={<IconPencil size={16} />}
               onClick={() => {
                 setEditDeposit(row);
                 setEditBankId(row.bankId ?? "");
@@ -311,6 +368,7 @@ export function DepositBankerClient() {
               loadOptions={loadBankOptions}
               placeholder="Search bank..."
               emptyText="No banks found"
+              defaultOption={bankAutocompleteDefault}
             />
             <FieldError message={errors.bankId} />
           </div>
@@ -331,18 +389,22 @@ export function DepositBankerClient() {
             />
             <FieldError message={errors.amount} />
           </div>
+          <div>
+            <FieldLabel>Entry date & time *</FieldLabel>
+            <Input type="datetime-local" value={entryAt} onChange={(e) => setEntryAt(e.target.value)} />
+          </div>
         </FormGrid>
         <FormActions className="justify-between px-5 py-4">
           <Button
             type="button"
             variant="success"
-            leftIcon={<IconCheck size={18} />}
+            startIcon={<IconCheck size={18} />}
             onClick={onSubmit}
             disabled={loading}
           >
             {loading ? "Saving…" : "Save"}
           </Button>
-          <Button type="button" variant="danger" leftIcon={<IconX size={18} />} onClick={reset} disabled={loading}>
+          <Button type="button" variant="danger" startIcon={<IconX size={18} />} onClick={reset} disabled={loading}>
             Clear
           </Button>
         </FormActions>
@@ -357,6 +419,9 @@ export function DepositBankerClient() {
         fullWidth
         secondaryButtonLabel="Reset filters"
         onSecondaryClick={() => clearFilters({ keepQuickSearch: true })}
+        exportButtonLabel="Export"
+        onExportClick={onExportClick}
+        exportDisabled={exporting}
       >
         <PaginatedTableReference
           key={tableKey}

@@ -154,20 +154,22 @@ export default function BankStatementPage() {
             <div className="flex items-center gap-1.5 min-w-max">
               <IconCalendar className="w-4 h-4 text-slate-400" />
               <span className="text-[11px] uppercase font-semibold tracking-wider text-slate-500 mr-2">Range:</span>
-              {DATE_PRESETS.filter(p => !['Last 6M', 'This Year'].includes(p.label)).map((p) => (
-                <button
-                  key={p.label}
-                  onClick={() => handlePreset(p)}
-                  className={cn(
-                    "text-[10px] px-2.5 py-1 rounded-full border transition-all",
-                    activePreset === p.label
-                      ? "bg-[var(--brand-primary)] text-white border-[var(--brand-primary)] font-semibold shadow-sm"
-                      : "bg-white border-slate-200 text-slate-600 hover:border-[var(--brand-primary)]/50"
-                  )}
-                >
-                  {p.label}
-                </button>
-              ))}
+              <div className="flex flex-wrap gap-1">
+                {DATE_PRESETS.filter(p => !['Last 6M', 'This Year'].includes(p.label)).map((p) => (
+                  <Button
+                    key={p.label}
+                    size="xs"
+                    variant={activePreset === p.label ? "primary" : "secondary"}
+                    onClick={() => handlePreset(p)}
+                    className={cn(
+                      "text-[10px] px-2.5 h-6 rounded-full font-semibold",
+                      activePreset === p.label ? "shadow-sm" : "bg-white border-slate-200 font-medium"
+                    )}
+                  >
+                    {p.label}
+                  </Button>
+                ))}
+              </div>
             </div>
 
             <div className="h-5 w-px bg-slate-200" />
@@ -192,25 +194,33 @@ export default function BankStatementPage() {
 
             <div className="flex items-center gap-1 flex-1">
               <span className="text-[11px] uppercase font-semibold tracking-wider text-slate-500 mr-2">Type:</span>
-              {(['all', 'deposit', 'withdrawal', 'expense'] as const).map(type => (
-                <button
-                  key={type}
-                  onClick={() => setEntryType(type)}
-                  className={cn(
-                    "text-[11px] px-2.5 py-1 rounded-md transition-all capitalize font-medium",
-                    entryType === type 
-                      ? "bg-slate-200 text-slate-800"
-                      : "text-slate-500 hover:bg-slate-100"
-                  )}
-                >
-                  {type}
-                </button>
-              ))}
+              <div className="flex gap-1">
+                {(['all', 'deposit', 'withdrawal', 'expense'] as const).map(type => (
+                  <Button
+                    key={type}
+                    size="xs"
+                    variant={entryType === type ? "secondary" : "ghost"}
+                    onClick={() => setEntryType(type)}
+                    className={cn(
+                      "text-[11px] px-2.5 h-7 rounded-md capitalize font-medium",
+                      entryType === type 
+                        ? "bg-slate-200 text-slate-800"
+                        : "text-slate-500 hover:bg-slate-100"
+                    )}
+                  >
+                    {type}
+                  </Button>
+                ))}
+              </div>
             </div>
 
-            <Button onClick={loadLedger} disabled={loading} className="h-8 text-xs font-semibold px-4 ml-auto gap-2">
-              <IconFilter className="w-3.5 h-3.5" />
-              {loading ? "Generating..." : "Generate Statement"}
+            <Button 
+              onClick={loadLedger} 
+              loading={loading} 
+              className="h-9 text-xs font-semibold px-4 ml-auto"
+              startIcon={<IconFilter size={16} />}
+            >
+              Generate Statement
             </Button>
           </div>
           
@@ -239,8 +249,11 @@ export default function BankStatementPage() {
               </div>
             </div>
             <div className="no-print">
-              <Button onClick={handlePrint} variant="outline" className="gap-2">
-                <IconPrinter className="w-4 h-4" />
+              <Button 
+                onClick={handlePrint} 
+                variant="secondary" 
+                startIcon={<IconPrinter size={18} />}
+              >
                 Print PDF
               </Button>
             </div>

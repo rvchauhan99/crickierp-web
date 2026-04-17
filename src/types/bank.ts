@@ -18,6 +18,7 @@ export type BankRow = {
   ifsc: string;
   openingBalance: number;
   currentBalance?: number;
+  closingBalanceActual?: number;
   status: BankStatus;
   createdAt?: string;
   updatedAt?: string;

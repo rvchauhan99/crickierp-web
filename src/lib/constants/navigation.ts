@@ -115,6 +115,20 @@ export const NAV_ITEMS: AppNavNode[] = [
         keywords: ["transfer"],
         requiredPermission: NAV_PERMISSIONS.EXCHANGE_LIST,
       },
+      {
+        id: "exchange-statement",
+        label: "Statement",
+        href: "/exchange/statement",
+        keywords: ["ledger", "report"],
+        requiredPermission: NAV_PERMISSIONS.EXCHANGE_STATEMENT,
+      },
+      {
+        id: "exchange-top-up",
+        label: "Top Up",
+        href: "/exchange/top-up",
+        keywords: ["credit", "balance"],
+        requiredPermission: NAV_PERMISSIONS.EXCHANGE_TOPUP_ADD,
+      },
     ],
   },
   {
@@ -253,6 +267,33 @@ export const NAV_ITEMS: AppNavNode[] = [
     ],
   },
   {
+    id: "liability",
+    label: "Liability",
+    children: [
+      {
+        id: "liability-persons",
+        label: "Persons",
+        href: "/liability/persons",
+        keywords: ["debtor", "creditor", "master"],
+        requiredPermission: NAV_PERMISSIONS.LIABILITY_PERSON_LIST,
+      },
+      {
+        id: "liability-entries",
+        label: "Entries",
+        href: "/liability/entries",
+        keywords: ["transfer", "voucher", "posting"],
+        requiredPermission: NAV_PERMISSIONS.LIABILITY_ENTRY_LIST,
+      },
+      {
+        id: "liability-ledger",
+        label: "Ledger",
+        href: "/liability/ledger",
+        keywords: ["statement", "running balance"],
+        requiredPermission: NAV_PERMISSIONS.LIABILITY_LEDGER_VIEW,
+      },
+    ],
+  },
+  {
     id: "masters",
     label: "Masters",
     allowedRoles: ["superadmin"],
@@ -275,6 +316,13 @@ export const NAV_ITEMS: AppNavNode[] = [
         href: "/reports/expense-analysis",
         keywords: ["expense", "totals", "export"],
         requiredPermission: NAV_PERMISSIONS.REPORTS_EXPENSE_ANALYSIS,
+      },
+      {
+        id: "reports-liability",
+        label: "Liability",
+        href: "/reports/liability",
+        keywords: ["receivable", "payable", "ledger"],
+        requiredPermission: NAV_PERMISSIONS.LIABILITY_REPORT_VIEW,
       },
     ],
   },

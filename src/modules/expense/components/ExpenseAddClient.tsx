@@ -348,7 +348,7 @@ export function ExpenseAddClient() {
             <Button
               size="sm"
               variant="secondary"
-              leftIcon={<IconPencil size={16} />}
+              startIcon={<IconPencil size={16} />}
               onClick={() => handleEditClick(row)}
             >
               Edit
@@ -476,12 +476,12 @@ export function ExpenseAddClient() {
               variant={editingId ? "success" : "primary"}
               onClick={() => void onSubmit()}
               disabled={loading}
-              leftIcon={editingId ? <IconDeviceFloppy size={18} /> : <IconPlus size={18} />}
+              startIcon={editingId ? <IconDeviceFloppy size={18} /> : <IconPlus size={18} />}
             >
               {loading ? (editingId ? "Updating…" : "Adding…") : editingId ? "Update expense" : "Add expense"}
             </Button>
             {editingId && (
-              <Button type="button" variant="secondary" onClick={resetForm} disabled={loading} leftIcon={<IconX size={18} />}>
+              <Button type="button" variant="secondary" onClick={resetForm} disabled={loading} startIcon={<IconX size={18} />}>
                 Cancel edit
               </Button>
             )}

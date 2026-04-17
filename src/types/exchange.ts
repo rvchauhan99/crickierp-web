@@ -5,6 +5,7 @@ export type Exchange = {
   _id?: string;
   name: string;
   openingBalance: number;
+  currentBalance?: number;
   bonus: number;
   provider: string;
   status: ExchangeStatus;
@@ -43,6 +44,9 @@ export type ExchangeListParams = {
   openingBalance?: string;
   openingBalanceTo?: string;
   openingBalanceOp?: string;
+  currentBalance?: string;
+  currentBalanceTo?: string;
+  currentBalanceOp?: string;
   bonus?: string;
   bonusTo?: string;
   bonusOp?: string;
@@ -56,4 +60,59 @@ export type ExchangeListResult = {
     total: number;
     totalPages: number;
   };
+};
+
+export type ExchangeStatementEntryType = "all" | "deposit" | "withdrawal" | "topup";
+
+export type ExchangeStatementRow = {
+  kind: "deposit" | "withdrawal" | "topup";
+  refId: string;
+  at: string;
+  label: string;
+  playerId: string;
+  amount: number;
+  direction: "credit" | "debit";
+  balanceAfter: number;
+  bonusMemo?: number;
+  utr?: string;
+  remark?: string;
+  createdByName?: string;
+};
+
+export type ExchangeStatementResponse = {
+  exchange: {
+    _id: string;
+    name: string;
+    provider: string;
+    openingBalance: number;
+    currentBalance?: number;
+  };
+  periodOpeningBalance: number;
+  periodClosingBalance: number;
+  totalCredits: number;
+  totalDebits: number;
+  totalDepositOutflow: number;
+  totalWithdrawalInflow: number;
+  totalTopUpCredits: number;
+  rows: ExchangeStatementRow[];
+};
+
+export type ExchangeTopupRow = {
+  _id: string;
+  exchangeId: {
+    _id: string;
+    name: string;
+    provider: string;
+    currentBalance?: number;
+    openingBalance?: number;
+  };
+  amount: number;
+  remark?: string;
+  createdBy: {
+    _id: string;
+    fullName?: string;
+    username?: string;
+  } | string;
+  createdAt: string;
+  updatedAt?: string;
 };

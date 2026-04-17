@@ -24,7 +24,9 @@ import {
   listSavedAccountsForPlayer,
   listWithdrawalsNormalized,
   updateWithdrawal,
+  exportWithdrawals,
 } from "@/services/withdrawalService";
+import { useExport } from "@/hooks/useExport";
 import { listPlayersNormalized } from "@/services/playerService";
 import { userService } from "@/services/userService";
 import type { SavedWithdrawalAccount, WithdrawalRow } from "@/types/withdrawal";
@@ -93,6 +95,12 @@ function formatRelative(iso?: string): string {
   return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
+function getCurrentDateTimeLocal(): string {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+
 export function WithdrawalExchangeClient() {
   const listingState = useListingQueryStateReference({
     defaultLimit: 20,
@@ -108,6 +116,7 @@ export function WithdrawalExchangeClient() {
   const [ifsc, setIfsc] = useState("");
   const [amount, setAmount] = useState("");
   const [reverseBonus, setReverseBonus] = useState("0");
+  const [requestedAt, setRequestedAt] = useState(getCurrentDateTimeLocal());
   const [savedPreset, setSavedPreset] = useState("");
   const [savedRows, setSavedRows] = useState<SavedWithdrawalAccount[]>([]);
   const [loading, setLoading] = useState(false);
@@ -228,6 +237,7 @@ export function WithdrawalExchangeClient() {
           ifsc: ifsc.trim(),
           amount: amt,
           reverseBonus: Number.isNaN(rb) || rb < 0 ? 0 : rb,
+          requestedAt,
         });
         toast.success("Withdrawal requested successfully.");
       }
@@ -238,6 +248,7 @@ export function WithdrawalExchangeClient() {
       setIfsc("");
       setAmount("");
       setReverseBonus("0");
+      setRequestedAt(getCurrentDateTimeLocal());
       setSavedPreset("");
       setErrors({});
       setTableKey((k) => k + 1);
@@ -272,6 +283,7 @@ export function WithdrawalExchangeClient() {
     setIfsc("");
     setAmount("");
     setReverseBonus("0");
+    setRequestedAt(getCurrentDateTimeLocal());
     setSavedPreset("");
     setEditingId(null);
     setErrors({});
@@ -295,6 +307,35 @@ export function WithdrawalExchangeClient() {
     },
     [setFilter],
   );
+
+  const { exporting, handleExport } = useExport((params) => exportWithdrawals(params), {
+    fileName: `withdrawals-exchange-${new Date().toISOString().split("T")[0]}.xlsx`,
+  });
+
+  const onExportClick = useCallback(() => {
+    handleExport({
+      view: "exchange",
+      page: 1,
+      limit: 10000,
+      sortBy: sortBy || "createdAt",
+      sortOrder: sortOrder || "desc",
+      utr: toOptionalFilterValue(filters.utr || ""),
+      utr_op: toOptionalFilterValue(filters.utr_op || ""),
+      playerName: toOptionalFilterValue(filters.playerName || ""),
+      playerName_op: toOptionalFilterValue(filters.playerName_op || ""),
+      bankName: toOptionalFilterValue(filters.bankName || ""),
+      bankName_op: toOptionalFilterValue(filters.bankName_op || ""),
+      status: withdrawalStatusApiParam(filters.status),
+      amount: toOptionalFilterValue(filters.amount || ""),
+      amount_to: toOptionalFilterValue(filters.amount_to || ""),
+      amount_op: toOptionalFilterValue(filters.amount_op || ""),
+      createdBy: toOptionalFilterValue(filters.createdBy || ""),
+      approvedBy: toOptionalFilterValue(filters.approvedBy || ""),
+      createdAt_from: toOptionalFilterValue(filters.createdAt_from || ""),
+      createdAt_to: toOptionalFilterValue(filters.createdAt_to || ""),
+      createdAt_op: toOptionalFilterValue(filters.createdAt_op || ""),
+    });
+  }, [handleExport, filters, sortBy, sortOrder]);
 
   const fetcher = useCallback(async (params: Record<string, unknown>) => {
     return listWithdrawalsNormalized("exchange", params);
@@ -416,18 +457,19 @@ export function WithdrawalExchangeClient() {
         label: "Due time",
         sortable: false,
         minWidth: 110,
-        render: (row: WithdrawalRow) => formatRelative(row.createdAt),
+        render: (row: WithdrawalRow) => formatRelative(row.requestedAt ?? row.createdAt),
       },
       {
         field: "createdAt",
-        label: "Created at",
+        label: "Transaction at",
         sortable: true,
         filterType: "date" as const,
         filterKey: "createdAt_from",
         filterKeyTo: "createdAt_to",
         operatorKey: "createdAt_op",
         ...tableColumnPresets.dateCol,
-        render: (row: WithdrawalRow) => (row.createdAt ? new Date(row.createdAt).toLocaleString() : "—"),
+        render: (row: WithdrawalRow) =>
+          row.requestedAt || row.createdAt ? new Date(row.requestedAt ?? row.createdAt!).toLocaleString() : "—",
       },
       {
         field: "actions",
@@ -436,11 +478,13 @@ export function WithdrawalExchangeClient() {
         ...tableColumnPresets.actionsCol,
         render: (row: WithdrawalRow) => (
           <div className="flex gap-2">
-            {row.status === "requested" && (
+            {row.status === "requested" ? (
               <Button size="icon" variant="secondary" onClick={() => handleEdit(row)} title="Edit withdrawal">
                 <IconPencil size={18} />
               </Button>
-            ) || "—"}
+            ) : (
+              "—"
+            )}
           </div>
         ),
       },
@@ -561,18 +605,22 @@ export function WithdrawalExchangeClient() {
               <FieldLabel>Payable amount</FieldLabel>
               <Input readOnly value={payablePreview ? String(payablePreview) : "0"} className="bg-slate-50" />
             </div>
+            <div>
+              <FieldLabel>Request date & time *</FieldLabel>
+              <Input type="datetime-local" value={requestedAt} onChange={(e) => setRequestedAt(e.target.value)} />
+            </div>
           </FormGrid>
           <FormActions className="justify-between px-5 py-4">
             <Button
               type="button"
               variant="success"
-              leftIcon={<IconCheck size={18} />}
+              startIcon={<IconCheck size={18} />}
               onClick={onSubmit}
               disabled={loading}
             >
               {loading ? "Saving…" : editingId ? "Update" : "Save"}
             </Button>
-            <Button type="button" variant="danger" leftIcon={<IconX size={18} />} onClick={reset} disabled={loading}>
+            <Button type="button" variant="danger" startIcon={<IconX size={18} />} onClick={reset} disabled={loading}>
               {editingId ? "Cancel" : "Clear"}
             </Button>
           </FormActions>
@@ -587,6 +635,9 @@ export function WithdrawalExchangeClient() {
           fullWidth
           secondaryButtonLabel="Reset filters"
           onSecondaryClick={() => clearFilters({ keepQuickSearch: true })}
+          exportButtonLabel="Export"
+          onExportClick={onExportClick}
+          exportDisabled={exporting}
         >
           <PaginatedTableReference
             key={tableKey}

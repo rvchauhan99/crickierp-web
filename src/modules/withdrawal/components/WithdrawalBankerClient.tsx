@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   IconCheck,
@@ -33,7 +33,9 @@ import {
   listWithdrawalsNormalized,
   patchWithdrawalStatus,
   updateWithdrawalBankerPayout,
+  exportWithdrawals,
 } from "@/services/withdrawalService";
+import { useExport } from "@/hooks/useExport";
 import { listBanksNormalized } from "@/services/bankService";
 import { userService } from "@/services/userService";
 import type { WithdrawalRow } from "@/types/withdrawal";
@@ -150,11 +152,6 @@ export function WithdrawalBankerClient() {
   const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setFilter, setSort, clearFilters } =
     listingState;
 
-  const withdrawalBankerFetcher = useCallback(
-    async (params: Record<string, unknown>) => listWithdrawalsNormalized("banker", params),
-    [],
-  );
-
   const withdrawalTableColumnFilterValues = useMemo(() => ({ ...filters }), [filters]);
 
   const withdrawalTableFilterParams = useMemo(
@@ -179,15 +176,67 @@ export function WithdrawalBankerClient() {
   );
 
   const handleWithdrawalColumnFilterChange = useCallback(
-    (k: string, v: string) => setFilter(k, v),
+    (key: string, value: string) => {
+      setFilter(key, value);
+    },
     [setFilter],
   );
+
+  const { exporting, handleExport } = useExport((params) => exportWithdrawals(params), {
+    fileName: `withdrawals-banker-${new Date().toISOString().split("T")[0]}.xlsx`,
+  });
+
+  const onExportClick = useCallback(() => {
+    handleExport({
+      view: "banker",
+      page: 1,
+      limit: 10000,
+      sortBy: sortBy || "createdAt",
+      sortOrder: sortOrder || "desc",
+      utr: toOptionalFilterValue(filters.utr || ""),
+      utr_op: toOptionalFilterValue(filters.utr_op || ""),
+      playerName: toOptionalFilterValue(filters.playerName || ""),
+      playerName_op: toOptionalFilterValue(filters.playerName_op || ""),
+      bankName: toOptionalFilterValue(filters.bankName || ""),
+      bankName_op: toOptionalFilterValue(filters.bankName_op || ""),
+      status: toOptionalFilterValue(filters.status || ""),
+      amount: toOptionalFilterValue(filters.amount || ""),
+      amount_to: toOptionalFilterValue(filters.amount_to || ""),
+      amount_op: toOptionalFilterValue(filters.amount_op || ""),
+      createdBy: toOptionalFilterValue(filters.createdBy || ""),
+      approvedBy: toOptionalFilterValue(filters.approvedBy || ""),
+      createdAt_from: toOptionalFilterValue(filters.createdAt_from || ""),
+      createdAt_to: toOptionalFilterValue(filters.createdAt_to || ""),
+      createdAt_op: toOptionalFilterValue(filters.createdAt_op || ""),
+    });
+  }, [handleExport, filters, sortBy, sortOrder]);
 
   const [totalCount, setTotalCount] = useState(0);
   const [tableKey, setTableKey] = useState(0);
   const [selectedWithdrawal, setSelectedWithdrawal] = useState<WithdrawalRow | null>(null);
 
   const [bankId, setBankId] = useState("");
+  const [bankAutocompleteDefault, setBankAutocompleteDefault] = useState<AutocompleteOption | null>(null);
+  const bankIdRef = useRef("");
+  const hasConsumedInitialListMetaRef = useRef(false);
+
+  useEffect(() => {
+    bankIdRef.current = bankId;
+  }, [bankId]);
+
+  const withdrawalBankerFetcher = useCallback(async (params: Record<string, unknown>) => {
+    const res = await listWithdrawalsNormalized("banker", params);
+    if (!hasConsumedInitialListMetaRef.current) {
+      hasConsumedInitialListMetaRef.current = true;
+      const hint = res.meta.lastBankerPayout;
+      if (hint?.bankId && bankIdRef.current === "") {
+        setBankId(hint.bankId);
+        setBankAutocompleteDefault({ value: hint.bankId, label: hint.bankName });
+      }
+    }
+    return res;
+  }, []);
+
   const [utr, setUtr] = useState("");
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReasonId, setRejectReasonId] = useState("");
@@ -236,7 +285,6 @@ export function WithdrawalBankerClient() {
 
   const closeSidebar = useCallback(() => {
     setSelectedWithdrawal(null);
-    setBankId("");
     setUtr("");
     setRejectOpen(false);
     setRejectReasonId("");
@@ -375,7 +423,7 @@ export function WithdrawalBankerClient() {
         sortable: false,
         minWidth: 110,
         render: (row: WithdrawalRow) => (
-          <span className="text-xs text-gray-500">{formatRelative(row.createdAt)}</span>
+          <span className="text-xs text-gray-500">{formatRelative(row.requestedAt ?? row.createdAt)}</span>
         ),
       },
       {
@@ -387,7 +435,8 @@ export function WithdrawalBankerClient() {
         filterKeyTo: "createdAt_to",
         operatorKey: "createdAt_op",
         ...tableColumnPresets.dateCol,
-        render: (row: WithdrawalRow) => (row.createdAt ? new Date(row.createdAt).toLocaleString() : "—"),
+        render: (row: WithdrawalRow) =>
+          row.requestedAt || row.createdAt ? new Date(row.requestedAt ?? row.createdAt!).toLocaleString() : "—",
       },
       {
         field: "actions",
@@ -424,6 +473,9 @@ export function WithdrawalBankerClient() {
         fullWidth
         secondaryButtonLabel="Reset filters"
         onSecondaryClick={() => clearFilters({ keepQuickSearch: true })}
+        exportButtonLabel="Export"
+        onExportClick={onExportClick}
+        exportDisabled={exporting}
       >
         <div className="flex min-h-0 flex-1 flex-col">
           {!selectedWithdrawal && (
@@ -488,6 +540,8 @@ export function WithdrawalBankerClient() {
                   onChange={setBankId}
                   loadOptions={loadBankOptions}
                   placeholder="Select bank..."
+                  emptyText="No banks found"
+                  defaultOption={bankAutocompleteDefault}
                   disabled={selectedWithdrawal.status !== "requested" || actionLoading}
                 />
                 <FieldError message={errors.bankId} />
@@ -507,7 +561,7 @@ export function WithdrawalBankerClient() {
               <div className="flex flex-col gap-2 pt-2 border-t border-[var(--border)]">
                 <Button
                   variant="success"
-                  leftIcon={<IconCheck size={18} />}
+                  startIcon={<IconCheck size={18} />}
                   onClick={() => void onPayoutSubmit()}
                   disabled={selectedWithdrawal.status !== "requested" || actionLoading}
                   className="w-full justify-center"
@@ -516,7 +570,7 @@ export function WithdrawalBankerClient() {
                 </Button>
                 <Button
                   variant="danger"
-                  leftIcon={<IconX size={18} />}
+                  startIcon={<IconX size={18} />}
                   onClick={() => {
                     setRejectOpen(true);
                     setRejectReasonId("");
@@ -529,7 +583,7 @@ export function WithdrawalBankerClient() {
                 </Button>
                 <Button
                   variant="secondary"
-                  leftIcon={<IconRefresh size={18} />}
+                  startIcon={<IconRefresh size={18} />}
                   onClick={closeSidebar}
                   className="w-full justify-center"
                 >

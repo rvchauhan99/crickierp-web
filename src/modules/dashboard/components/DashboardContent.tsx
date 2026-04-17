@@ -1,7 +1,17 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { IconRefresh, IconLayoutDashboard } from "@tabler/icons-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { IconRefresh, IconLayoutDashboard, IconDownload, IconFileSpreadsheet, IconFileText } from "@tabler/icons-react";
+import { useExport } from "@/hooks/useExport";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuPortal,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel 
+} from "@/components/ui/shadcn/dropdown-menu";
 import { DashboardFilterPanel, type DashboardFilters } from "./DashboardFilterPanel";
 import { DATE_PRESETS, DEFAULT_PRESET } from "./DashboardFilterBar";
 import { DashboardKPIs, type DashboardSummary } from "./DashboardKPIs";
@@ -9,8 +19,10 @@ import { DashboardTrendChart, type TrendDataPoint } from "./DashboardTrendChart"
 import { DashboardPLDonut } from "./DashboardPLDonut";
 import { DashboardRecentActivity, type RecentActivityItem } from "./DashboardRecentActivity";
 import { DashboardExchangeSummary } from "./DashboardExchangeSummary";
+import { DashboardBankSummary } from "./DashboardBankSummary";
 import { reportService } from "@/services/reportService";
 import { cn } from "@/lib/cn";
+import { Button } from "@/components/ui/Button";
 
 function getInitialFilters(): DashboardFilters {
   const preset = DATE_PRESETS.find((p) => p.label === DEFAULT_PRESET);
@@ -94,7 +106,9 @@ export function DashboardContent() {
         pnl: data.pnl ?? { gross: 0, net: 0 },
         exchanges: data.exchanges ?? { total: 0, active: 0 },
         users: data.users ?? { total: 0 },
+        todayMetrics: data.todayMetrics ?? { newPlayersToday: 0, firstTimeDepositAmountToday: 0 },
         exchangesBreakdown: Array.isArray(data.exchangesBreakdown) ? data.exchangesBreakdown : [],
+        banksBreakdown: Array.isArray(data.banksBreakdown) ? data.banksBreakdown : [],
       });
       setTrendData(Array.isArray(data.trendData) ? data.trendData : []);
       setRecentActivity(Array.isArray(data.recentActivity) ? data.recentActivity : []);
@@ -117,13 +131,12 @@ export function DashboardContent() {
     filters.amount_from,
     filters.amount_to,
     filters.search,
-    refreshToken,
-  ]); // eslint-disable-line react-hooks/exhaustive-deps
+  ]);
 
   useEffect(() => {
     fetchData();
     return () => abortRef.current?.abort();
-  }, [fetchData]);
+  }, [fetchData, refreshToken]);
 
   const handlePreset = (preset: (typeof DATE_PRESETS)[0]) => {
     const dates = preset.fn();
@@ -137,9 +150,28 @@ export function DashboardContent() {
   };
 
   const handleApplyFilters = (next: DashboardFilters) => {
-    // If the dates changed from preset values we null activePreset
     setFilters(next);
+    setActivePreset(null);
   };
+
+  const { exporting, handleExport } = useExport((params) => reportService.exportDashboardSummary(params), {
+    fileName: `dashboard-report-${new Date().toISOString().split("T")[0]}.xlsx`,
+  });
+
+  const onExportClick = useCallback(() => {
+    handleExport({
+      fromDate: filters.date_from,
+      toDate: filters.date_to,
+      exchangeId: filters.exchange_id || undefined,
+      status: filters.status,
+      transactionType: filters.transaction_type,
+      playerId: filters.player_id || undefined,
+      bankId: filters.bank_id || undefined,
+      amountFrom: filters.amount_from || undefined,
+      amountTo: filters.amount_to || undefined,
+      search: filters.search || undefined,
+    });
+  }, [handleExport, filters]);
 
   return (
     <div className="space-y-4 pb-8">
@@ -169,16 +201,43 @@ export function DashboardContent() {
           </div>
         </div>
 
-        <button
-          onClick={() => setRefreshToken((t) => t + 1)}
-          disabled={loading}
-          className={cn(
-            "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:border-[var(--brand-primary)]/50 hover:text-[var(--brand-primary)] transition-all disabled:opacity-50",
-          )}
-        >
-          <IconRefresh className={cn("w-3.5 h-3.5", loading && "animate-spin")} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2 no-print">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={exporting || loading}
+                startIcon={<IconDownload />}
+              >
+                Export Report
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuPortal>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuLabel className="" inset={false}>Choose Format</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={onExportClick} className="cursor-pointer">
+                  <IconFileSpreadsheet className="mr-2 h-4 w-4 text-emerald-600" />
+                  <span>Excel (.xlsx)</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => window.print()} className="cursor-pointer">
+                  <IconFileText className="mr-2 h-4 w-4 text-rose-600" />
+                  <span>PDF Report (.pdf)</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenuPortal>
+          </DropdownMenu>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setRefreshToken((t) => t + 1)}
+            loading={loading}
+            startIcon={<IconRefresh className={cn(loading && "animate-spin")} />}
+          >
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* ───── Filter panel ───── */}
@@ -226,6 +285,9 @@ export function DashboardContent() {
 
       {/* ───── Exchange Breakdowns ───── */}
       <DashboardExchangeSummary exchangesBreakdown={summary?.exchangesBreakdown} loading={loading} />
+
+      {/* ───── Bank Wise Summary ───── */}
+      <DashboardBankSummary banksBreakdown={summary?.banksBreakdown} loading={loading} />
 
       {/* ───── Charts Row ───── */}
       <div className="grid grid-cols-12 gap-4">

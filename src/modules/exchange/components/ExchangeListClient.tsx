@@ -13,6 +13,7 @@ import { exportExchanges, listExchangesNormalized } from "@/services/exchangeSer
 import { userService } from "@/services/userService";
 import type { Exchange } from "@/types/exchange";
 import type { AutocompleteOption } from "@/components/common/AutocompleteField";
+import { useExport } from "@/hooks/useExport";
 
 const COLUMN_FILTER_KEYS = [
   "name",
@@ -27,6 +28,9 @@ const COLUMN_FILTER_KEYS = [
   "openingBalance",
   "openingBalance_to",
   "openingBalance_op",
+  "currentBalance",
+  "currentBalance_to",
+  "currentBalance_op",
   "bonus",
   "bonus_to",
   "bonus_op",
@@ -68,7 +72,6 @@ export function ExchangeListClient() {
     listingState;
 
   const [totalCount, setTotalCount] = useState(0);
-  const [exporting, setExporting] = useState(false);
   const [cachedUsers, setCachedUsers] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -148,47 +151,39 @@ export function ExchangeListClient() {
     return listExchangesNormalized(params);
   }, []);
 
-  const handleExport = useCallback(async () => {
-    setExporting(true);
-    try {
-      const statusRaw = filters.status?.trim();
-      const status =
-        statusRaw === "active" || statusRaw === "deactive" ? statusRaw : undefined;
-      const blob = await exportExchanges({
-        page: 1,
-        limit: 20,
-        sortBy: (sortBy || "createdAt") as "createdAt" | "name" | "provider",
-        sortOrder: (sortOrder === "asc" ? "asc" : "desc") as "asc" | "desc",
-        name: toOptionalFilterValue(filters.name || ""),
-        nameOp: toOptionalFilterValue(filters.name_op || ""),
-        provider: toOptionalFilterValue(filters.provider || ""),
-        providerOp: toOptionalFilterValue(filters.provider_op || ""),
-        status,
-        createdBy: toOptionalFilterValue(filters.createdBy || ""),
-        createdAtFrom: toOptionalFilterValue(filters.createdAt_from || ""),
-        createdAtTo: toOptionalFilterValue(filters.createdAt_to || ""),
-        createdAtOp: toOptionalFilterValue(filters.createdAt_op || ""),
-        openingBalance: toOptionalFilterValue(filters.openingBalance || ""),
-        openingBalanceTo: toOptionalFilterValue(filters.openingBalance_to || ""),
-        openingBalanceOp: toOptionalFilterValue(filters.openingBalance_op || ""),
-        bonus: toOptionalFilterValue(filters.bonus || ""),
-        bonusTo: toOptionalFilterValue(filters.bonus_to || ""),
-        bonusOp: toOptionalFilterValue(filters.bonus_op || ""),
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `exchanges-${new Date().toISOString().split("T")[0]}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch {
-      window.alert("Failed to export exchanges.");
-    } finally {
-      setExporting(false);
-    }
-  }, [filters, sortBy, sortOrder]);
+  const { exporting, handleExport } = useExport((params) => exportExchanges(params), {
+    fileName: `exchanges-${new Date().toISOString().split("T")[0]}.xlsx`,
+  });
+
+  const onExportClick = useCallback(() => {
+    const statusRaw = filters.status?.trim();
+    const status =
+      statusRaw === "active" || statusRaw === "deactive" ? statusRaw : undefined;
+    handleExport({
+      page: 1,
+      limit: 10000,
+      sortBy: (sortBy || "createdAt") as "createdAt" | "name" | "provider",
+      sortOrder: (sortOrder === "asc" ? "asc" : "desc") as "asc" | "desc",
+      name: toOptionalFilterValue(filters.name || ""),
+      nameOp: toOptionalFilterValue(filters.name_op || ""),
+      provider: toOptionalFilterValue(filters.provider || ""),
+      providerOp: toOptionalFilterValue(filters.provider_op || ""),
+      status,
+      createdBy: toOptionalFilterValue(filters.createdBy || ""),
+      createdAtFrom: toOptionalFilterValue(filters.createdAt_from || ""),
+      createdAtTo: toOptionalFilterValue(filters.createdAt_to || ""),
+      createdAtOp: toOptionalFilterValue(filters.createdAt_op || ""),
+      openingBalance: toOptionalFilterValue(filters.openingBalance || ""),
+      openingBalanceTo: toOptionalFilterValue(filters.openingBalance_to || ""),
+      openingBalanceOp: toOptionalFilterValue(filters.openingBalance_op || ""),
+      currentBalance: toOptionalFilterValue(filters.currentBalance || ""),
+      currentBalanceTo: toOptionalFilterValue(filters.currentBalance_to || ""),
+      currentBalanceOp: toOptionalFilterValue(filters.currentBalance_op || ""),
+      bonus: toOptionalFilterValue(filters.bonus || ""),
+      bonusTo: toOptionalFilterValue(filters.bonus_to || ""),
+      bonusOp: toOptionalFilterValue(filters.bonus_op || ""),
+    });
+  }, [handleExport, filters, sortBy, sortOrder]);
 
   const columns = useMemo<PaginatedTableReferenceColumn[]>(
     () => [
@@ -224,6 +219,18 @@ export function ExchangeListClient() {
         filterKey: "openingBalance",
         filterKeyTo: "openingBalance_to",
         operatorKey: "openingBalance_op",
+        defaultFilterOperator: "equals",
+      },
+      {
+        field: "currentBalance",
+        label: "Current Balance",
+        render: (row: Exchange) => row.currentBalance ?? row.openingBalance,
+        sortable: false,
+        minWidth: 150,
+        filterType: "number" as const,
+        filterKey: "currentBalance",
+        filterKeyTo: "currentBalance_to",
+        operatorKey: "currentBalance_op",
         defaultFilterOperator: "equals",
       },
       {
@@ -299,7 +306,7 @@ export function ExchangeListClient() {
       secondaryButtonLabel="Reset filters"
       onSecondaryClick={() => clearFilters({ keepQuickSearch: true })}
       exportButtonLabel="Export"
-      onExportClick={handleExport}
+      onExportClick={onExportClick}
       exportDisabled={exporting}
     >
       <PaginatedTableReference
@@ -324,6 +331,9 @@ export function ExchangeListClient() {
           openingBalance: toOptionalFilterValue(filters.openingBalance || ""),
           openingBalance_to: toOptionalFilterValue(filters.openingBalance_to || ""),
           openingBalance_op: toOptionalFilterValue(filters.openingBalance_op || ""),
+          currentBalance: toOptionalFilterValue(filters.currentBalance || ""),
+          currentBalance_to: toOptionalFilterValue(filters.currentBalance_to || ""),
+          currentBalance_op: toOptionalFilterValue(filters.currentBalance_op || ""),
           bonus: toOptionalFilterValue(filters.bonus || ""),
           bonus_to: toOptionalFilterValue(filters.bonus_to || ""),
           bonus_op: toOptionalFilterValue(filters.bonus_op || ""),
