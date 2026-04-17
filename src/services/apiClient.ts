@@ -1,6 +1,6 @@
 import axios from "axios";
 import { AxiosRequestConfig } from "axios";
-import { clearSessionStore, getAccessToken, setAccessToken } from "./sessionStore";
+import { clearSessionStore, getAccessToken, getSessionUser, setAccessToken } from "./sessionStore";
 
 export const apiClient = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api/v1",
@@ -9,6 +9,19 @@ export const apiClient = axios.create({
 });
 
 let refreshPromise: Promise<string> | null = null;
+const DEFAULT_TIMEZONE = "Asia/Kolkata";
+
+function resolveClientTimeZone(): string {
+  const sessionTz = getSessionUser()?.timezone?.trim();
+  if (sessionTz) return sessionTz;
+  try {
+    const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone?.trim();
+    if (browserTz) return browserTz;
+  } catch {
+    // ignore and fallback
+  }
+  return DEFAULT_TIMEZONE;
+}
 
 function isAuthRoute(url?: string) {
   return Boolean(url?.includes("/auth/"));
@@ -36,6 +49,7 @@ apiClient.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  config.headers["X-User-Timezone"] = resolveClientTimeZone();
   return config;
 });
 

@@ -4,6 +4,7 @@ type SessionUser = {
   role: string;
   permissions?: string[];
   email?: string;
+  timezone?: string;
 };
 
 let accessToken: string | null = null;
