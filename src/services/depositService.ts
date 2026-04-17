@@ -173,7 +173,8 @@ export async function listDepositsNormalized(
   const page = Number(params.page) || 1;
   const limit = Number(params.limit) || 20;
   const sortBy =
-    (str(params, "sortBy") || "createdAt") as
+    (str(params, "sortBy") || "entryAt") as
+      | "entryAt"
       | "createdAt"
       | "amount"
       | "utr"
@@ -239,7 +240,8 @@ export async function exportDeposits(view: DepositView, params: Record<string, u
   const page = Number(params.page) || 1;
   const limit = Number(params.limit) || 20;
   const sortBy =
-    (str(params, "sortBy") || "createdAt") as
+    (str(params, "sortBy") || "entryAt") as
+      | "entryAt"
       | "createdAt"
       | "amount"
       | "utr"

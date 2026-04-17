@@ -139,12 +139,12 @@ function DepositDetailCard({ deposit }: { deposit: DepositRow }) {
     {
       icon: <IconClock className="size-4 shrink-0 text-[var(--brand-primary)]" />,
       label: "Due time",
-      value: formatRelative(deposit.createdAt),
+      value: formatRelative(deposit.entryAt ?? deposit.createdAt),
     },
     {
       icon: <IconClock className="size-4 shrink-0 text-gray-400" />,
-      label: "Created at",
-      value: formatDate(deposit.createdAt),
+      label: "Transaction at",
+      value: formatDate(deposit.entryAt ?? deposit.createdAt),
     },
   ];
 
@@ -530,7 +530,7 @@ export function DepositExchangeClient() {
         sortable: false,
         minWidth: 110,
         render: (row: DepositRow) => (
-          <span className="text-xs text-gray-500">{formatRelative(row.createdAt)}</span>
+          <span className="text-xs text-gray-500">{formatRelative(row.entryAt ?? row.createdAt)}</span>
         ),
       },
       {
@@ -552,7 +552,7 @@ export function DepositExchangeClient() {
       },
       {
         field: "createdAt",
-        label: "Created at",
+        label: "Transaction at",
         sortable: true,
         filterType: "date" as const,
         filterKey: "createdAt_from",
@@ -560,7 +560,7 @@ export function DepositExchangeClient() {
         operatorKey: "createdAt_op",
         ...tableColumnPresets.dateCol,
         render: (row: DepositRow) =>
-          row.createdAt ? new Date(row.createdAt).toLocaleString() : "—",
+          row.entryAt || row.createdAt ? new Date(row.entryAt ?? row.createdAt!).toLocaleString() : "—",
       },
       {
         field: "actions",

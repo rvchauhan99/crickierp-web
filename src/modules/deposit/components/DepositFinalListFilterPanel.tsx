@@ -78,7 +78,7 @@ const CHIP_LABELS: Partial<Record<DepositFinalFilterKey | "q", string>> = {
   totalAmount: "Total",
   player: "Player",
   createdBy: "Created by",
-  createdAt_from: "Created",
+  createdAt_from: "Transaction date",
 };
 
 /** Keys counted once for chips / count (skip bound fields counted with parent). */
@@ -303,7 +303,7 @@ export function DepositFinalListFilterPanel({
         continue;
       }
       if (key === "createdAt_from") {
-        if (local.createdAt_from?.trim() || local.createdAt_to?.trim()) labels.push("Created");
+        if (local.createdAt_from?.trim() || local.createdAt_to?.trim()) labels.push("Transaction date");
         continue;
       }
       const v = local[key]?.trim();
@@ -530,7 +530,7 @@ export function DepositFinalListFilterPanel({
           </div>
 
           <div className="space-y-1.5 sm:col-span-2 lg:col-span-2 xl:col-span-2">
-            <Label className="text-xs text-slate-600">Created at (from / to)</Label>
+            <Label className="text-xs text-slate-600">Transaction date (from / to)</Label>
             <div className="flex flex-wrap items-end gap-2">
               <div className="min-w-[140px] max-w-[220px] flex-1">
                 <DateField

@@ -371,10 +371,11 @@ export function WithdrawalFinalListClient() {
       },
       {
         field: "createdAt",
-        label: "Created at",
+        label: "Transaction at",
         sortable: true,
         ...tableColumnPresets.dateCol,
-        render: (row: WithdrawalRow) => (row.createdAt ? new Date(row.createdAt).toLocaleString() : "—"),
+        render: (row: WithdrawalRow) =>
+          row.requestedAt || row.createdAt ? new Date(row.requestedAt ?? row.createdAt!).toLocaleString() : "—",
       },
     ],
     [],

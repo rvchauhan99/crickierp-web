@@ -305,18 +305,19 @@ export function DepositBankerClient() {
         label: "Due time",
         sortable: false,
         minWidth: 120,
-        render: (row: DepositRow) => formatRelative(row.createdAt),
+        render: (row: DepositRow) => formatRelative(row.entryAt ?? row.createdAt),
       },
       {
         field: "createdAt",
-        label: "Created at",
+        label: "Transaction at",
         sortable: true,
         filterType: "date" as const,
         filterKey: "createdAt_from",
         filterKeyTo: "createdAt_to",
         operatorKey: "createdAt_op",
         ...tableColumnPresets.dateCol,
-        render: (row: DepositRow) => (row.createdAt ? new Date(row.createdAt).toLocaleString() : "—"),
+        render: (row: DepositRow) =>
+          row.entryAt || row.createdAt ? new Date(row.entryAt ?? row.createdAt!).toLocaleString() : "—",
       },
       {
         field: "actions",

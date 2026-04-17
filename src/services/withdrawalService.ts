@@ -169,7 +169,8 @@ export async function listWithdrawalsNormalized(
   const page = Number(params.page) || 1;
   const limit = Number(params.limit) || 20;
   const sortBy =
-    (str(params, "sortBy") || "createdAt") as
+    (str(params, "sortBy") || "requestedAt") as
+      | "requestedAt"
       | "createdAt"
       | "amount"
       | "payableAmount"

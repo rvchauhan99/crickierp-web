@@ -462,10 +462,11 @@ export function DepositFinalListClient() {
       },
       {
         field: "createdAt",
-        label: "Created at",
+        label: "Transaction at",
         sortable: true,
         ...tableColumnPresets.dateCol,
-        render: (row: DepositRow) => (row.createdAt ? new Date(row.createdAt).toLocaleString() : "—"),
+        render: (row: DepositRow) =>
+          row.entryAt || row.createdAt ? new Date(row.entryAt ?? row.createdAt!).toLocaleString() : "—",
       },
     ],
     [cachedUsers],

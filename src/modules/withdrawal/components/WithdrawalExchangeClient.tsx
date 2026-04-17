@@ -457,18 +457,19 @@ export function WithdrawalExchangeClient() {
         label: "Due time",
         sortable: false,
         minWidth: 110,
-        render: (row: WithdrawalRow) => formatRelative(row.createdAt),
+        render: (row: WithdrawalRow) => formatRelative(row.requestedAt ?? row.createdAt),
       },
       {
         field: "createdAt",
-        label: "Created at",
+        label: "Transaction at",
         sortable: true,
         filterType: "date" as const,
         filterKey: "createdAt_from",
         filterKeyTo: "createdAt_to",
         operatorKey: "createdAt_op",
         ...tableColumnPresets.dateCol,
-        render: (row: WithdrawalRow) => (row.createdAt ? new Date(row.createdAt).toLocaleString() : "—"),
+        render: (row: WithdrawalRow) =>
+          row.requestedAt || row.createdAt ? new Date(row.requestedAt ?? row.createdAt!).toLocaleString() : "—",
       },
       {
         field: "actions",
