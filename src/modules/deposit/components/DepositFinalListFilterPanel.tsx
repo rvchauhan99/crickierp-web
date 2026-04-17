@@ -62,17 +62,23 @@ const STATUS_OPTIONS = [
   { label: "Finalized", value: "finalized" },
 ];
 
+const HAS_AMENDMENT_OPTIONS = [
+  { label: "Has amendments", value: "yes" },
+  { label: "No amendments", value: "no" },
+];
+
 const CHIP_LABELS: Partial<Record<DepositFinalFilterKey | "q", string>> = {
   q: "Search",
   utr: "UTR",
   bankName: "Bank name",
   bankId: "Bank account",
   status: "Status",
+  hasAmendment: "Amendments",
   amount: "Amount",
   totalAmount: "Total",
   player: "Player",
   createdBy: "Created by",
-  createdAt_from: "Created",
+  createdAt_from: "Transaction date",
 };
 
 /** Keys counted once for chips / count (skip bound fields counted with parent). */
@@ -239,6 +245,7 @@ export function DepositFinalListFilterPanel({
       ...textOps,
       bankId: local.bankId,
       status: local.status,
+      hasAmendment: local.hasAmendment,
       ...buildAmountApiParams(local.amount, local.amount_to),
       ...buildTotalAmountApiParams(local.totalAmount, local.totalAmount_to),
       player: local.player,
@@ -296,7 +303,7 @@ export function DepositFinalListFilterPanel({
         continue;
       }
       if (key === "createdAt_from") {
-        if (local.createdAt_from?.trim() || local.createdAt_to?.trim()) labels.push("Created");
+        if (local.createdAt_from?.trim() || local.createdAt_to?.trim()) labels.push("Transaction date");
         continue;
       }
       const v = local[key]?.trim();
@@ -429,6 +436,28 @@ export function DepositFinalListFilterPanel({
           </div>
 
           <div className="space-y-1.5">
+            <Label className="text-xs text-slate-600">Amendments</Label>
+            <Select
+              value={local.hasAmendment || "__all__"}
+              onValueChange={(v: string) => handleChange("hasAmendment", v === "__all__" ? "" : v)}
+            >
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue placeholder="All" />
+              </SelectTrigger>
+              <SelectContent className="">
+                <SelectItem value="__all__" className="text-sm">
+                  All
+                </SelectItem>
+                {HAS_AMENDMENT_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value} className="text-sm">
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
             <Label className="text-xs text-slate-600">Amount (from / to)</Label>
             <div className="flex flex-wrap gap-2">
               <Input
@@ -501,7 +530,7 @@ export function DepositFinalListFilterPanel({
           </div>
 
           <div className="space-y-1.5 sm:col-span-2 lg:col-span-2 xl:col-span-2">
-            <Label className="text-xs text-slate-600">Created at (from / to)</Label>
+            <Label className="text-xs text-slate-600">Transaction date (from / to)</Label>
             <div className="flex flex-wrap items-end gap-2">
               <div className="min-w-[140px] max-w-[220px] flex-1">
                 <DateField

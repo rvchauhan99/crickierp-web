@@ -1,5 +1,12 @@
 import { apiClient } from "./apiClient";
-import type { WithdrawalCreateInput, WithdrawalRow, WithdrawalView, SavedWithdrawalAccount } from "@/types/withdrawal";
+import type {
+  SavedWithdrawalAccount,
+  WithdrawalAmendInput,
+  WithdrawalAmendmentEntry,
+  WithdrawalCreateInput,
+  WithdrawalRow,
+  WithdrawalView,
+} from "@/types/withdrawal";
 
 function toOptionalParam(value: unknown): string | undefined {
   if (value === null || value === undefined) return undefined;
@@ -28,13 +35,44 @@ function parseUserRef(user: unknown): { id?: string; label?: string } {
   return { id, label };
 }
 
-function normalizeWithdrawal(row: Record<string, unknown>): WithdrawalRow {
+export function normalizeWithdrawal(row: Record<string, unknown>): WithdrawalRow {
   const id = String(row._id ?? row.id ?? "");
   const st = row.status;
   const status: WithdrawalRow["status"] =
     st === "requested" || st === "approved" || st === "rejected" || st === "finalized" ? st : "requested";
   const createdByRef = parseUserRef(row.createdBy);
   const approvedByRef = parseUserRef(row.approvedBy);
+  const lastAmendedByRef = parseUserRef(row.lastAmendedBy);
+  const rawHistory = row.amendmentHistory;
+  let amendmentHistory: WithdrawalAmendmentEntry[] | undefined;
+  if (Array.isArray(rawHistory)) {
+    amendmentHistory = rawHistory.map((entry) => {
+      const e = entry as Record<string, unknown>;
+      const oldSnap = (e.old as Record<string, unknown>) ?? {};
+      const newSnap = (e.new as Record<string, unknown>) ?? {};
+      return {
+        at: e.at != null ? String(e.at) : "",
+        by: e.by,
+        reason: e.reason != null ? String(e.reason) : "",
+        old: {
+          amount: oldSnap.amount != null ? Number(oldSnap.amount) : undefined,
+          reverseBonus: oldSnap.reverseBonus != null ? Number(oldSnap.reverseBonus) : undefined,
+          payableAmount: oldSnap.payableAmount != null ? Number(oldSnap.payableAmount) : undefined,
+          payoutBankId: oldSnap.payoutBankId != null ? String(oldSnap.payoutBankId) : undefined,
+          payoutBankName: oldSnap.payoutBankName != null ? String(oldSnap.payoutBankName) : undefined,
+          utr: oldSnap.utr != null ? String(oldSnap.utr) : undefined,
+        },
+        new: {
+          amount: newSnap.amount != null ? Number(newSnap.amount) : undefined,
+          reverseBonus: newSnap.reverseBonus != null ? Number(newSnap.reverseBonus) : undefined,
+          payableAmount: newSnap.payableAmount != null ? Number(newSnap.payableAmount) : undefined,
+          payoutBankId: newSnap.payoutBankId != null ? String(newSnap.payoutBankId) : undefined,
+          payoutBankName: newSnap.payoutBankName != null ? String(newSnap.payoutBankName) : undefined,
+          utr: newSnap.utr != null ? String(newSnap.utr) : undefined,
+        },
+      };
+    });
+  }
 
   return {
     _id: id,
@@ -56,6 +94,7 @@ function normalizeWithdrawal(row: Record<string, unknown>): WithdrawalRow {
           : undefined,
     payoutBankName: row.payoutBankName != null ? String(row.payoutBankName) : undefined,
     utr: row.utr != null ? String(row.utr) : undefined,
+    requestedAt: row.requestedAt != null ? String(row.requestedAt) : undefined,
     status,
     createdAt: row.createdAt != null ? String(row.createdAt) : undefined,
     updatedAt: row.updatedAt != null ? String(row.updatedAt) : undefined,
@@ -65,6 +104,12 @@ function normalizeWithdrawal(row: Record<string, unknown>): WithdrawalRow {
     approvedBy: approvedByRef.id,
     approvedByName:
       row.approvedByName != null ? String(row.approvedByName) : approvedByRef.label,
+    amendmentCount: row.amendmentCount != null ? Number(row.amendmentCount) : undefined,
+    lastAmendedAt: row.lastAmendedAt != null ? String(row.lastAmendedAt) : undefined,
+    lastAmendedBy: row.lastAmendedBy,
+    lastAmendedByName:
+      row.lastAmendedByName != null ? String(row.lastAmendedByName) : lastAmendedByRef.label,
+    amendmentHistory,
   };
 }
 
@@ -74,8 +119,20 @@ function str(params: Record<string, unknown>, key: string): string {
   return String(v);
 }
 
+function normalizeDateTimeInput(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return undefined;
+  return parsed.toISOString();
+}
+
 export async function createWithdrawal(input: WithdrawalCreateInput): Promise<unknown> {
-  const response = await apiClient.post<{ success: boolean; data: unknown }>("/withdrawal", input);
+  const response = await apiClient.post<{ success: boolean; data: unknown }>("/withdrawal", {
+    ...input,
+    requestedAt: normalizeDateTimeInput(input.requestedAt),
+  });
   return response.data?.data;
 }
 
@@ -86,7 +143,10 @@ export async function updateWithdrawal(id: string, input: Partial<WithdrawalCrea
 
 export async function exportWithdrawals(params: Record<string, unknown>): Promise<Blob> {
   const response = await apiClient.get("/withdrawal/export", {
-    params,
+    params: {
+      ...params,
+      hasAmendment: toOptionalParam(str(params, "hasAmendment")) as "yes" | "no" | undefined,
+    },
     responseType: "blob",
   });
   return response.data;
@@ -109,7 +169,8 @@ export async function listWithdrawalsNormalized(
   const page = Number(params.page) || 1;
   const limit = Number(params.limit) || 20;
   const sortBy =
-    (str(params, "sortBy") || "createdAt") as
+    (str(params, "sortBy") || "requestedAt") as
+      | "requestedAt"
       | "createdAt"
       | "amount"
       | "payableAmount"
@@ -154,6 +215,7 @@ export async function listWithdrawalsNormalized(
       createdAt_op: toOptionalParam(str(params, "createdAt_op")),
       createdBy: toOptionalParam(str(params, "createdBy")),
       approvedBy: toOptionalParam(str(params, "approvedBy")),
+      hasAmendment: toOptionalParam(str(params, "hasAmendment")) as "yes" | "no" | undefined,
     },
   });
 
@@ -192,4 +254,17 @@ export async function listSavedAccountsForPlayer(playerId: string): Promise<Save
   );
   const data = response.data?.data;
   return Array.isArray(data) ? data : [];
+}
+
+export async function amendWithdrawal(id: string, body: WithdrawalAmendInput): Promise<unknown> {
+  const response = await apiClient.post<{ success: boolean; data: unknown }>(`/withdrawal/${id}/amend`, {
+    ...body,
+    requestedAt: normalizeDateTimeInput(body.requestedAt),
+  });
+  return response.data?.data;
+}
+
+export async function deleteWithdrawal(id: string): Promise<unknown> {
+  const response = await apiClient.delete<{ success: boolean; data: unknown }>(`/withdrawal/${id}`);
+  return response.data?.data;
 }

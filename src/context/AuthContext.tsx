@@ -16,6 +16,7 @@ type AuthUser = {
   role: string;
   permissions?: string[];
   email?: string;
+  timezone?: string;
 };
 
 type AuthContextValue = {

@@ -95,6 +95,12 @@ function formatRelative(iso?: string): string {
   return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
+function getCurrentDateTimeLocal(): string {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+
 export function WithdrawalExchangeClient() {
   const listingState = useListingQueryStateReference({
     defaultLimit: 20,
@@ -110,6 +116,7 @@ export function WithdrawalExchangeClient() {
   const [ifsc, setIfsc] = useState("");
   const [amount, setAmount] = useState("");
   const [reverseBonus, setReverseBonus] = useState("0");
+  const [requestedAt, setRequestedAt] = useState(getCurrentDateTimeLocal());
   const [savedPreset, setSavedPreset] = useState("");
   const [savedRows, setSavedRows] = useState<SavedWithdrawalAccount[]>([]);
   const [loading, setLoading] = useState(false);
@@ -230,6 +237,7 @@ export function WithdrawalExchangeClient() {
           ifsc: ifsc.trim(),
           amount: amt,
           reverseBonus: Number.isNaN(rb) || rb < 0 ? 0 : rb,
+          requestedAt,
         });
         toast.success("Withdrawal requested successfully.");
       }
@@ -240,6 +248,7 @@ export function WithdrawalExchangeClient() {
       setIfsc("");
       setAmount("");
       setReverseBonus("0");
+      setRequestedAt(getCurrentDateTimeLocal());
       setSavedPreset("");
       setErrors({});
       setTableKey((k) => k + 1);
@@ -274,6 +283,7 @@ export function WithdrawalExchangeClient() {
     setIfsc("");
     setAmount("");
     setReverseBonus("0");
+    setRequestedAt(getCurrentDateTimeLocal());
     setSavedPreset("");
     setEditingId(null);
     setErrors({});
@@ -447,18 +457,19 @@ export function WithdrawalExchangeClient() {
         label: "Due time",
         sortable: false,
         minWidth: 110,
-        render: (row: WithdrawalRow) => formatRelative(row.createdAt),
+        render: (row: WithdrawalRow) => formatRelative(row.requestedAt ?? row.createdAt),
       },
       {
         field: "createdAt",
-        label: "Created at",
+        label: "Transaction at",
         sortable: true,
         filterType: "date" as const,
         filterKey: "createdAt_from",
         filterKeyTo: "createdAt_to",
         operatorKey: "createdAt_op",
         ...tableColumnPresets.dateCol,
-        render: (row: WithdrawalRow) => (row.createdAt ? new Date(row.createdAt).toLocaleString() : "—"),
+        render: (row: WithdrawalRow) =>
+          row.requestedAt || row.createdAt ? new Date(row.requestedAt ?? row.createdAt!).toLocaleString() : "—",
       },
       {
         field: "actions",
@@ -593,6 +604,10 @@ export function WithdrawalExchangeClient() {
             <div>
               <FieldLabel>Payable amount</FieldLabel>
               <Input readOnly value={payablePreview ? String(payablePreview) : "0"} className="bg-slate-50" />
+            </div>
+            <div>
+              <FieldLabel>Request date & time *</FieldLabel>
+              <Input type="datetime-local" value={requestedAt} onChange={(e) => setRequestedAt(e.target.value)} />
             </div>
           </FormGrid>
           <FormActions className="justify-between px-5 py-4">

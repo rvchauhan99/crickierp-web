@@ -66,6 +66,12 @@ function formatRelative(iso?: string): string {
   return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
+function getCurrentDateTimeLocal(): string {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+
 export function DepositBankerClient() {
   const listingState = useListingQueryStateReference({
     defaultLimit: 20,
@@ -84,6 +90,7 @@ export function DepositBankerClient() {
   }, [bankId]);
   const [utr, setUtr] = useState("");
   const [amount, setAmount] = useState("");
+  const [entryAt, setEntryAt] = useState(getCurrentDateTimeLocal());
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ bankId?: string; utr?: string; amount?: string }>({});
   const [totalCount, setTotalCount] = useState(0);
@@ -124,10 +131,16 @@ export function DepositBankerClient() {
 
     setLoading(true);
     try {
-      await createDeposit({ bankId: bankId.trim(), utr: utr.trim(), amount: amt });
+      await createDeposit({
+        bankId: bankId.trim(),
+        utr: utr.trim(),
+        amount: amt,
+        entryAt,
+      });
       toast.success("Deposit recorded successfully.");
       setUtr("");
       setAmount("");
+      setEntryAt(getCurrentDateTimeLocal());
       setErrors({});
       setTableKey((k) => k + 1);
     } catch (error: unknown) {
@@ -142,6 +155,7 @@ export function DepositBankerClient() {
     setBankAutocompleteDefault(null);
     setUtr("");
     setAmount("");
+    setEntryAt(getCurrentDateTimeLocal());
     setErrors({});
   };
 
@@ -291,18 +305,19 @@ export function DepositBankerClient() {
         label: "Due time",
         sortable: false,
         minWidth: 120,
-        render: (row: DepositRow) => formatRelative(row.createdAt),
+        render: (row: DepositRow) => formatRelative(row.entryAt ?? row.createdAt),
       },
       {
         field: "createdAt",
-        label: "Created at",
+        label: "Transaction at",
         sortable: true,
         filterType: "date" as const,
         filterKey: "createdAt_from",
         filterKeyTo: "createdAt_to",
         operatorKey: "createdAt_op",
         ...tableColumnPresets.dateCol,
-        render: (row: DepositRow) => (row.createdAt ? new Date(row.createdAt).toLocaleString() : "—"),
+        render: (row: DepositRow) =>
+          row.entryAt || row.createdAt ? new Date(row.entryAt ?? row.createdAt!).toLocaleString() : "—",
       },
       {
         field: "actions",
@@ -373,6 +388,10 @@ export function DepositBankerClient() {
               onChange={(e) => setAmount(e.target.value)}
             />
             <FieldError message={errors.amount} />
+          </div>
+          <div>
+            <FieldLabel>Entry date & time *</FieldLabel>
+            <Input type="datetime-local" value={entryAt} onChange={(e) => setEntryAt(e.target.value)} />
           </div>
         </FormGrid>
         <FormActions className="justify-between px-5 py-4">

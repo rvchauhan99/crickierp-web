@@ -1,5 +1,5 @@
 import { apiClient } from "./apiClient";
-import type { RejectionReasonType } from "@/lib/constants/reasonTypes";
+import type { ReasonType } from "@/lib/constants/reasonTypes";
 
 export type ReasonOption = {
   id: string;
@@ -7,7 +7,7 @@ export type ReasonOption = {
   reasonType: string;
 };
 
-export async function listReasonOptions(reasonType: RejectionReasonType): Promise<ReasonOption[]> {
+export async function listReasonOptions(reasonType: ReasonType): Promise<ReasonOption[]> {
   const res = await apiClient.get<{ success: boolean; data: ReasonOption[] }>("/reasons/options", {
     params: { reasonType, limit: 200 },
   });

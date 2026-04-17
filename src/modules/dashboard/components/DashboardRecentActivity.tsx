@@ -3,6 +3,7 @@
 import React from "react";
 import { IconArrowUpRight, IconArrowDownRight, IconClock } from "@tabler/icons-react";
 import { cn } from "@/lib/cn";
+import { formatDashboardCurrency } from "../utils/formatCurrency";
 
 export type RecentActivityItem = {
   _id: string;
@@ -19,12 +20,6 @@ export type RecentActivityItem = {
 interface Props {
   items: RecentActivityItem[];
   loading?: boolean;
-}
-
-function formatAmount(value: number) {
-  if (value >= 10_00_000) return `₹${(value / 10_00_000).toFixed(2)}L`;
-  if (value >= 1000) return `₹${(value / 1000).toFixed(1)}K`;
-  return `₹${value}`;
 }
 
 function formatTime(createdAt: unknown): string {
@@ -161,7 +156,7 @@ export function DashboardRecentActivity({ items, loading }: Props) {
                           isDeposit ? "text-emerald-700" : "text-rose-700",
                         )}
                       >
-                        {isDeposit ? "+" : "−"}{formatAmount(item.amount)}
+                        {isDeposit ? "+" : "−"}{formatDashboardCurrency(item.amount, { includeSign: false })}
                       </span>
                     </td>
 

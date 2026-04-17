@@ -423,7 +423,7 @@ export function WithdrawalBankerClient() {
         sortable: false,
         minWidth: 110,
         render: (row: WithdrawalRow) => (
-          <span className="text-xs text-gray-500">{formatRelative(row.createdAt)}</span>
+          <span className="text-xs text-gray-500">{formatRelative(row.requestedAt ?? row.createdAt)}</span>
         ),
       },
       {
@@ -435,7 +435,8 @@ export function WithdrawalBankerClient() {
         filterKeyTo: "createdAt_to",
         operatorKey: "createdAt_op",
         ...tableColumnPresets.dateCol,
-        render: (row: WithdrawalRow) => (row.createdAt ? new Date(row.createdAt).toLocaleString() : "—"),
+        render: (row: WithdrawalRow) =>
+          row.requestedAt || row.createdAt ? new Date(row.requestedAt ?? row.createdAt!).toLocaleString() : "—",
       },
       {
         field: "actions",

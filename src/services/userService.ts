@@ -7,6 +7,7 @@ export type CreateUserPayload = {
   password: string;
   role: "admin" | "sub_admin";
   permissions: string[];
+  timezone?: string;
 };
 
 export const userService = {

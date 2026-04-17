@@ -12,19 +12,11 @@ import {
 } from "@tabler/icons-react";
 import { cn } from "@/lib/cn";
 import { type DashboardSummary } from "./DashboardKPIs";
+import { formatDashboardCurrency } from "../utils/formatCurrency";
 
 interface Props {
   exchangesBreakdown: DashboardSummary["exchangesBreakdown"];
   loading?: boolean;
-}
-
-function formatAmount(value: number) {
-  const abs = Math.abs(value);
-  let formatted: string;
-  if (abs >= 10_00_000) formatted = `₹${(abs / 10_00_000).toFixed(2)}L`;
-  else if (abs >= 1000) formatted = `₹${(abs / 1000).toFixed(1)}K`;
-  else formatted = `₹${abs.toLocaleString("en-IN")}`;
-  return value < 0 ? `−${formatted}` : formatted;
 }
 
 export function DashboardExchangeSummary({ exchangesBreakdown, loading = false }: Props) {
@@ -65,7 +57,7 @@ export function DashboardExchangeSummary({ exchangesBreakdown, loading = false }
                   ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                   : "bg-rose-50 text-rose-700 border-rose-200"
               )}>
-                P&L {formatAmount(ex.netPL)}
+                P&L {formatDashboardCurrency(ex.netPL)}
               </div>
             </div>
 
@@ -74,7 +66,7 @@ export function DashboardExchangeSummary({ exchangesBreakdown, loading = false }
               {/* Deposit */}
               <div className="space-y-1">
                 <p className="text-[10px] uppercase font-semibold text-slate-500 tracking-wider">Deposits</p>
-                <p className="text-base font-bold text-slate-900">{formatAmount(ex.depositVerified)}</p>
+                <p className="text-base font-bold text-slate-900">{formatDashboardCurrency(ex.depositVerified)}</p>
                 <div className="flex items-center text-[10px] text-emerald-600">
                   <IconArrowUpRight className="w-3 h-3 mr-0.5" />
                   Verified
@@ -84,7 +76,7 @@ export function DashboardExchangeSummary({ exchangesBreakdown, loading = false }
               {/* Withdrawal */}
               <div className="space-y-1">
                 <p className="text-[10px] uppercase font-semibold text-slate-500 tracking-wider">Withdrawals</p>
-                <p className="text-base font-bold text-slate-900">{formatAmount(ex.withdrawalApproved)}</p>
+                <p className="text-base font-bold text-slate-900">{formatDashboardCurrency(ex.withdrawalApproved)}</p>
                 <div className="flex items-center text-[10px] text-rose-600">
                   <IconArrowDownRight className="w-3 h-3 mr-0.5" />
                   Approved
@@ -94,10 +86,10 @@ export function DashboardExchangeSummary({ exchangesBreakdown, loading = false }
               {/* Net Bonus */}
               <div className="space-y-1">
                 <p className="text-[10px] uppercase font-semibold text-slate-500 tracking-wider">Net Bonus</p>
-                <p className="text-base font-bold text-amber-700">{formatAmount(ex.netBonus)}</p>
+                <p className="text-base font-bold text-amber-700">{formatDashboardCurrency(ex.netBonus)}</p>
                 <div className="flex flex-col text-[10px] text-slate-500 leading-tight">
-                  <span>+{formatAmount(ex.bonusGiven)} D</span>
-                  <span>−{formatAmount(ex.bonusRecovered)} W</span>
+                  <span>+{formatDashboardCurrency(ex.bonusGiven, { includeSign: false })} D</span>
+                  <span>−{formatDashboardCurrency(ex.bonusRecovered, { includeSign: false })} W</span>
                 </div>
               </div>
 
@@ -108,7 +100,7 @@ export function DashboardExchangeSummary({ exchangesBreakdown, loading = false }
                   "text-base font-bold",
                   ex.netPL >= 0 ? "text-emerald-600" : "text-rose-600"
                 )}>
-                  {formatAmount(ex.netPL)}
+                  {formatDashboardCurrency(ex.netPL)}
                 </p>
                 <div className={cn(
                   "flex items-center text-[10px]",
@@ -135,7 +127,7 @@ export function DashboardExchangeSummary({ exchangesBreakdown, loading = false }
               {/* First-Time Deposit Today */}
               <div className="space-y-1">
                 <p className="text-[10px] uppercase font-semibold text-slate-500 tracking-wider">1st Deposit</p>
-                <p className="text-base font-bold text-emerald-700">{formatAmount(ex.firstTimeDepositAmountToday)}</p>
+                <p className="text-base font-bold text-emerald-700">{formatDashboardCurrency(ex.firstTimeDepositAmountToday)}</p>
                 <div className="flex items-center text-[10px] text-emerald-600">
                   <IconCash className="w-3 h-3 mr-0.5" />
                   Today (IST)

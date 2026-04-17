@@ -19,6 +19,7 @@ import { DashboardTrendChart, type TrendDataPoint } from "./DashboardTrendChart"
 import { DashboardPLDonut } from "./DashboardPLDonut";
 import { DashboardRecentActivity, type RecentActivityItem } from "./DashboardRecentActivity";
 import { DashboardExchangeSummary } from "./DashboardExchangeSummary";
+import { DashboardBankSummary } from "./DashboardBankSummary";
 import { reportService } from "@/services/reportService";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/Button";
@@ -107,6 +108,7 @@ export function DashboardContent() {
         users: data.users ?? { total: 0 },
         todayMetrics: data.todayMetrics ?? { newPlayersToday: 0, firstTimeDepositAmountToday: 0 },
         exchangesBreakdown: Array.isArray(data.exchangesBreakdown) ? data.exchangesBreakdown : [],
+        banksBreakdown: Array.isArray(data.banksBreakdown) ? data.banksBreakdown : [],
       });
       setTrendData(Array.isArray(data.trendData) ? data.trendData : []);
       setRecentActivity(Array.isArray(data.recentActivity) ? data.recentActivity : []);
@@ -283,6 +285,9 @@ export function DashboardContent() {
 
       {/* ───── Exchange Breakdowns ───── */}
       <DashboardExchangeSummary exchangesBreakdown={summary?.exchangesBreakdown} loading={loading} />
+
+      {/* ───── Bank Wise Summary ───── */}
+      <DashboardBankSummary banksBreakdown={summary?.banksBreakdown} loading={loading} />
 
       {/* ───── Charts Row ───── */}
       <div className="grid grid-cols-12 gap-4">

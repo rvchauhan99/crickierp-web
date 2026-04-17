@@ -1,5 +1,11 @@
 import { apiClient } from "./apiClient";
-import type { DepositCreateInput, DepositRow, DepositView } from "@/types/deposit";
+import type {
+  DepositAmendInput,
+  DepositAmendmentEntry,
+  DepositCreateInput,
+  DepositRow,
+  DepositView,
+} from "@/types/deposit";
 
 function toOptionalParam(value: unknown): string | undefined {
   if (value === null || value === undefined) return undefined;
@@ -20,7 +26,7 @@ function parseAuditUser(value: unknown): { id?: string; name?: string } {
   return { id, name };
 }
 
-function normalizeDeposit(row: Record<string, unknown>): DepositRow {
+export function normalizeDeposit(row: Record<string, unknown>): DepositRow {
   const id = String(row._id ?? row.id ?? "");
   const createdByUser = parseAuditUser(row.createdBy);
   const exchangeBy = parseAuditUser(row.exchangeActionBy);
@@ -32,6 +38,11 @@ function normalizeDeposit(row: Record<string, unknown>): DepositRow {
   const player = row.player as Record<string, unknown> | undefined;
   const playerIdLabel =
     player && player.playerId != null ? String(player.playerId) : undefined;
+  const playerMongoId = (() => {
+    if (!player) return undefined;
+    const raw = player._id ?? player.id;
+    return raw != null ? String(raw) : undefined;
+  })();
 
   const bankPop = row.bankId as Record<string, unknown> | undefined;
   let bankName = String(row.bankName ?? "").trim();
@@ -43,6 +54,42 @@ function normalizeDeposit(row: Record<string, unknown>): DepositRow {
   const st = row.status;
   const status: DepositRow["status"] =
     st === "verified" || st === "rejected" || st === "finalized" || st === "pending" ? st : "pending";
+
+  const lastAmendedByUser = parseAuditUser(row.lastAmendedBy);
+  const lastAmendedByName = toOptionalParam(lastAmendedByUser.name);
+
+  const rawHistory = row.amendmentHistory;
+  let amendmentHistory: DepositAmendmentEntry[] | undefined;
+  if (Array.isArray(rawHistory)) {
+    amendmentHistory = rawHistory.map((entry) => {
+      const e = entry as Record<string, unknown>;
+      const oldSnap = (e.old as Record<string, unknown>) ?? {};
+      const newSnap = (e.new as Record<string, unknown>) ?? {};
+      return {
+        at: e.at != null ? String(e.at) : "",
+        by: e.by,
+        reason: e.reason != null ? String(e.reason) : "",
+        old: {
+          bankId: oldSnap.bankId != null ? String(oldSnap.bankId) : undefined,
+          bankName: oldSnap.bankName != null ? String(oldSnap.bankName) : undefined,
+          utr: oldSnap.utr != null ? String(oldSnap.utr) : undefined,
+          amount: oldSnap.amount != null ? Number(oldSnap.amount) : undefined,
+          playerId: oldSnap.playerId != null ? String(oldSnap.playerId) : undefined,
+          bonusAmount: oldSnap.bonusAmount != null ? Number(oldSnap.bonusAmount) : undefined,
+          totalAmount: oldSnap.totalAmount != null ? Number(oldSnap.totalAmount) : undefined,
+        },
+        new: {
+          bankId: newSnap.bankId != null ? String(newSnap.bankId) : undefined,
+          bankName: newSnap.bankName != null ? String(newSnap.bankName) : undefined,
+          utr: newSnap.utr != null ? String(newSnap.utr) : undefined,
+          amount: newSnap.amount != null ? Number(newSnap.amount) : undefined,
+          playerId: newSnap.playerId != null ? String(newSnap.playerId) : undefined,
+          bonusAmount: newSnap.bonusAmount != null ? Number(newSnap.bonusAmount) : undefined,
+          totalAmount: newSnap.totalAmount != null ? Number(newSnap.totalAmount) : undefined,
+        },
+      };
+    });
+  }
 
   return {
     _id: id,
@@ -63,6 +110,7 @@ function normalizeDeposit(row: Record<string, unknown>): DepositRow {
     bankId_populated: row.bankId,
     player: row.player,
     playerIdLabel,
+    playerMongoId,
     bonusAmount: row.bonusAmount != null ? Number(row.bonusAmount) : undefined,
     totalAmount: row.totalAmount != null ? Number(row.totalAmount) : undefined,
     rejectReason: row.rejectReason != null ? String(row.rejectReason) : undefined,
@@ -70,7 +118,13 @@ function normalizeDeposit(row: Record<string, unknown>): DepositRow {
     exchangeActionByName,
     exchangeActionAt: row.exchangeActionAt != null ? String(row.exchangeActionAt) : undefined,
     bankBalanceAfter: row.bankBalanceAfter != null ? Number(row.bankBalanceAfter) : undefined,
+    entryAt: row.entryAt != null ? String(row.entryAt) : undefined,
     settledAt: row.settledAt != null ? String(row.settledAt) : undefined,
+    amendmentCount: row.amendmentCount != null ? Number(row.amendmentCount) : undefined,
+    lastAmendedAt: row.lastAmendedAt != null ? String(row.lastAmendedAt) : undefined,
+    lastAmendedBy: row.lastAmendedBy,
+    lastAmendedByName,
+    amendmentHistory,
   };
 }
 
@@ -80,8 +134,20 @@ function str(params: Record<string, unknown>, key: string): string {
   return String(v);
 }
 
+function normalizeDateTimeInput(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return undefined;
+  return parsed.toISOString();
+}
+
 export async function createDeposit(input: DepositCreateInput): Promise<unknown> {
-  const response = await apiClient.post<{ success: boolean; data: unknown }>("/deposit", input);
+  const response = await apiClient.post<{ success: boolean; data: unknown }>("/deposit", {
+    ...input,
+    entryAt: normalizeDateTimeInput(input.entryAt),
+  });
   return response.data?.data;
 }
 
@@ -107,7 +173,8 @@ export async function listDepositsNormalized(
   const page = Number(params.page) || 1;
   const limit = Number(params.limit) || 20;
   const sortBy =
-    (str(params, "sortBy") || "createdAt") as
+    (str(params, "sortBy") || "entryAt") as
+      | "entryAt"
       | "createdAt"
       | "amount"
       | "utr"
@@ -151,6 +218,7 @@ export async function listDepositsNormalized(
       createdAt_from: toOptionalParam(str(params, "createdAt_from")),
       createdAt_to: toOptionalParam(str(params, "createdAt_to")),
       createdAt_op: toOptionalParam(str(params, "createdAt_op")),
+      hasAmendment: toOptionalParam(str(params, "hasAmendment")) as "yes" | "no" | undefined,
     },
   });
 
@@ -172,7 +240,8 @@ export async function exportDeposits(view: DepositView, params: Record<string, u
   const page = Number(params.page) || 1;
   const limit = Number(params.limit) || 20;
   const sortBy =
-    (str(params, "sortBy") || "createdAt") as
+    (str(params, "sortBy") || "entryAt") as
+      | "entryAt"
       | "createdAt"
       | "amount"
       | "utr"
@@ -207,6 +276,7 @@ export async function exportDeposits(view: DepositView, params: Record<string, u
       createdAt_from: toOptionalParam(str(params, "createdAt_from")),
       createdAt_to: toOptionalParam(str(params, "createdAt_to")),
       createdAt_op: toOptionalParam(str(params, "createdAt_op")),
+      hasAmendment: toOptionalParam(str(params, "hasAmendment")) as "yes" | "no" | undefined,
     },
     responseType: "blob",
   });
@@ -229,5 +299,21 @@ export async function exchangeActionReject(
     `/deposit/${depositId}/exchange-action`,
     { action: "reject", reasonId: input.reasonId, remark: input.remark },
   );
+  return response.data?.data;
+}
+
+export async function amendDeposit(depositId: string, input: DepositAmendInput): Promise<unknown> {
+  const response = await apiClient.post<{ success: boolean; data: unknown }>(
+    `/deposit/${depositId}/amend`,
+    {
+      ...input,
+      entryAt: normalizeDateTimeInput(input.entryAt),
+    },
+  );
+  return response.data?.data;
+}
+
+export async function deleteDeposit(depositId: string): Promise<unknown> {
+  const response = await apiClient.delete<{ success: boolean; data: unknown }>(`/deposit/${depositId}`);
   return response.data?.data;
 }
