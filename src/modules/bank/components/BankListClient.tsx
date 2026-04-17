@@ -240,6 +240,14 @@ export function BankListClient() {
         defaultFilterOperator: "equals",
       },
       {
+        field: "closingBalanceActual",
+        label: "Closing Balance",
+        render: (row: BankRow) =>
+          row.closingBalanceActual ?? row.currentBalance ?? row.openingBalance,
+        sortable: false,
+        minWidth: 150,
+      },
+      {
         field: "status",
         label: "Status",
         filterType: "select" as const,
