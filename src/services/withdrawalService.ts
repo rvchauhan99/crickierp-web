@@ -94,6 +94,7 @@ export function normalizeWithdrawal(row: Record<string, unknown>): WithdrawalRow
           : undefined,
     payoutBankName: row.payoutBankName != null ? String(row.payoutBankName) : undefined,
     utr: row.utr != null ? String(row.utr) : undefined,
+    requestedAt: row.requestedAt != null ? String(row.requestedAt) : undefined,
     status,
     createdAt: row.createdAt != null ? String(row.createdAt) : undefined,
     updatedAt: row.updatedAt != null ? String(row.updatedAt) : undefined,
@@ -118,8 +119,20 @@ function str(params: Record<string, unknown>, key: string): string {
   return String(v);
 }
 
+function normalizeDateTimeInput(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return undefined;
+  return parsed.toISOString();
+}
+
 export async function createWithdrawal(input: WithdrawalCreateInput): Promise<unknown> {
-  const response = await apiClient.post<{ success: boolean; data: unknown }>("/withdrawal", input);
+  const response = await apiClient.post<{ success: boolean; data: unknown }>("/withdrawal", {
+    ...input,
+    requestedAt: normalizeDateTimeInput(input.requestedAt),
+  });
   return response.data?.data;
 }
 
@@ -243,6 +256,14 @@ export async function listSavedAccountsForPlayer(playerId: string): Promise<Save
 }
 
 export async function amendWithdrawal(id: string, body: WithdrawalAmendInput): Promise<unknown> {
-  const response = await apiClient.post<{ success: boolean; data: unknown }>(`/withdrawal/${id}/amend`, body);
+  const response = await apiClient.post<{ success: boolean; data: unknown }>(`/withdrawal/${id}/amend`, {
+    ...body,
+    requestedAt: normalizeDateTimeInput(body.requestedAt),
+  });
+  return response.data?.data;
+}
+
+export async function deleteWithdrawal(id: string): Promise<unknown> {
+  const response = await apiClient.delete<{ success: boolean; data: unknown }>(`/withdrawal/${id}`);
   return response.data?.data;
 }

@@ -118,6 +118,7 @@ export function normalizeDeposit(row: Record<string, unknown>): DepositRow {
     exchangeActionByName,
     exchangeActionAt: row.exchangeActionAt != null ? String(row.exchangeActionAt) : undefined,
     bankBalanceAfter: row.bankBalanceAfter != null ? Number(row.bankBalanceAfter) : undefined,
+    entryAt: row.entryAt != null ? String(row.entryAt) : undefined,
     settledAt: row.settledAt != null ? String(row.settledAt) : undefined,
     amendmentCount: row.amendmentCount != null ? Number(row.amendmentCount) : undefined,
     lastAmendedAt: row.lastAmendedAt != null ? String(row.lastAmendedAt) : undefined,
@@ -133,8 +134,20 @@ function str(params: Record<string, unknown>, key: string): string {
   return String(v);
 }
 
+function normalizeDateTimeInput(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return undefined;
+  return parsed.toISOString();
+}
+
 export async function createDeposit(input: DepositCreateInput): Promise<unknown> {
-  const response = await apiClient.post<{ success: boolean; data: unknown }>("/deposit", input);
+  const response = await apiClient.post<{ success: boolean; data: unknown }>("/deposit", {
+    ...input,
+    entryAt: normalizeDateTimeInput(input.entryAt),
+  });
   return response.data?.data;
 }
 
@@ -290,7 +303,15 @@ export async function exchangeActionReject(
 export async function amendDeposit(depositId: string, input: DepositAmendInput): Promise<unknown> {
   const response = await apiClient.post<{ success: boolean; data: unknown }>(
     `/deposit/${depositId}/amend`,
-    input,
+    {
+      ...input,
+      entryAt: normalizeDateTimeInput(input.entryAt),
+    },
   );
+  return response.data?.data;
+}
+
+export async function deleteDeposit(depositId: string): Promise<unknown> {
+  const response = await apiClient.delete<{ success: boolean; data: unknown }>(`/deposit/${depositId}`);
   return response.data?.data;
 }

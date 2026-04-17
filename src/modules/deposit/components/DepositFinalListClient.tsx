@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { IconHistory, IconPencil } from "@tabler/icons-react";
+import { IconHistory, IconPencil, IconTrash } from "@tabler/icons-react";
 import { ListingPageContainer } from "@/components/common/ListingPageContainer";
 import PaginatedTableReference, {
   type PaginatedTableReferenceColumn,
@@ -26,6 +26,7 @@ import { NAV_PERMISSIONS } from "@/lib/constants/navPermissions";
 import { getApiErrorMessage } from "@/lib/apiError";
 import {
   amendDeposit,
+  deleteDeposit,
   exportDeposits,
   listDepositsNormalized,
   normalizeDeposit,
@@ -69,6 +70,20 @@ function formatDateTime(iso?: string): string {
   return d.toLocaleString();
 }
 
+function getCurrentDateTimeLocal(): string {
+  const now = new Date();
+  const tzOffsetMs = now.getTimezoneOffset() * 60 * 1000;
+  return new Date(now.getTime() - tzOffsetMs).toISOString().slice(0, 16);
+}
+
+function toDateTimeLocalInput(iso?: string): string {
+  if (!iso) return getCurrentDateTimeLocal();
+  const value = new Date(iso);
+  if (Number.isNaN(value.getTime())) return getCurrentDateTimeLocal();
+  const tzOffsetMs = value.getTimezoneOffset() * 60 * 1000;
+  return new Date(value.getTime() - tzOffsetMs).toISOString().slice(0, 16);
+}
+
 export function DepositFinalListClient() {
   const { user } = useAuth();
   const listingState = useListingQueryStateReference({
@@ -95,10 +110,13 @@ export function DepositFinalListClient() {
   const [tableKey, setTableKey] = useState(0);
   const [selectedDeposit, setSelectedDeposit] = useState<DepositRow | null>(null);
   const [amendOpen, setAmendOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [amendBankId, setAmendBankId] = useState("");
   const [amendBankDefault, setAmendBankDefault] = useState<AutocompleteOption | null>(null);
   const [amendUtr, setAmendUtr] = useState("");
   const [amendAmount, setAmendAmount] = useState("");
+  const [amendEntryAt, setAmendEntryAt] = useState(getCurrentDateTimeLocal());
   const [amendPlayerId, setAmendPlayerId] = useState("");
   const [amendPlayerDefault, setAmendPlayerDefault] = useState<AutocompleteOption | null>(null);
   const [amendBonus, setAmendBonus] = useState("");
@@ -120,6 +138,7 @@ export function DepositFinalListClient() {
     if (user.role === "superadmin") return true;
     return (user.permissions ?? []).includes(NAV_PERMISSIONS.DEPOSIT_FINAL_VIEW);
   }, [user]);
+  const canDelete = user?.role === "superadmin";
 
   useEffect(() => {
     let active = true;
@@ -261,6 +280,7 @@ export function DepositFinalListClient() {
     );
     setAmendUtr(row.utr);
     setAmendAmount(String(row.amount));
+    setAmendEntryAt(toDateTimeLocalInput(row.entryAt));
     setAmendPlayerId(pid);
     setAmendPlayerDefault(
       pid && row.playerIdLabel
@@ -276,6 +296,12 @@ export function DepositFinalListClient() {
     setAmendErrors({});
     setAmendOpen(true);
   }, [canAmend]);
+
+  const openDeleteDialog = useCallback((row: DepositRow) => {
+    if (!canDelete) return;
+    setSelectedDeposit(row);
+    setDeleteOpen(true);
+  }, [canDelete]);
 
   const submitAmend = useCallback(async () => {
     if (!selectedDeposit) return;
@@ -298,6 +324,7 @@ export function DepositFinalListClient() {
         bankId: amendBankId.trim(),
         utr: amendUtr.trim(),
         amount: amt,
+        entryAt: amendEntryAt || undefined,
         playerId: amendPlayerId.trim(),
         bonusAmount: bonusNum,
         reasonId: amendReasonId.trim(),
@@ -320,11 +347,28 @@ export function DepositFinalListClient() {
     amendBankId,
     amendUtr,
     amendAmount,
+    amendEntryAt,
     amendPlayerId,
     amendBonus,
     amendReasonId,
     amendReason,
   ]);
+
+  const submitDelete = useCallback(async () => {
+    if (!selectedDeposit) return;
+    setDeleteLoading(true);
+    try {
+      await deleteDeposit(selectedDeposit.id);
+      toast.success("Deposit deleted.");
+      setDeleteOpen(false);
+      setSelectedDeposit(null);
+      setTableKey((k) => k + 1);
+    } catch (e) {
+      toast.error(getApiErrorMessage(e, "Could not delete deposit."));
+    } finally {
+      setDeleteLoading(false);
+    }
+  }, [selectedDeposit]);
 
   const columns = useMemo<PaginatedTableReferenceColumn[]>(
     () => [
@@ -547,6 +591,17 @@ export function DepositFinalListClient() {
                 Amend deposit
               </Button>
             )}
+            {canDelete && (
+              <Button
+                type="button"
+                variant="danger"
+                className="w-full"
+                startIcon={<IconTrash className="size-4" />}
+                onClick={() => openDeleteDialog(selectedDeposit)}
+              >
+                Delete deposit
+              </Button>
+            )}
 
             <div className="rounded-lg border border-[var(--border)] bg-white p-3">
               <div className="mb-2 flex items-center gap-2">
@@ -633,6 +688,15 @@ export function DepositFinalListClient() {
             />
             <FieldError message={amendErrors.amount} />
           </div>
+          <div>
+            <FieldLabel>Entry date & time</FieldLabel>
+            <Input
+              className="h-9"
+              type="datetime-local"
+              value={amendEntryAt}
+              onChange={(e) => setAmendEntryAt(e.target.value)}
+            />
+          </div>
           <div className="sm:col-span-2">
             <FieldLabel>Player</FieldLabel>
             <AutocompleteField
@@ -682,6 +746,30 @@ export function DepositFinalListClient() {
           </Button>
           <Button type="button" variant="primary" onClick={() => void submitAmend()} disabled={amendLoading}>
             {amendLoading ? "Saving…" : "Save amendment"}
+          </Button>
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={deleteOpen}
+        title="Delete deposit"
+        onClose={() => !deleteLoading && setDeleteOpen(false)}
+      >
+        <p className="mb-3 text-sm text-gray-600">
+          This will permanently delete the deposit and reverse impacted balances based on current status.
+        </p>
+        <div className="space-y-1 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-gray-700">
+          <div><span className="font-medium">UTR:</span> {selectedDeposit?.utr || "—"}</div>
+          <div><span className="font-medium">Status:</span> {selectedDeposit?.status || "—"}</div>
+          <div><span className="font-medium">Amount:</span> {selectedDeposit?.amount?.toLocaleString?.() ?? "—"}</div>
+          <div><span className="font-medium">Bank:</span> {selectedDeposit?.bankName || "—"}</div>
+        </div>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={() => setDeleteOpen(false)} disabled={deleteLoading}>
+            Cancel
+          </Button>
+          <Button type="button" variant="danger" onClick={() => void submitDelete()} disabled={deleteLoading}>
+            {deleteLoading ? "Deleting..." : "Delete permanently"}
           </Button>
         </div>
       </Dialog>

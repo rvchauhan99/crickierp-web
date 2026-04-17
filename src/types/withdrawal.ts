@@ -10,6 +10,7 @@ export type WithdrawalCreateInput = {
   ifsc: string;
   amount: number;
   reverseBonus?: number;
+  requestedAt?: string;
 };
 
 export type WithdrawalAmendmentSnapshot = {
@@ -34,6 +35,7 @@ export type WithdrawalAmendInput = {
   reverseBonus: number;
   payoutBankId: string;
   utr: string;
+  requestedAt?: string;
   reasonId: string;
   remark?: string;
 };
@@ -53,6 +55,7 @@ export type WithdrawalRow = {
   payoutBankId?: string;
   payoutBankName?: string;
   utr?: string;
+  requestedAt?: string;
   status: WithdrawalStatus;
   createdAt?: string;
   updatedAt?: string;

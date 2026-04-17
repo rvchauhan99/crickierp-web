@@ -6,6 +6,7 @@ export type DepositCreateInput = {
   bankId: string;
   utr: string;
   amount: number;
+  entryAt?: string;
 };
 
 export type DepositAmendmentSnapshot = {
@@ -51,6 +52,7 @@ export type DepositRow = {
   exchangeActionByName?: string;
   exchangeActionAt?: string;
   bankBalanceAfter?: number;
+  entryAt?: string;
   settledAt?: string;
   amendmentCount?: number;
   lastAmendedAt?: string;
@@ -65,6 +67,7 @@ export type DepositAmendInput = {
   amount: number;
   playerId: string;
   bonusAmount: number;
+  entryAt?: string;
   reasonId: string;
   remark?: string;
 };

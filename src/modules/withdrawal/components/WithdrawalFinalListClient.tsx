@@ -1,7 +1,7 @@
  "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { IconHistory, IconPencil } from "@tabler/icons-react";
+import { IconHistory, IconPencil, IconTrash } from "@tabler/icons-react";
 import { toast } from "sonner";
 import { ListingPageContainer } from "@/components/common/ListingPageContainer";
 import PaginatedTableReference, {
@@ -29,6 +29,7 @@ import { listReasonOptions } from "@/services/reasonService";
 import { REASON_TYPES } from "@/lib/constants/reasonTypes";
 import {
   amendWithdrawal,
+  deleteWithdrawal,
   exportWithdrawals,
   listWithdrawalsNormalized,
   normalizeWithdrawal,
@@ -41,6 +42,20 @@ import { WithdrawalFinalListFilterPanel } from "@/modules/withdrawal/components/
 function toOptionalFilterValue(value: string): string | undefined {
   const trimmed = value.trim();
   return trimmed === "" ? undefined : trimmed;
+}
+
+function getCurrentDateTimeLocal(): string {
+  const now = new Date();
+  const tzOffsetMs = now.getTimezoneOffset() * 60 * 1000;
+  return new Date(now.getTime() - tzOffsetMs).toISOString().slice(0, 16);
+}
+
+function toDateTimeLocalInput(iso?: string): string {
+  if (!iso) return getCurrentDateTimeLocal();
+  const value = new Date(iso);
+  if (Number.isNaN(value.getTime())) return getCurrentDateTimeLocal();
+  const tzOffsetMs = value.getTimezoneOffset() * 60 * 1000;
+  return new Date(value.getTime() - tzOffsetMs).toISOString().slice(0, 16);
 }
 
 export function WithdrawalFinalListClient() {
@@ -68,8 +83,11 @@ export function WithdrawalFinalListClient() {
   const [tableKey, setTableKey] = useState(0);
   const [selectedWithdrawal, setSelectedWithdrawal] = useState<WithdrawalRow | null>(null);
   const [amendOpen, setAmendOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [amendAmount, setAmendAmount] = useState("");
   const [amendReverseBonus, setAmendReverseBonus] = useState("");
+  const [amendRequestedAt, setAmendRequestedAt] = useState(getCurrentDateTimeLocal());
   const [amendPayoutBankId, setAmendPayoutBankId] = useState("");
   const [amendPayoutBankDefault, setAmendPayoutBankDefault] = useState<AutocompleteOption | null>(null);
   const [amendUtr, setAmendUtr] = useState("");
@@ -90,6 +108,7 @@ export function WithdrawalFinalListClient() {
     if (user.role === "superadmin") return true;
     return (user.permissions ?? []).includes(NAV_PERMISSIONS.WITHDRAWAL_FINAL_VIEW);
   }, [user]);
+  const canDelete = user?.role === "superadmin";
 
   const fetcher = useCallback(async (params: Record<string, unknown>) => {
     return listWithdrawalsNormalized("final", params);
@@ -185,6 +204,7 @@ export function WithdrawalFinalListClient() {
     if (!canAmend || row.status !== "approved") return;
     setAmendAmount(String(row.amount));
     setAmendReverseBonus(String(row.reverseBonus ?? 0));
+    setAmendRequestedAt(toDateTimeLocalInput(row.requestedAt));
     setAmendPayoutBankId(row.payoutBankId?.trim() || "");
     setAmendPayoutBankDefault(
       row.payoutBankId && row.payoutBankName
@@ -198,6 +218,12 @@ export function WithdrawalFinalListClient() {
     setAmendErrors({});
     setAmendOpen(true);
   }, [canAmend]);
+
+  const openDeleteDialog = useCallback((row: WithdrawalRow) => {
+    if (!canDelete) return;
+    setSelectedWithdrawal(row);
+    setDeleteOpen(true);
+  }, [canDelete]);
 
   const submitAmend = useCallback(async () => {
     if (!selectedWithdrawal) return;
@@ -222,6 +248,7 @@ export function WithdrawalFinalListClient() {
         reverseBonus: reverseBonusNum,
         payoutBankId: amendPayoutBankId.trim(),
         utr: amendUtr.trim(),
+        requestedAt: amendRequestedAt || undefined,
         reasonId: amendReasonId.trim(),
         remark: amendReason.trim() || undefined,
       });
@@ -240,11 +267,28 @@ export function WithdrawalFinalListClient() {
     selectedWithdrawal,
     amendAmount,
     amendReverseBonus,
+    amendRequestedAt,
     amendPayoutBankId,
     amendUtr,
     amendReasonId,
     amendReason,
   ]);
+
+  const submitDelete = useCallback(async () => {
+    if (!selectedWithdrawal) return;
+    setDeleteLoading(true);
+    try {
+      await deleteWithdrawal(selectedWithdrawal.id);
+      toast.success("Withdrawal deleted.");
+      setDeleteOpen(false);
+      setSelectedWithdrawal(null);
+      setTableKey((k) => k + 1);
+    } catch (e) {
+      toast.error(getApiErrorMessage(e, "Could not delete withdrawal."));
+    } finally {
+      setDeleteLoading(false);
+    }
+  }, [selectedWithdrawal]);
 
   const columns = useMemo<PaginatedTableReferenceColumn[]>(
     () => [
@@ -452,6 +496,17 @@ export function WithdrawalFinalListClient() {
                 Amend withdrawal
               </Button>
             )}
+            {canDelete && (
+              <Button
+                type="button"
+                variant="danger"
+                className="w-full"
+                startIcon={<IconTrash className="size-4" />}
+                onClick={() => openDeleteDialog(selectedWithdrawal)}
+              >
+                Delete withdrawal
+              </Button>
+            )}
 
             <div className="rounded-lg border border-[var(--border)] bg-white p-3">
               <div className="mb-2 flex items-center gap-2">
@@ -522,6 +577,15 @@ export function WithdrawalFinalListClient() {
             <FieldError message={amendErrors.reverseBonus} />
           </div>
           <div className="sm:col-span-2">
+            <FieldLabel>Requested date & time</FieldLabel>
+            <Input
+              className="h-9"
+              type="datetime-local"
+              value={amendRequestedAt}
+              onChange={(e) => setAmendRequestedAt(e.target.value)}
+            />
+          </div>
+          <div className="sm:col-span-2">
             <FieldLabel>Payout bank</FieldLabel>
             <AutocompleteField
               value={amendPayoutBankId}
@@ -564,6 +628,26 @@ export function WithdrawalFinalListClient() {
           </Button>
           <Button type="button" variant="primary" onClick={() => void submitAmend()} disabled={amendLoading}>
             {amendLoading ? "Saving…" : "Save amendment"}
+          </Button>
+        </div>
+      </Dialog>
+
+      <Dialog open={deleteOpen} title="Delete withdrawal" onClose={() => !deleteLoading && setDeleteOpen(false)}>
+        <p className="mb-3 text-sm text-gray-600">
+          This will permanently delete the withdrawal and reverse impacted balances based on current status.
+        </p>
+        <div className="space-y-1 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-gray-700">
+          <div><span className="font-medium">UTR:</span> {selectedWithdrawal?.utr || "—"}</div>
+          <div><span className="font-medium">Status:</span> {selectedWithdrawal?.status || "—"}</div>
+          <div><span className="font-medium">Amount:</span> {selectedWithdrawal?.amount?.toLocaleString?.() ?? "—"}</div>
+          <div><span className="font-medium">Player:</span> {selectedWithdrawal?.playerName || "—"}</div>
+        </div>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={() => setDeleteOpen(false)} disabled={deleteLoading}>
+            Cancel
+          </Button>
+          <Button type="button" variant="danger" onClick={() => void submitDelete()} disabled={deleteLoading}>
+            {deleteLoading ? "Deleting..." : "Delete permanently"}
           </Button>
         </div>
       </Dialog>
