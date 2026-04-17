@@ -62,12 +62,18 @@ const STATUS_OPTIONS = [
   { label: "Finalized", value: "finalized" },
 ];
 
+const HAS_AMENDMENT_OPTIONS = [
+  { label: "Has amendments", value: "yes" },
+  { label: "No amendments", value: "no" },
+];
+
 const CHIP_LABELS: Partial<Record<DepositFinalFilterKey | "q", string>> = {
   q: "Search",
   utr: "UTR",
   bankName: "Bank name",
   bankId: "Bank account",
   status: "Status",
+  hasAmendment: "Amendments",
   amount: "Amount",
   totalAmount: "Total",
   player: "Player",
@@ -239,6 +245,7 @@ export function DepositFinalListFilterPanel({
       ...textOps,
       bankId: local.bankId,
       status: local.status,
+      hasAmendment: local.hasAmendment,
       ...buildAmountApiParams(local.amount, local.amount_to),
       ...buildTotalAmountApiParams(local.totalAmount, local.totalAmount_to),
       player: local.player,
@@ -420,6 +427,28 @@ export function DepositFinalListFilterPanel({
                   All
                 </SelectItem>
                 {STATUS_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value} className="text-sm">
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-slate-600">Amendments</Label>
+            <Select
+              value={local.hasAmendment || "__all__"}
+              onValueChange={(v: string) => handleChange("hasAmendment", v === "__all__" ? "" : v)}
+            >
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue placeholder="All" />
+              </SelectTrigger>
+              <SelectContent className="">
+                <SelectItem value="__all__" className="text-sm">
+                  All
+                </SelectItem>
+                {HAS_AMENDMENT_OPTIONS.map((o) => (
                   <SelectItem key={o.value} value={o.value} className="text-sm">
                     {o.label}
                   </SelectItem>

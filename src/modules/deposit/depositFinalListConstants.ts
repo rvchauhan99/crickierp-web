@@ -6,6 +6,7 @@ export const DEPOSIT_FINAL_FILTER_KEYS = [
   "bankName_op",
   "bankId",
   "status",
+  "hasAmendment",
   "amount",
   "amount_to",
   "amount_op",

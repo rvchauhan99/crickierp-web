@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import type { RejectionReasonType } from "@/lib/constants/reasonTypes";
+import type { ReasonType } from "@/lib/constants/reasonTypes";
 import { listReasonOptions, type ReasonOption } from "@/services/reasonService";
 
 type BaseProps = {
@@ -21,7 +21,7 @@ type FreeTextProps = BaseProps & {
 };
 
 type MasterReasonProps = BaseProps & {
-  reasonType: RejectionReasonType;
+  reasonType: ReasonType;
   selectedReasonId: string;
   onReasonIdChange: (id: string) => void;
   remark: string;

@@ -63,12 +63,18 @@ const STATUS_OPTIONS = [
   { label: "Finalized", value: "finalized" },
 ];
 
+const HAS_AMENDMENT_OPTIONS = [
+  { label: "Has amendments", value: "yes" },
+  { label: "No amendments", value: "no" },
+];
+
 const CHIP_LABELS: Partial<Record<WithdrawalFinalFilterKey | "q", string>> = {
   q: "Search",
   utr: "UTR",
   bankName: "Bank name",
   playerName: "Player name",
   status: "Status",
+  hasAmendment: "Amendments",
   amount: "Requested",
   payableAmount: "Payable",
   createdBy: "Created by",
@@ -213,6 +219,7 @@ export function WithdrawalFinalListFilterPanel({
       playerName: local.playerName,
       ...textOps,
       status: local.status,
+      hasAmendment: local.hasAmendment,
       ...buildAmountApiParams(local.amount, local.amount_to),
       ...buildPayableAmountApiParams(local.payableAmount, local.payableAmount_to),
       createdBy: local.createdBy,
@@ -393,6 +400,28 @@ export function WithdrawalFinalListFilterPanel({
                   All
                 </SelectItem>
                 {STATUS_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value} className="text-sm">
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-slate-600">Amendments</Label>
+            <Select
+              value={local.hasAmendment || "__all__"}
+              onValueChange={(v: string) => handleChange("hasAmendment", v === "__all__" ? "" : v)}
+            >
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue placeholder="All" />
+              </SelectTrigger>
+              <SelectContent className="">
+                <SelectItem value="__all__" className="text-sm">
+                  All
+                </SelectItem>
+                {HAS_AMENDMENT_OPTIONS.map((o) => (
                   <SelectItem key={o.value} value={o.value} className="text-sm">
                     {o.label}
                   </SelectItem>

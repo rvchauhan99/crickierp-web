@@ -7,6 +7,7 @@ export const WITHDRAWAL_FINAL_FILTER_KEYS = [
   "playerName",
   "playerName_op",
   "status",
+  "hasAmendment",
   "amount",
   "amount_to",
   "amount_op",

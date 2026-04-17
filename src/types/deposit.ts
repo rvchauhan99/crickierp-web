@@ -8,6 +8,24 @@ export type DepositCreateInput = {
   amount: number;
 };
 
+export type DepositAmendmentSnapshot = {
+  bankId?: string;
+  bankName?: string;
+  utr?: string;
+  amount?: number;
+  playerId?: string;
+  bonusAmount?: number;
+  totalAmount?: number;
+};
+
+export type DepositAmendmentEntry = {
+  at: string;
+  by?: unknown;
+  reason: string;
+  old: DepositAmendmentSnapshot;
+  new: DepositAmendmentSnapshot;
+};
+
 export type DepositRow = {
   _id: string;
   id: string;
@@ -23,6 +41,8 @@ export type DepositRow = {
   createdByName?: string;
   bankId_populated?: unknown;
   player?: unknown;
+  /** MongoDB ObjectId string for API (from populated `player`). */
+  playerMongoId?: string;
   playerIdLabel?: string;
   bonusAmount?: number;
   totalAmount?: number;
@@ -32,4 +52,19 @@ export type DepositRow = {
   exchangeActionAt?: string;
   bankBalanceAfter?: number;
   settledAt?: string;
+  amendmentCount?: number;
+  lastAmendedAt?: string;
+  lastAmendedBy?: unknown;
+  lastAmendedByName?: string;
+  amendmentHistory?: DepositAmendmentEntry[];
+};
+
+export type DepositAmendInput = {
+  bankId: string;
+  utr: string;
+  amount: number;
+  playerId: string;
+  bonusAmount: number;
+  reasonId: string;
+  remark?: string;
 };
