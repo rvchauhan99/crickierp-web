@@ -150,7 +150,7 @@ export function DashboardTrendChart({ data, loading }: Props) {
                   interval="preserveStartEnd"
                 />
                 <YAxis
-                  tickFormatter={formatDashboardCurrency}
+                  tickFormatter={(value) => formatDashboardCurrency(Number(value ?? 0))}
                   tick={{ fontSize: 10, fill: "#94a3b8" }}
                   axisLine={false}
                   tickLine={false}
@@ -195,7 +195,7 @@ export function DashboardTrendChart({ data, loading }: Props) {
                   interval="preserveStartEnd"
                 />
                 <YAxis
-                  tickFormatter={formatDashboardCurrency}
+                  tickFormatter={(value) => formatDashboardCurrency(Number(value ?? 0))}
                   tick={{ fontSize: 10, fill: "#94a3b8" }}
                   axisLine={false}
                   tickLine={false}
