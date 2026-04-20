@@ -20,6 +20,7 @@ import { DashboardPLDonut } from "./DashboardPLDonut";
 import { DashboardRecentActivity, type RecentActivityItem } from "./DashboardRecentActivity";
 import { DashboardExchangeSummary } from "./DashboardExchangeSummary";
 import { DashboardBankSummary } from "./DashboardBankSummary";
+import { DashboardExchangeClosingStrip } from "./DashboardExchangeClosingStrip";
 import { reportService } from "@/services/reportService";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/Button";
@@ -282,6 +283,12 @@ export function DashboardContent() {
 
       {/* ───── KPI Cards ───── */}
       <DashboardKPIs summary={summary} loading={loading} />
+
+      <DashboardExchangeClosingStrip
+        exchangesBreakdown={summary?.exchangesBreakdown}
+        loading={loading}
+        playerScoped={Boolean(filters.player_id)}
+      />
 
       {/* ───── Exchange Breakdowns ───── */}
       <DashboardExchangeSummary exchangesBreakdown={summary?.exchangesBreakdown} loading={loading} />

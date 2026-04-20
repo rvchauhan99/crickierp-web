@@ -23,6 +23,7 @@ const STATUS_BADGE_MAP: Record<string, StatusBadgeConfig> = {
   inactive: { label: "Inactive", variant: "warning" },
   deactive: { label: "Inactive", variant: "warning" },
   pending: { label: "Pending", variant: "warning" },
+  not_settled: { label: "Not Settled", variant: "outline" },
   approved: { label: "Approved", variant: "success" },
   verified: { label: "Verified", variant: "info" },
   finalized: { label: "Finalized", variant: "primary" },

@@ -1,6 +1,6 @@
 export type DepositView = "banker" | "exchange" | "final";
 
-export type DepositStatus = "pending" | "verified" | "rejected" | "finalized";
+export type DepositStatus = "pending" | "not_settled" | "verified" | "rejected" | "finalized";
 
 export type DepositCreateInput = {
   bankId: string;
