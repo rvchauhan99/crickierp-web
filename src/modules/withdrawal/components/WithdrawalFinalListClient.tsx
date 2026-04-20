@@ -24,6 +24,7 @@ import { tableColumnPresets } from "@/lib/tableStylePresets";
 import { useAuth } from "@/context/AuthContext";
 import { NAV_PERMISSIONS } from "@/lib/constants/navPermissions";
 import { getApiErrorMessage } from "@/lib/apiError";
+import { formatWholeRupee } from "@/lib/formatWholeRupee";
 import { listBanksNormalized } from "@/services/bankService";
 import { listReasonOptions } from "@/services/reasonService";
 import { REASON_TYPES } from "@/lib/constants/reasonTypes";
@@ -230,9 +231,15 @@ export function WithdrawalFinalListClient() {
     const next: typeof amendErrors = {};
     const amountNum = Number(amendAmount);
     const reverseBonusNum = Number(amendReverseBonus);
-    if (!Number.isFinite(amountNum) || amountNum < 1) next.amount = "Enter a valid amount (min 1).";
+    if (!Number.isFinite(amountNum) || amountNum < 1) {
+      next.amount = "Enter a valid amount (min 1).";
+    } else if (!Number.isInteger(amountNum)) {
+      next.amount = "Amount must be a whole number (no decimals).";
+    }
     if (!Number.isFinite(reverseBonusNum) || reverseBonusNum < 0) {
       next.reverseBonus = "Reverse bonus must be a number >= 0.";
+    } else if (!Number.isInteger(reverseBonusNum)) {
+      next.reverseBonus = "Reverse bonus must be a whole number (no decimals).";
     }
     if (!amendPayoutBankId.trim()) next.payoutBankId = "Payout bank is required.";
     if (!amendUtr.trim()) next.utr = "UTR is required.";
@@ -327,19 +334,19 @@ export function WithdrawalFinalListClient() {
       {
         field: "amount",
         label: "Requested",
-        render: (row: WithdrawalRow) => row.amount.toLocaleString(),
+        render: (row: WithdrawalRow) => formatWholeRupee(row.amount),
         sortable: true,
       },
       {
         field: "reverseBonus",
         label: "Reverse Bonus",
-        render: (row: WithdrawalRow) => (row.reverseBonus != null ? row.reverseBonus.toLocaleString() : "—"),
+        render: (row: WithdrawalRow) => (row.reverseBonus != null ? formatWholeRupee(row.reverseBonus) : "—"),
         sortable: true,
       },
       {
         field: "payableAmount",
         label: "Payable",
-        render: (row: WithdrawalRow) => (row.payableAmount != null ? row.payableAmount.toLocaleString() : "—"),
+        render: (row: WithdrawalRow) => (row.payableAmount != null ? formatWholeRupee(row.payableAmount) : "—"),
         sortable: true,
         minWidth: 100,
       },
@@ -469,9 +476,9 @@ export function WithdrawalFinalListClient() {
                 <div className="flex justify-between gap-2">
                   <dt className="text-gray-500">Amount / reverse / payable</dt>
                   <dd className="text-right font-medium">
-                    {selectedWithdrawal.amount.toLocaleString()} /{" "}
-                    {(selectedWithdrawal.reverseBonus ?? 0).toLocaleString()} /{" "}
-                    {(selectedWithdrawal.payableAmount ?? 0).toLocaleString()}
+                    {formatWholeRupee(selectedWithdrawal.amount)} /{" "}
+                    {formatWholeRupee(selectedWithdrawal.reverseBonus ?? 0)} /{" "}
+                    {formatWholeRupee(selectedWithdrawal.payableAmount ?? 0)}
                   </dd>
                 </div>
                 {selectedWithdrawal.lastAmendedAt && (
@@ -536,7 +543,8 @@ export function WithdrawalFinalListClient() {
                           <td className="py-2 text-gray-800">
                             <span className="line-clamp-3">{h.reason}</span>
                             <div className="mt-1 text-[10px] text-gray-500">
-                              Payable {h.old.payableAmount ?? "—"} → {h.new.payableAmount ?? "—"}
+                              Payable {h.old.payableAmount != null ? formatWholeRupee(h.old.payableAmount) : "—"} →{" "}
+                              {h.new.payableAmount != null ? formatWholeRupee(h.new.payableAmount) : "—"}
                             </div>
                           </td>
                         </tr>
@@ -559,8 +567,9 @@ export function WithdrawalFinalListClient() {
             <FieldLabel>Amount</FieldLabel>
             <Input
               className="h-9"
-              type="text"
-              inputMode="decimal"
+              type="number"
+              min={1}
+              step="1"
               value={amendAmount}
               onChange={(e) => setAmendAmount(e.target.value)}
             />
@@ -570,8 +579,9 @@ export function WithdrawalFinalListClient() {
             <FieldLabel>Reverse bonus</FieldLabel>
             <Input
               className="h-9"
-              type="text"
-              inputMode="decimal"
+              type="number"
+              min={0}
+              step="1"
               value={amendReverseBonus}
               onChange={(e) => setAmendReverseBonus(e.target.value)}
             />
@@ -640,7 +650,7 @@ export function WithdrawalFinalListClient() {
         <div className="space-y-1 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-gray-700">
           <div><span className="font-medium">UTR:</span> {selectedWithdrawal?.utr || "—"}</div>
           <div><span className="font-medium">Status:</span> {selectedWithdrawal?.status || "—"}</div>
-          <div><span className="font-medium">Amount:</span> {selectedWithdrawal?.amount?.toLocaleString?.() ?? "—"}</div>
+          <div><span className="font-medium">Amount:</span> {selectedWithdrawal?.amount != null ? formatWholeRupee(selectedWithdrawal.amount) : "—"}</div>
           <div><span className="font-medium">Player:</span> {selectedWithdrawal?.playerName || "—"}</div>
         </div>
         <div className="mt-4 flex justify-end gap-2">

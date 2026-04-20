@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { IconMenu2, IconMaximize, IconMinimize } from "@tabler/icons-react";
+import { PLATFORM_NAME } from "@/lib/constants/branding";
 
 type Props = {
   onOpenSidebar: () => void;
@@ -22,7 +23,7 @@ export function Topbar({ onOpenSidebar, isFullscreen, onToggleFullscreen }: Prop
       </button>
 
       <Link href="/dashboard" className="flex items-center gap-1.5">
-        <span className="text-base font-bold text-[var(--brand-primary)]">CrickERP</span>
+        <span className="text-base font-bold text-[var(--brand-primary)]">{PLATFORM_NAME}</span>
       </Link>
 
       <button

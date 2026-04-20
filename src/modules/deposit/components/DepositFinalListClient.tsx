@@ -24,6 +24,7 @@ import { tableColumnPresets } from "@/lib/tableStylePresets";
 import { useAuth } from "@/context/AuthContext";
 import { NAV_PERMISSIONS } from "@/lib/constants/navPermissions";
 import { getApiErrorMessage } from "@/lib/apiError";
+import { formatWholeRupee } from "@/lib/formatWholeRupee";
 import {
   amendDeposit,
   deleteDeposit,
@@ -309,10 +310,18 @@ export function DepositFinalListClient() {
     if (!amendBankId.trim()) next.bankId = "Bank is required.";
     if (!amendUtr.trim()) next.utr = "UTR is required.";
     const amt = Number(amendAmount);
-    if (!Number.isFinite(amt) || amt < 1) next.amount = "Enter a valid amount (min 1).";
+    if (!Number.isFinite(amt) || amt < 1) {
+      next.amount = "Enter a valid amount (min 1).";
+    } else if (!Number.isInteger(amt)) {
+      next.amount = "Amount must be a whole number (no decimals).";
+    }
     if (!amendPlayerId.trim()) next.playerId = "Player is required.";
     const bonusNum = Number(amendBonus);
-    if (!Number.isFinite(bonusNum) || bonusNum < 0) next.bonus = "Bonus must be a number ≥ 0.";
+    if (!Number.isFinite(bonusNum) || bonusNum < 0) {
+      next.bonus = "Bonus must be a number ≥ 0.";
+    } else if (!Number.isInteger(bonusNum)) {
+      next.bonus = "Bonus must be a whole number (no decimals).";
+    }
     if (!amendReasonId.trim()) next.reason = "Reason selection is required.";
     if (Object.keys(next).length) {
       setAmendErrors(next);
@@ -396,20 +405,20 @@ export function DepositFinalListClient() {
       {
         field: "amount",
         label: "Amount",
-        render: (row: DepositRow) => row.amount.toLocaleString(),
+        render: (row: DepositRow) => formatWholeRupee(row.amount),
         sortable: true,
       },
       {
         field: "bonusAmount",
         label: "Bonus",
-        render: (row: DepositRow) => (row.bonusAmount != null ? row.bonusAmount.toLocaleString() : "—"),
+        render: (row: DepositRow) => (row.bonusAmount != null ? formatWholeRupee(row.bonusAmount) : "—"),
         sortable: true,
         minWidth: 90,
       },
       {
         field: "totalAmount",
         label: "Total",
-        render: (row: DepositRow) => (row.totalAmount != null ? row.totalAmount.toLocaleString() : "—"),
+        render: (row: DepositRow) => (row.totalAmount != null ? formatWholeRupee(row.totalAmount) : "—"),
         sortable: true,
       },
       {
@@ -436,8 +445,7 @@ export function DepositFinalListClient() {
       {
         field: "bankBalanceAfter",
         label: "Bank balance after",
-        render: (row: DepositRow) =>
-          row.bankBalanceAfter != null ? row.bankBalanceAfter.toLocaleString() : "—",
+        render: (row: DepositRow) => (row.bankBalanceAfter != null ? formatWholeRupee(row.bankBalanceAfter) : "—"),
         sortable: false,
         minWidth: 140,
       },
@@ -560,9 +568,9 @@ export function DepositFinalListClient() {
                 <div className="flex justify-between gap-2">
                   <dt className="text-gray-500">Amount / bonus / total</dt>
                   <dd className="text-right font-medium">
-                    {selectedDeposit.amount.toLocaleString()} /{" "}
-                    {selectedDeposit.bonusAmount != null ? selectedDeposit.bonusAmount.toLocaleString() : "—"} /{" "}
-                    {selectedDeposit.totalAmount != null ? selectedDeposit.totalAmount.toLocaleString() : "—"}
+                    {formatWholeRupee(selectedDeposit.amount)} /{" "}
+                    {selectedDeposit.bonusAmount != null ? formatWholeRupee(selectedDeposit.bonusAmount) : "—"} /{" "}
+                    {selectedDeposit.totalAmount != null ? formatWholeRupee(selectedDeposit.totalAmount) : "—"}
                   </dd>
                 </div>
                 <div className="flex justify-between gap-2">
@@ -631,10 +639,10 @@ export function DepositFinalListClient() {
                           <td className="py-2 text-gray-800">
                             <span className="line-clamp-3">{h.reason}</span>
                             <div className="mt-1 text-[10px] text-gray-500">
-                              Amt {h.old.amount?.toLocaleString?.() ?? h.old.amount} →{" "}
-                              {h.new.amount?.toLocaleString?.() ?? h.new.amount} · Total{" "}
-                              {h.old.totalAmount?.toLocaleString?.() ?? h.old.totalAmount} →{" "}
-                              {h.new.totalAmount?.toLocaleString?.() ?? h.new.totalAmount}
+                              Amt {h.old.amount != null ? formatWholeRupee(h.old.amount) : "—"} →{" "}
+                              {h.new.amount != null ? formatWholeRupee(h.new.amount) : "—"} · Total{" "}
+                              {h.old.totalAmount != null ? formatWholeRupee(h.old.totalAmount) : "—"} →{" "}
+                              {h.new.totalAmount != null ? formatWholeRupee(h.new.totalAmount) : "—"}
                             </div>
                           </td>
                         </tr>
@@ -682,8 +690,9 @@ export function DepositFinalListClient() {
             <FieldLabel>Amount</FieldLabel>
             <Input
               className="h-9"
-              type="text"
-              inputMode="decimal"
+              type="number"
+              min={1}
+              step="1"
               value={amendAmount}
               onChange={(e) => setAmendAmount(e.target.value)}
             />
@@ -713,8 +722,9 @@ export function DepositFinalListClient() {
             <FieldLabel>Bonus amount</FieldLabel>
             <Input
               className="h-9"
-              type="text"
-              inputMode="decimal"
+              type="number"
+              min={0}
+              step="1"
               value={amendBonus}
               onChange={(e) => setAmendBonus(e.target.value)}
             />
@@ -762,7 +772,7 @@ export function DepositFinalListClient() {
         <div className="space-y-1 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-gray-700">
           <div><span className="font-medium">UTR:</span> {selectedDeposit?.utr || "—"}</div>
           <div><span className="font-medium">Status:</span> {selectedDeposit?.status || "—"}</div>
-          <div><span className="font-medium">Amount:</span> {selectedDeposit?.amount?.toLocaleString?.() ?? "—"}</div>
+          <div><span className="font-medium">Amount:</span> {selectedDeposit?.amount != null ? formatWholeRupee(selectedDeposit.amount) : "—"}</div>
           <div><span className="font-medium">Bank:</span> {selectedDeposit?.bankName || "—"}</div>
         </div>
         <div className="mt-4 flex justify-end gap-2">

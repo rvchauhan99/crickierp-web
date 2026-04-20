@@ -29,6 +29,7 @@ import { useListingQueryStateReference } from "@/hooks/useListingQueryStateRefer
 import { tableColumnPresets } from "@/lib/tableStylePresets";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { REASON_TYPES } from "@/lib/constants/reasonTypes";
+import { formatWholeRupee } from "@/lib/formatWholeRupee";
 import {
   listWithdrawalsNormalized,
   patchWithdrawalStatus,
@@ -112,7 +113,7 @@ function WithdrawalDetailCard({ withdrawal }: { withdrawal: WithdrawalRow }) {
     {
       icon: <IconCurrencyRupee className="size-4 shrink-0 text-[var(--brand-primary)]" />,
       label: "Payable amount",
-      value: withdrawal.payableAmount != null ? withdrawal.payableAmount.toLocaleString() : "—",
+      value: withdrawal.payableAmount != null ? formatWholeRupee(withdrawal.payableAmount) : "—",
     },
     {
       icon: <IconClock className="size-4 shrink-0 text-gray-400" />,
@@ -373,8 +374,7 @@ export function WithdrawalBankerClient() {
       {
         field: "payableAmount",
         label: "Payable",
-        render: (row: WithdrawalRow) =>
-          row.payableAmount != null ? `₹${row.payableAmount.toLocaleString()}` : "—",
+        render: (row: WithdrawalRow) => (row.payableAmount != null ? `₹${formatWholeRupee(row.payableAmount)}` : "—"),
         sortable: true,
         minWidth: 100,
         filterType: "number" as const,

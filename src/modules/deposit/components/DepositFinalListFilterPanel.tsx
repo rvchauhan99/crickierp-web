@@ -57,6 +57,7 @@ import {
 
 const STATUS_OPTIONS = [
   { label: "Pending", value: "pending" },
+  { label: "Not Settled", value: "not_settled" },
   { label: "Verified", value: "verified" },
   { label: "Rejected", value: "rejected" },
   { label: "Finalized", value: "finalized" },

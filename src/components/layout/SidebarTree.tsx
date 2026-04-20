@@ -7,6 +7,7 @@ import { NAV_ITEMS, filterNavForUser } from "@/lib/constants/navigation";
 import { AppNavNode } from "@/types/navigation";
 import { cn } from "@/lib/cn";
 import { useAuth } from "@/context/AuthContext";
+import { PLATFORM_NAME } from "@/lib/constants/branding";
 import {
   IconChevronDown,
   IconChevronRight,
@@ -536,7 +537,7 @@ export function SidebarTree({
         )}
       >
         <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3">
-          <span className="text-base font-bold text-white">CrickERP</span>
+          <span className="text-base font-bold text-white">{PLATFORM_NAME}</span>
           <button
             type="button"
             className="flex h-8 w-8 items-center justify-center rounded-md text-blue-200 hover:bg-[#142847] transition-colors"
