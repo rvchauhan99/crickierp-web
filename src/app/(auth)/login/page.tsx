@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/context/AuthContext";
 import { authService } from "@/services/authService";
 import { getApiErrorMessage } from "@/lib/apiError";
+import { BRANDING } from "@/lib/constants/branding";
 import Link from "next/link";
 
 export default function LoginPage() {
@@ -60,7 +61,7 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
-        <FormContainer title="Sign in" description="CrickiERP admin login">
+        <FormContainer title="Sign in" description={BRANDING.loginDescription}>
           {error && <div className="mb-4 text-sm text-red-500 font-medium">{error}</div>}
           
           {!requires2Fa ? (
@@ -112,7 +113,7 @@ export default function LoginPage() {
           </div>
         </FormContainer>
         <p className="mt-8 text-center text-[13px] text-muted-foreground/80">
-          Powered by CrickiERP <br />
+          {BRANDING.poweredByText} <br />
           All Rights Reserved © 2026
         </p>
       </div>
