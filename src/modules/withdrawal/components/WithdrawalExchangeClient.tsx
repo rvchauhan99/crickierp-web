@@ -31,6 +31,8 @@ import { listPlayersNormalized } from "@/services/playerService";
 import { userService } from "@/services/userService";
 import type { SavedWithdrawalAccount, WithdrawalRow } from "@/types/withdrawal";
 import { getApiErrorMessage } from "@/lib/apiError";
+import { cn } from "@/lib/cn";
+import { formatWholeRupee } from "@/lib/formatWholeRupee";
 import {
   withdrawalStatusApiParam,
   withdrawalStatusColumnSelectValue,
@@ -199,7 +201,7 @@ export function WithdrawalExchangeClient() {
     const b = Number(reverseBonus);
     if (!amount.trim() || Number.isNaN(a) || a < 1) return 0;
     const rb = Number.isNaN(b) || b < 0 ? 0 : b;
-    return Math.max(0, Math.round((a - rb) * 100) / 100);
+    return Math.max(0, Math.round(a - rb));
   }, [amount, reverseBonus]);
 
   const onSubmit = async () => {
@@ -210,9 +212,17 @@ export function WithdrawalExchangeClient() {
     if (!bankName.trim()) next.bankName = "Bank name is required.";
     if (!ifsc.trim()) next.ifsc = "IFSC is required.";
     const amt = Number(amount);
-    if (!amount.trim() || Number.isNaN(amt) || amt < 1) next.amount = "Amount must be at least 1.";
+    if (!amount.trim() || Number.isNaN(amt) || amt < 1) {
+      next.amount = "Amount must be at least 1.";
+    } else if (!Number.isInteger(amt)) {
+      next.amount = "Amount must be a whole number (no decimals).";
+    }
     const rb = Number(reverseBonus);
-    if (reverseBonus.trim() !== "" && (Number.isNaN(rb) || rb < 0)) next.reverseBonus = "Reverse bonus must be ≥ 0.";
+    if (reverseBonus.trim() !== "" && (Number.isNaN(rb) || rb < 0)) {
+      next.reverseBonus = "Reverse bonus must be ≥ 0.";
+    } else if (reverseBonus.trim() !== "" && !Number.isInteger(rb)) {
+      next.reverseBonus = "Reverse bonus must be a whole number (no decimals).";
+    }
     setErrors(next);
     if (Object.keys(next).length > 0) return;
 
@@ -382,7 +392,7 @@ export function WithdrawalExchangeClient() {
       {
         field: "amount",
         label: "Amount",
-        render: (row: WithdrawalRow) => row.amount.toLocaleString(),
+        render: (row: WithdrawalRow) => formatWholeRupee(row.amount),
         sortable: true,
         minWidth: 100,
         filterType: "number" as const,
@@ -394,7 +404,7 @@ export function WithdrawalExchangeClient() {
       {
         field: "payableAmount",
         label: "Payable",
-        render: (row: WithdrawalRow) => (row.payableAmount != null ? row.payableAmount.toLocaleString() : "—"),
+        render: (row: WithdrawalRow) => (row.payableAmount != null ? formatWholeRupee(row.payableAmount) : "—"),
         sortable: true,
         minWidth: 100,
       },
@@ -505,7 +515,16 @@ export function WithdrawalExchangeClient() {
           }
         >
           <FormGrid cols={4} compact>
-            <div className="md:col-span-2">
+            <div className="lg:col-span-1">
+              <FieldLabel>Request date & time *</FieldLabel>
+              <Input type="datetime-local" value={requestedAt} onChange={(e) => setRequestedAt(e.target.value)} />
+            </div>
+            <div
+              className={cn(
+                "md:col-span-2",
+                playerId || editingId ? "lg:col-span-2" : "lg:col-span-3",
+              )}
+            >
               <FieldLabel>Player *</FieldLabel>
               <AutocompleteField
                 value={playerId}
@@ -521,7 +540,7 @@ export function WithdrawalExchangeClient() {
               <FieldError message={errors.playerId} />
             </div>
             {playerId || editingId ? (
-              <div className="md:col-span-2">
+              <div className="md:col-span-2 lg:col-span-1">
                 <FieldLabel>Quick select account (optional)</FieldLabel>
                 <Select
                   value={savedPreset}
@@ -550,15 +569,6 @@ export function WithdrawalExchangeClient() {
               </div>
             ) : null}
             <div>
-              <FieldLabel>Account number *</FieldLabel>
-              <Input
-                value={accountNumber}
-                onChange={(e) => setAccountNumber(e.target.value)}
-                placeholder="Account number"
-              />
-              <FieldError message={errors.accountNumber} />
-            </div>
-            <div>
               <FieldLabel>Account holder name *</FieldLabel>
               <Input
                 value={accountHolderName}
@@ -566,6 +576,15 @@ export function WithdrawalExchangeClient() {
                 placeholder="Holder name"
               />
               <FieldError message={errors.accountHolderName} />
+            </div>
+            <div>
+              <FieldLabel>Account number *</FieldLabel>
+              <Input
+                value={accountNumber}
+                onChange={(e) => setAccountNumber(e.target.value)}
+                placeholder="Account number"
+              />
+              <FieldError message={errors.accountNumber} />
             </div>
             <div>
               <FieldLabel>Bank name *</FieldLabel>
@@ -603,11 +622,7 @@ export function WithdrawalExchangeClient() {
             </div>
             <div>
               <FieldLabel>Payable amount</FieldLabel>
-              <Input readOnly value={payablePreview ? String(payablePreview) : "0"} className="bg-slate-50" />
-            </div>
-            <div>
-              <FieldLabel>Request date & time *</FieldLabel>
-              <Input type="datetime-local" value={requestedAt} onChange={(e) => setRequestedAt(e.target.value)} />
+              <Input readOnly value={formatWholeRupee(payablePreview)} className="bg-slate-50" />
             </div>
           </FormGrid>
           <FormActions className="justify-between px-5 py-4">

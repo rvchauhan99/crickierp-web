@@ -53,7 +53,13 @@ export function normalizeDeposit(row: Record<string, unknown>): DepositRow {
 
   const st = row.status;
   const status: DepositRow["status"] =
-    st === "verified" || st === "rejected" || st === "finalized" || st === "pending" ? st : "pending";
+    st === "verified" ||
+    st === "rejected" ||
+    st === "finalized" ||
+    st === "pending" ||
+    st === "not_settled"
+      ? st
+      : "pending";
 
   const lastAmendedByUser = parseAuditUser(row.lastAmendedBy);
   const lastAmendedByName = toOptionalParam(lastAmendedByUser.name);
@@ -298,6 +304,14 @@ export async function exchangeActionReject(
   const response = await apiClient.post<{ success: boolean; data: unknown }>(
     `/deposit/${depositId}/exchange-action`,
     { action: "reject", reasonId: input.reasonId, remark: input.remark },
+  );
+  return response.data?.data;
+}
+
+export async function exchangeActionMarkNotSettled(depositId: string) {
+  const response = await apiClient.post<{ success: boolean; data: unknown }>(
+    `/deposit/${depositId}/exchange-action`,
+    { action: "mark_not_settled" },
   );
   return response.data?.data;
 }

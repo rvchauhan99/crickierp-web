@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { SidebarTree } from "@/components/layout/SidebarTree";
+import { PLATFORM_NAME } from "@/lib/constants/branding";
 import {
   IconMenu2,
   IconX,
@@ -202,7 +203,7 @@ export function DashboardLayout({ children }: PropsWithChildren) {
               )}
             </button>
             <Link href="/dashboard" className="flex items-center gap-1.5">
-              <span className="text-base font-bold text-[var(--brand-primary)]">CrickERP</span>
+              <span className="text-base font-bold text-[var(--brand-primary)]">{PLATFORM_NAME}</span>
             </Link>
             <button
               type="button"

@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { BRANDING } from "@/lib/constants/branding";
 
 function formatAmount(value: number) {
   const abs = Math.abs(value);
@@ -209,7 +210,7 @@ export function LiabilityReportClient() {
                 {/* Letterhead */}
                 <div className="p-6 border-b border-slate-200 bg-slate-50/50 print:bg-white flex justify-between items-center">
                   <div>
-                    <h2 className="text-2xl font-bold text-slate-900 tracking-tight">CrickERP Liability Summary</h2>
+                    <h2 className="text-2xl font-bold text-slate-900 tracking-tight">{BRANDING.liabilitySummaryTitle}</h2>
                     <div className="flex items-center gap-3 mt-1.5 text-sm text-slate-500">
                       <span>Total Accounts: <strong className="text-slate-700 font-mono">{filteredRows.length}</strong></span>
                       <span className="w-1 h-1 rounded-full bg-slate-300" />
@@ -298,7 +299,7 @@ export function LiabilityReportClient() {
 
                 <div className="p-6 text-center text-[10px] text-slate-400 border-t border-slate-100 print:block">
                   <p>*** End of Liability Summary Report ***</p>
-                  <p className="mt-1">Proprietary & Confidential - CrickERP Financial Suite</p>
+                  <p className="mt-1">{BRANDING.liabilitySuiteFooter}</p>
                 </div>
               </div>
             )}

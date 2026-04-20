@@ -70,6 +70,8 @@ export type DashboardSummary = {
     firstTimeDepositAmountToday: number;
     netPL: number;
     netBonus: number;
+    periodOpeningBalance?: number;
+    periodClosingBalance?: number;
   }[];
   banksBreakdown?: {
     bankId: string;

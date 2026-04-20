@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import {
   IconCheck,
   IconX,
-  IconDownload,
   IconRefresh,
   IconCreditCard,
   IconUser,
@@ -27,6 +26,7 @@ import { useListingQueryStateReference } from "@/hooks/useListingQueryStateRefer
 import { tableColumnPresets } from "@/lib/tableStylePresets";
 import {
   exchangeActionApprove,
+  exchangeActionMarkNotSettled,
   exchangeActionReject,
   exportDeposits,
   listDepositsNormalized,
@@ -40,6 +40,7 @@ import { Button } from "@/components/ui/Button";
 import { userService } from "@/services/userService";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { REASON_TYPES } from "@/lib/constants/reasonTypes";
+import { formatWholeRupee } from "@/lib/formatWholeRupee";
 
 const COLUMN_FILTER_KEYS = [
   "utr",
@@ -87,7 +88,7 @@ function formatDate(iso?: string): string {
 }
 
 function bonusAmountFromPercent(depositAmount: number, percent: number): string {
-  const v = Math.round(((depositAmount * percent) / 100) * 100) / 100;
+  const v = Math.round((depositAmount * percent) / 100);
   return String(v);
 }
 
@@ -134,7 +135,7 @@ function DepositDetailCard({ deposit }: { deposit: DepositRow }) {
     {
       icon: <IconCurrencyRupee className="size-4 shrink-0 text-[var(--brand-primary)]" />,
       label: "Amount",
-      value: deposit.amount.toLocaleString(),
+      value: formatWholeRupee(deposit.amount),
     },
     {
       icon: <IconClock className="size-4 shrink-0 text-[var(--brand-primary)]" />,
@@ -175,9 +176,9 @@ function DepositDetailCard({ deposit }: { deposit: DepositRow }) {
           </div>
         ))}
       </dl>
-      {deposit.status !== "pending" && (
+      {deposit.status !== "pending" && deposit.status !== "not_settled" && (
         <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700 border border-amber-200">
-          This deposit is not pending — approve and reject are disabled.
+          This deposit is not actionable in Exchange.
         </p>
       )}
     </div>
@@ -354,8 +355,8 @@ export function DepositExchangeClient() {
       toast.error("Select a row in the table first.");
       return;
     }
-    if (selectedDeposit.status !== "pending") {
-      toast.error("Only pending deposits can be approved.");
+    if (selectedDeposit.status !== "pending" && selectedDeposit.status !== "not_settled") {
+      toast.error("Only pending or not settled deposits can be approved.");
       return;
     }
     if (!playerId.trim()) {
@@ -367,10 +368,14 @@ export function DepositExchangeClient() {
       toast.error("Bonus must be a non-negative number.");
       return;
     }
+    if (!Number.isInteger(bonusNum)) {
+      toast.error("Bonus must be a whole number (no decimals).");
+      return;
+    }
     setActionLoading(selectedDeposit.id);
     try {
       await exchangeActionApprove(selectedDeposit.id, playerId.trim(), bonusNum);
-      toast.success("Deposit approved and bank updated.");
+      toast.success("Deposit settled and bank updated.");
       setTableKey((k) => k + 1);
       clearActionForm();
     } catch (e: unknown) {
@@ -406,6 +411,28 @@ export function DepositExchangeClient() {
     }
   }, [selectedDeposit, rejectReasonId, rejectRemark, clearActionForm]);
 
+  const onMarkNotSettled = useCallback(async () => {
+    if (!selectedDeposit) {
+      toast.error("Select a row in the table first.");
+      return;
+    }
+    if (selectedDeposit.status !== "pending") {
+      toast.error("Only pending deposits can be marked not settled.");
+      return;
+    }
+    setActionLoading(selectedDeposit.id);
+    try {
+      await exchangeActionMarkNotSettled(selectedDeposit.id);
+      toast.success("Deposit marked as not settled.");
+      setTableKey((k) => k + 1);
+      clearActionForm();
+    } catch (e: unknown) {
+      toast.error(getApiErrorMessage(e, "Mark not settled failed."));
+    } finally {
+      setActionLoading(null);
+    }
+  }, [selectedDeposit, clearActionForm]);
+
   const handleRowClick = useCallback((row: unknown) => {
     const r = row as DepositRow;
     bonusManuallyAdjustedRef.current = false;
@@ -420,7 +447,7 @@ export function DepositExchangeClient() {
     let cancelled = false;
     const deposit = selectedDeposit;
     const pid = playerId.trim();
-    if (!deposit || deposit.status !== "pending" || !pid) {
+    if (!deposit || (deposit.status !== "pending" && deposit.status !== "not_settled") || !pid) {
       setPlayerBonusPercent(null);
       setBonusPercentSource(null);
       return;
@@ -466,8 +493,16 @@ export function DepositExchangeClient() {
 
   const selectedId = selectedDeposit?.id ?? null;
   const loadingSelected = selectedDeposit ? actionLoading === selectedDeposit.id : false;
-  const canActOnSelection =
-    selectedDeposit && selectedDeposit.status === "pending" && !loadingSelected;
+  const canApproveOnSelection =
+    !!selectedDeposit &&
+    (selectedDeposit.status === "pending" || selectedDeposit.status === "not_settled") &&
+    !loadingSelected;
+  const canMarkNotSettledOnSelection =
+    !!selectedDeposit && selectedDeposit.status === "pending" && !loadingSelected;
+  const canRejectOnSelection =
+    !!selectedDeposit &&
+    (selectedDeposit.status === "pending" || selectedDeposit.status === "not_settled") &&
+    !loadingSelected;
 
   const columns = useMemo<PaginatedTableReferenceColumn[]>(
     () => [
@@ -500,7 +535,7 @@ export function DepositExchangeClient() {
         label: "Amount",
         render: (row: DepositRow) => (
           <span className="font-medium tabular-nums">
-            ₹{row.amount.toLocaleString()}
+            ₹{formatWholeRupee(row.amount)}
           </span>
         ),
         sortable: true,
@@ -517,6 +552,7 @@ export function DepositExchangeClient() {
         filterKey: "status",
         filterOptions: [
           { label: "Pending", value: "pending" },
+          { label: "Not Settled", value: "not_settled" },
           { label: "Verified", value: "verified" },
           { label: "Rejected", value: "rejected" },
           { label: "Finalized", value: "finalized" },
@@ -568,7 +604,7 @@ export function DepositExchangeClient() {
         sortable: false,
         minWidth: 96,
         render: (row: DepositRow) => {
-          if (row.status !== "pending") {
+          if (row.status !== "pending" && row.status !== "not_settled") {
             return <span className="text-xs text-gray-400">—</span>;
           }
           if (selectedId && row.id === selectedId) {
@@ -594,7 +630,7 @@ export function DepositExchangeClient() {
     <>
       <ListingPageContainer
         title="Deposit / Exchange depositor"
-        description="Pending banker deposits awaiting exchange action. Select a row to approve or reject."
+        description="Pending and not-settled banker deposits awaiting exchange action. Select a row to settle or reject."
         density="compact"
         fullWidth
         secondaryButtonLabel="Reset filters"
@@ -609,11 +645,39 @@ export function DepositExchangeClient() {
             <div className="mb-3 flex shrink-0 items-center gap-2.5 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-700">
               <IconUser className="size-4 shrink-0" />
               <span>
-                <strong>Tip:</strong> Click any <strong>pending</strong> row to open the approve /
+                <strong>Tip:</strong> Click any <strong>pending</strong> or <strong>not settled</strong> row to open the settle /
                 reject panel.
               </span>
             </div>
           )}
+
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-slate-500">Quick status:</span>
+            <Button
+              type="button"
+              size="xs"
+              variant={filters.status === "all" ? "primary" : "secondary"}
+              onClick={() => setFilter("status", "all")}
+            >
+              All
+            </Button>
+            <Button
+              type="button"
+              size="xs"
+              variant={(filters.status || "") === "" || filters.status === "pending" ? "primary" : "secondary"}
+              onClick={() => setFilter("status", "pending")}
+            >
+              Pending
+            </Button>
+            <Button
+              type="button"
+              size="xs"
+              variant={filters.status === "not_settled" ? "primary" : "secondary"}
+              onClick={() => setFilter("status", "not_settled")}
+            >
+              Not Settled
+            </Button>
+          </div>
 
           {/* Table */}
           <PaginatedTableReference
@@ -697,9 +761,9 @@ export function DepositExchangeClient() {
                   onChange={handlePlayerIdChange}
                   loadOptions={loadPlayerOptions}
                   placeholder="Search player…"
-                  disabled={!canActOnSelection}
+                  disabled={!canApproveOnSelection}
                 />
-                {!playerId && canActOnSelection && (
+                {!playerId && canApproveOnSelection && (
                   <p className="mt-1 text-xs text-amber-600">Player is required to approve.</p>
                 )}
               </div>
@@ -714,16 +778,16 @@ export function DepositExchangeClient() {
                 <Input
                   type="number"
                   min={0}
-                  step="0.01"
+                  step="1"
                   value={bonus}
                   onChange={(e) => {
                     bonusManuallyAdjustedRef.current = true;
                     setBonus(e.target.value);
                   }}
-                  disabled={!canActOnSelection}
+                  disabled={!canApproveOnSelection}
                   placeholder="0"
                 />
-                {playerBonusPercent !== null && canActOnSelection && (
+                {playerBonusPercent !== null && canApproveOnSelection && (
                   <p className="mt-1 text-xs text-gray-500">
                     Applied {bonusPercentSource === "first_deposit" ? "First Deposit" : "Regular"} Bonus %:{" "}
                     {playerBonusPercent}%
@@ -731,7 +795,7 @@ export function DepositExchangeClient() {
                       <>
                         {" "}
                         · Calculated: ₹
-                        {bonusAmountFromPercent(selectedDeposit.amount, playerBonusPercent)}
+                        {formatWholeRupee(Number(bonusAmountFromPercent(selectedDeposit.amount, playerBonusPercent)))}
                       </>
                     )}
                   </p>
@@ -745,19 +809,34 @@ export function DepositExchangeClient() {
                 type="button"
                 variant="success"
                 startIcon={<IconCheck size={16} />}
-                disabled={!canActOnSelection || !playerId.trim()}
+                disabled={!canApproveOnSelection || !playerId.trim()}
                 onClick={() => void onApprove()}
                 className="w-full justify-center"
               >
-                {loadingSelected ? "Approving…" : "Approve"}
+                {loadingSelected ? "Settling…" : "Approve / Settle"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                startIcon={<IconClock size={16} />}
+                disabled={!canMarkNotSettledOnSelection}
+                onClick={() => void onMarkNotSettled()}
+                className="w-full justify-center"
+              >
+                Mark Not Settled
               </Button>
               <Button
                 type="button"
                 variant="danger"
                 startIcon={<IconX size={16} />}
-                disabled={!canActOnSelection}
+                disabled={!canRejectOnSelection}
                 onClick={() => {
-                  if (!selectedDeposit || selectedDeposit.status !== "pending") return;
+                  if (
+                    !selectedDeposit ||
+                    (selectedDeposit.status !== "pending" && selectedDeposit.status !== "not_settled")
+                  ) {
+                    return;
+                  }
                   setRejectOpen(true);
                   setRejectReasonId("");
                   setRejectRemark("");

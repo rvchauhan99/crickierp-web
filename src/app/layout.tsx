@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { BRANDING } from "@/lib/constants/branding";
 
 export const metadata: Metadata = {
-  title: "CrickiERP Admin",
-  description: "CrickiERP admin frontend",
+  title: BRANDING.adminTitle,
+  description: BRANDING.adminDescription,
 };
 
 export default function RootLayout({

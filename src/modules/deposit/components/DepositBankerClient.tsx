@@ -32,6 +32,7 @@ import {
 import { listBanksNormalized } from "@/services/bankService";
 import type { DepositRow } from "@/types/deposit";
 import { getApiErrorMessage } from "@/lib/apiError";
+import { formatWholeRupee } from "@/lib/formatWholeRupee";
 
 const COLUMN_FILTER_KEYS = [
   "utr",
@@ -125,7 +126,11 @@ export function DepositBankerClient() {
     if (!bankId.trim()) next.bankId = "Bank is required.";
     if (!utr.trim()) next.utr = "UTR is required.";
     const amt = Number(amount);
-    if (!amount.trim() || Number.isNaN(amt) || amt < 1) next.amount = "Amount must be at least 1.";
+    if (!amount.trim() || Number.isNaN(amt) || amt < 1) {
+      next.amount = "Amount must be at least 1.";
+    } else if (!Number.isInteger(amt)) {
+      next.amount = "Amount must be a whole number (no decimals).";
+    }
     setErrors(next);
     if (Object.keys(next).length > 0) return;
 
@@ -173,7 +178,11 @@ export function DepositBankerClient() {
     if (!editBankId.trim()) next.bankId = "Bank is required.";
     if (!editUtr.trim()) next.utr = "UTR is required.";
     const amt = Number(editAmount);
-    if (!editAmount.trim() || Number.isNaN(amt) || amt < 1) next.amount = "Amount must be at least 1.";
+    if (!editAmount.trim() || Number.isNaN(amt) || amt < 1) {
+      next.amount = "Amount must be at least 1.";
+    } else if (!Number.isInteger(amt)) {
+      next.amount = "Amount must be a whole number (no decimals).";
+    }
     setEditErrors(next);
     if (Object.keys(next).length > 0) return;
 
@@ -277,7 +286,7 @@ export function DepositBankerClient() {
       {
         field: "amount",
         label: "Amount",
-        render: (row: DepositRow) => row.amount.toLocaleString(),
+        render: (row: DepositRow) => formatWholeRupee(row.amount),
         sortable: true,
         minWidth: 110,
         filterType: "number" as const,
@@ -293,6 +302,7 @@ export function DepositBankerClient() {
         filterKey: "status",
         filterOptions: [
           { label: "Pending", value: "pending" },
+          { label: "Not Settled", value: "not_settled" },
           { label: "Verified", value: "verified" },
           { label: "Rejected", value: "rejected" },
           { label: "Finalized", value: "finalized" },
@@ -360,7 +370,11 @@ export function DepositBankerClient() {
           description="Select a bank account, enter UTR and amount. Pending items appear below and in Exchange Depositors."
         >
         <FormGrid>
-          <div className="md:col-span-2">
+          <div>
+            <FieldLabel>Entry date & time *</FieldLabel>
+            <Input type="datetime-local" value={entryAt} onChange={(e) => setEntryAt(e.target.value)} />
+          </div>
+          <div>
             <FieldLabel>Bank *</FieldLabel>
             <AutocompleteField
               value={bankId}
@@ -388,10 +402,6 @@ export function DepositBankerClient() {
               onChange={(e) => setAmount(e.target.value)}
             />
             <FieldError message={errors.amount} />
-          </div>
-          <div>
-            <FieldLabel>Entry date & time *</FieldLabel>
-            <Input type="datetime-local" value={entryAt} onChange={(e) => setEntryAt(e.target.value)} />
           </div>
         </FormGrid>
         <FormActions className="justify-between px-5 py-4">
