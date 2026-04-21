@@ -17,7 +17,6 @@ import {
 import { AutocompleteField, type AutocompleteOption } from "@/components/common/AutocompleteField";
 import { FieldLabel } from "@/components/common/FieldLabel";
 import { FieldError } from "@/components/common/FieldError";
-import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { ListingPageContainer } from "@/components/common/ListingPageContainer";
 import PaginatedTableReference, {
@@ -32,11 +31,10 @@ import { tableColumnPresets } from "@/lib/tableStylePresets";
 import {
   approveExpense,
   getExpenseDocumentViewUrl,
-  listExpenseTypes,
   listExpensesNormalized,
   rejectExpense,
 } from "@/services/expenseService";
-import { listBanksNormalized } from "@/services/bankService";
+import { listBankLookupOptions, listExpenseTypeLookupOptions } from "@/services/lookupService";
 import { listLiabilityPersonsNormalized } from "@/services/liabilityService";
 import { userService } from "@/services/userService";
 import type { ExpenseRow } from "@/types/expense";
@@ -275,16 +273,10 @@ export function ExpenseAuditClient() {
 
   const loadBankOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {
-      const res = await listBanksNormalized({
-        page: 1,
-        limit: 25,
-        q: query || undefined,
-        sortBy: "createdAt",
-        sortOrder: "desc",
-      });
-      return res.data.map((b) => ({
+      const rows = await listBankLookupOptions({ q: query || undefined, limit: 25 });
+      return rows.map((b) => ({
         value: b.id,
-        label: `${b.holderName} - ${b.bankName} (${String(b.accountNumber).slice(-4)})`,
+        label: b.label,
       }));
     } catch {
       return [];
@@ -309,12 +301,12 @@ export function ExpenseAuditClient() {
 
   const loadTypeOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {
-      const rows = await listExpenseTypes();
+      const rows = await listExpenseTypeLookupOptions({ q: query || undefined, limit: 50 });
       const q = query.trim().toLowerCase();
       return rows
         .filter((r) => !q || r.name.toLowerCase().includes(q) || (r.code ?? "").toLowerCase().includes(q))
         .map((r) => ({
-          value: r._id,
+          value: r.id,
           label: r.code ? `${r.name} (${r.code})` : r.name,
         }));
     } catch {

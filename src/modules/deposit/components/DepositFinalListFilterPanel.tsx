@@ -37,11 +37,8 @@ const DateField = DateFieldReference as ComponentType<{
   onChange: (e: DateFieldChangeEvent) => void;
 }>;
 import { AutocompleteField } from "@/components/common/AutocompleteField";
-import { listBanksNormalized } from "@/services/bankService";
-import { listPlayersNormalized } from "@/services/playerService";
+import { listBankLookupOptions, listPlayerLookupOptions } from "@/services/lookupService";
 import { userService } from "@/services/userService";
-import type { BankRow } from "@/types/bank";
-import type { PlayerRow } from "@/types/player";
 import {
   DEPOSIT_FINAL_FILTER_KEYS,
   emptyDepositFinalFilters,
@@ -112,7 +109,7 @@ function buildUserLabel(row: ExchangeUserRow): string {
   return name || "";
 }
 
-function bankLabel(b: BankRow): string {
+function bankLabel(b: { holderName: string; bankName: string; accountNumber: string }): string {
   const last4 =
     b.accountNumber.length >= 4 ? b.accountNumber.slice(-4) : b.accountNumber;
   return `${b.holderName} - ${b.bankName} - ${last4}`.trim();
@@ -185,29 +182,17 @@ export function DepositFinalListFilterPanel({
   }, []);
 
   const loadBankOptions = useCallback(async (query: string) => {
-    const { data } = await listBanksNormalized({
-      page: 1,
-      limit: 20,
-      sortBy: "holderName",
-      sortOrder: "asc",
-      q: query || undefined,
-    });
-    return data.map((row) => ({
-      value: row._id,
+    const rows = await listBankLookupOptions({ q: query || undefined, limit: 20 });
+    return rows.map((row) => ({
+      value: row.id,
       label: bankLabel(row),
     }));
   }, []);
 
   const loadPlayerOptions = useCallback(async (query: string) => {
-    const { data } = await listPlayersNormalized({
-      page: 1,
-      limit: 20,
-      sortBy: "createdAt",
-      sortOrder: "desc",
-      q: query || undefined,
-    });
-    return data.map((row: PlayerRow) => ({
-      value: row._id,
+    const rows = await listPlayerLookupOptions({ q: query || undefined, limit: 20 });
+    return rows.map((row) => ({
+      value: row.id,
       label: `${row.playerId}${row.phone ? ` · ${row.phone}` : ""}`,
     }));
   }, []);

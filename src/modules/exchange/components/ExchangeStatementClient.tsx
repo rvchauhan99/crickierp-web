@@ -16,8 +16,8 @@ import { Input } from "@/components/ui/Input";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { cn } from "@/lib/cn";
 import { DATE_PRESETS } from "@/modules/dashboard/components/DashboardFilterBar";
-import { listPlayersNormalized } from "@/services/playerService";
-import { getExchangeStatement, listExchanges } from "@/services/exchangeService";
+import { getExchangeStatement } from "@/services/exchangeService";
+import { listExchangeLookupOptions, listPlayerLookupOptions } from "@/services/lookupService";
 import type { ExchangeStatementEntryType, ExchangeStatementResponse } from "@/types/exchange";
 
 function formatAmount(value: number) {
@@ -42,9 +42,9 @@ export function ExchangeStatementClient() {
 
   const loadExchangeOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {
-      const res = await listExchanges({ page: 1, limit: 40, q: query || undefined });
-      return res.items.map((item) => ({
-        value: item._id ?? item.id,
+      const rows = await listExchangeLookupOptions({ q: query || undefined, limit: 40 });
+      return rows.map((item) => ({
+        value: item.id,
         label: `${item.name} - ${item.provider}`,
       }));
     } catch {
@@ -56,16 +56,10 @@ export function ExchangeStatementClient() {
     async (query: string): Promise<AutocompleteOption[]> => {
       if (!exchangeId.trim()) return [];
       try {
-        const res = await listPlayersNormalized({
-          page: 1,
-          limit: 40,
-          q: query || undefined,
-          exchangeId: exchangeId.trim(),
-        });
-        return res.data.map((row) => ({
-          value: row._id,
-          label: `${row.playerId} (${row.phone})`,
-        }));
+        const rows = await listPlayerLookupOptions({ q: query || undefined, limit: 40 });
+        return rows
+          .filter((row) => (row.exchangeId ?? "") === exchangeId.trim())
+          .map((row) => ({ value: row.id, label: `${row.playerId} (${row.phone})` }));
       } catch {
         return [];
       }

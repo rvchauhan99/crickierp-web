@@ -10,7 +10,7 @@ import { FieldLabel } from "@/components/common/FieldLabel";
 import { FieldError } from "@/components/common/FieldError";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
-import { listExchanges } from "@/services/exchangeService";
+import { listExchangeLookupOptions } from "@/services/lookupService";
 import {
   createPlayer,
   createPlayerImportJob,
@@ -57,16 +57,10 @@ export function PlayerAddClient() {
 
   const loadExchangeOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {
-      const result = await listExchanges({
-        page: 1,
-        limit: 25,
-        q: query || undefined,
-        sortBy: "name",
-        sortOrder: "asc",
-      });
-      return result.items.map((ex) => ({
+      const rows = await listExchangeLookupOptions({ q: query || undefined, limit: 25 });
+      return rows.map((ex) => ({
         value: ex.id,
-        label: `${ex.name} (${ex.provider}) - Bal: ₹${Number(ex.currentBalance ?? ex.openingBalance ?? 0).toLocaleString("en-IN")}`,
+        label: `${ex.name} (${ex.provider})`,
       }));
     } catch {
       return [];

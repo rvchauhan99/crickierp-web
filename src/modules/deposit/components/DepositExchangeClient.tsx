@@ -33,7 +33,7 @@ import {
 } from "@/services/depositService";
 import { useExport } from "@/hooks/useExport";
 import { depositStatusApiParam, depositStatusColumnSelectValue } from "@/modules/deposit/depositListingStatusFilter";
-import { getPlayerById, listPlayersNormalized } from "@/services/playerService";
+import { getPlayerBonusProfile, listPlayerLookupOptions } from "@/services/lookupService";
 import type { DepositRow } from "@/types/deposit";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
@@ -41,6 +41,7 @@ import { userService } from "@/services/userService";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { REASON_TYPES } from "@/lib/constants/reasonTypes";
 import { formatWholeRupee } from "@/lib/formatWholeRupee";
+import { useApprovalQueueAutoRefresh } from "@/hooks/useApprovalQueueAutoRefresh";
 
 const COLUMN_FILTER_KEYS = [
   "utr",
@@ -209,6 +210,12 @@ export function DepositExchangeClient() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [cachedUsers, setCachedUsers] = useState<Record<string, string>>({});
 
+  useApprovalQueueAutoRefresh({
+    module: "deposit",
+    view: "exchange",
+    onRefresh: () => setTableKey((k) => k + 1),
+  });
+
   useEffect(() => {
     let active = true;
     userService
@@ -240,16 +247,10 @@ export function DepositExchangeClient() {
 
   const loadPlayerOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {
-      const res = await listPlayersNormalized({
-        page: 1,
-        limit: 25,
-        q: query || undefined,
-        sortBy: "playerId",
-        sortOrder: "asc",
-      });
-      return res.data
+      const rows = await listPlayerLookupOptions({ q: query || undefined, limit: 25 });
+      return rows
         .map((p) => ({
-          value: String(p._id || p.id || "").trim(),
+          value: String(p.id || "").trim(),
           label: `${p.playerId} · ${p.phone}`,
         }))
         .filter((o): o is AutocompleteOption => o.value.length > 0);
@@ -454,7 +455,7 @@ export function DepositExchangeClient() {
     }
 
     void Promise.all([
-      getPlayerById(pid),
+      getPlayerBonusProfile(pid),
       listDepositsNormalized("exchange", {
         page: 1,
         limit: 1,
