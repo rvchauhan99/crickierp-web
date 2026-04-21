@@ -126,6 +126,38 @@ export function LiabilityLedgerClient() {
         : "Settled"
     : "";
 
+  const finalBalanceTone = !ledger
+    ? {
+        badgeClass: "bg-slate-100 text-slate-700 border-slate-200",
+        cardClass: "bg-slate-50/50",
+        labelClass: "text-slate-600",
+        amountClass: "text-slate-900",
+        footerClass: "text-slate-900 bg-slate-100",
+      }
+    : ledger.closingBalance > 0
+      ? {
+          badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
+          cardClass: "bg-emerald-50/40 border-l border-emerald-200",
+          labelClass: "text-emerald-700",
+          amountClass: "text-emerald-700",
+          footerClass: "text-emerald-800 bg-emerald-50/70",
+        }
+      : ledger.closingBalance < 0
+        ? {
+            badgeClass: "bg-rose-50 text-rose-700 border-rose-200",
+            cardClass: "bg-rose-50/40 border-l border-rose-200",
+            labelClass: "text-rose-700",
+            amountClass: "text-rose-700",
+            footerClass: "text-rose-800 bg-rose-50/70",
+          }
+        : {
+            badgeClass: "bg-slate-100 text-slate-700 border-slate-200",
+            cardClass: "bg-slate-50/50",
+            labelClass: "text-slate-600",
+            amountClass: "text-slate-900",
+            footerClass: "text-slate-900 bg-slate-100",
+          };
+
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: `
@@ -310,9 +342,16 @@ export function LiabilityLedgerClient() {
               <span className="text-[10px] uppercase font-semibold tracking-widest text-rose-600/70 mb-1 flex items-center gap-1"><IconArrowDownRight className="w-3 h-3"/> Total Outward (CR)</span>
               <span className="text-xl font-bold text-rose-700">{formatAmount(totalCredits)}</span>
             </div>
-            <div className="p-4 flex flex-col justify-center bg-slate-50/50">
-              <span className="text-[10px] uppercase font-semibold tracking-widest text-slate-600 mb-1">Closing Balance</span>
-              <span className="text-2xl font-bold text-slate-900">{formatAmount(periodClosingBalance)}</span>
+            <div className={cn("p-4 flex flex-col justify-center", finalBalanceTone.cardClass)}>
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className={cn("text-[10px] uppercase font-semibold tracking-widest", finalBalanceTone.labelClass)}>
+                  Closing Balance
+                </span>
+                <span className={cn("text-[9px] uppercase tracking-wider font-semibold border rounded-full px-2 py-0.5", finalBalanceTone.badgeClass)}>
+                  Final: {balanceType}
+                </span>
+              </div>
+              <span className={cn("text-2xl font-bold", finalBalanceTone.amountClass)}>{formatAmount(periodClosingBalance)}</span>
             </div>
           </div>
 
@@ -404,7 +443,7 @@ export function LiabilityLedgerClient() {
                   <td className="py-3 px-4 text-right font-bold text-rose-700">
                     {formatAmount(totalCredits)}
                   </td>
-                  <td className="py-3 px-4 text-right font-bold text-slate-900 bg-slate-100">
+                  <td className={cn("py-3 px-4 text-right font-bold", finalBalanceTone.footerClass)}>
                     {formatAmount(periodClosingBalance)}
                   </td>
                 </tr>
