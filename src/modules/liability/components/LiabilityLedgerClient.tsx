@@ -1,9 +1,7 @@
 "use client";
 
 import { useCallback, useState, useRef } from "react";
-import { toast } from "sonner";
 import { 
-  IconPrinter, 
   IconFilter, 
   IconCalendar, 
   IconArrowUpRight, 
@@ -83,6 +81,7 @@ export function LiabilityLedgerClient() {
       const data = await getLiabilityPersonLedger(personId.trim(), {
         fromDate: fromDate || undefined,
         toDate: toDate || undefined,
+        viewMode: "person",
       });
       setLedger(data);
     } catch (e: unknown) {
@@ -106,6 +105,7 @@ export function LiabilityLedgerClient() {
     handleExport({
       fromDate: fromDate || undefined,
       toDate: toDate || undefined,
+      viewMode: "person",
     });
   }, [handleExport, personId, fromDate, toDate]);
 
@@ -114,17 +114,62 @@ export function LiabilityLedgerClient() {
   const periodClosingBalance = ledger && ledger.rows.length > 0 
     ? ledger.rows[ledger.rows.length - 1].runningBalance 
     : (ledger?.closingBalance ?? 0);
+  const runningDeltaForFirstRow = ledger?.rows[0]
+    ? (ledger.viewMode === "person"
+      ? ledger.rows[0].credit - ledger.rows[0].debit
+      : ledger.rows[0].debit - ledger.rows[0].credit)
+    : 0;
   const periodOpeningBalance = ledger && ledger.rows.length > 0 
-    ? ledger.rows[0].runningBalance - (ledger.rows[0].debit - ledger.rows[0].credit) 
-    : (ledger?.closingBalance ?? 0);
+    ? ledger.rows[0].runningBalance - runningDeltaForFirstRow
+    : (ledger?.person.openingBalance ?? 0);
 
-  const balanceType = ledger
-    ? ledger.closingBalance > 0
+  const closingSide = ledger?.closingSide
+    ?? (ledger
+      ? ledger.closingBalance > 0
+        ? "receivable"
+        : ledger.closingBalance < 0
+          ? "payable"
+          : "settled"
+      : "settled");
+
+  const balanceType =
+    closingSide === "receivable"
       ? "Receivable"
-      : ledger.closingBalance < 0
+      : closingSide === "payable"
         ? "Payable"
-        : "Settled"
-    : "";
+        : "Settled";
+
+  const finalBalanceTone = !ledger
+    ? {
+        badgeClass: "bg-slate-100 text-slate-700 border-slate-200",
+        cardClass: "bg-slate-50/50",
+        labelClass: "text-slate-600",
+        amountClass: "text-slate-900",
+        footerClass: "text-slate-900 bg-slate-100",
+      }
+    : closingSide === "receivable"
+      ? {
+          badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
+          cardClass: "bg-emerald-50/40 border-l border-emerald-200",
+          labelClass: "text-emerald-700",
+          amountClass: "text-emerald-700",
+          footerClass: "text-emerald-800 bg-emerald-50/70",
+        }
+      : closingSide === "payable"
+        ? {
+            badgeClass: "bg-rose-50 text-rose-700 border-rose-200",
+            cardClass: "bg-rose-50/40 border-l border-rose-200",
+            labelClass: "text-rose-700",
+            amountClass: "text-rose-700",
+            footerClass: "text-rose-800 bg-rose-50/70",
+          }
+        : {
+            badgeClass: "bg-slate-100 text-slate-700 border-slate-200",
+            cardClass: "bg-slate-50/50",
+            labelClass: "text-slate-600",
+            amountClass: "text-slate-900",
+            footerClass: "text-slate-900 bg-slate-100",
+          };
 
   return (
     <>
@@ -310,9 +355,16 @@ export function LiabilityLedgerClient() {
               <span className="text-[10px] uppercase font-semibold tracking-widest text-rose-600/70 mb-1 flex items-center gap-1"><IconArrowDownRight className="w-3 h-3"/> Total Outward (CR)</span>
               <span className="text-xl font-bold text-rose-700">{formatAmount(totalCredits)}</span>
             </div>
-            <div className="p-4 flex flex-col justify-center bg-slate-50/50">
-              <span className="text-[10px] uppercase font-semibold tracking-widest text-slate-600 mb-1">Closing Balance</span>
-              <span className="text-2xl font-bold text-slate-900">{formatAmount(periodClosingBalance)}</span>
+            <div className={cn("p-4 flex flex-col justify-center", finalBalanceTone.cardClass)}>
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className={cn("text-[10px] uppercase font-semibold tracking-widest", finalBalanceTone.labelClass)}>
+                  Closing Balance
+                </span>
+                <span className={cn("text-[9px] uppercase tracking-wider font-semibold border rounded-full px-2 py-0.5", finalBalanceTone.badgeClass)}>
+                  Final: {balanceType}
+                </span>
+              </div>
+              <span className={cn("text-2xl font-bold", finalBalanceTone.amountClass)}>{formatAmount(periodClosingBalance)}</span>
             </div>
           </div>
 
@@ -321,6 +373,7 @@ export function LiabilityLedgerClient() {
              <span className="text-[10px] text-slate-400">
                * Inward (Debit) increases receivable from person. Outward (Credit) decreases receivable from person.
              </span>
+             <span className="text-[10px] text-slate-500 ml-2">Showing Person-side view</span>
           </div>
 
           {/* Ledger Table */}
@@ -404,7 +457,7 @@ export function LiabilityLedgerClient() {
                   <td className="py-3 px-4 text-right font-bold text-rose-700">
                     {formatAmount(totalCredits)}
                   </td>
-                  <td className="py-3 px-4 text-right font-bold text-slate-900 bg-slate-100">
+                  <td className={cn("py-3 px-4 text-right font-bold", finalBalanceTone.footerClass)}>
                     {formatAmount(periodClosingBalance)}
                   </td>
                 </tr>

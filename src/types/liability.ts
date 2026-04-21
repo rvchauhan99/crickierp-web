@@ -1,3 +1,6 @@
+export type LiabilityViewMode = "platform" | "person";
+export type LiabilityBalanceSide = "receivable" | "payable" | "settled";
+
 export type LiabilityPersonRow = {
   _id: string;
   id: string;
@@ -76,16 +79,20 @@ export type LiabilityLedgerRow = {
 };
 
 export type LiabilityLedgerResponse = {
+  viewMode?: LiabilityViewMode;
   person: {
     _id: string;
     name: string;
     openingBalance: number;
+    openingSide?: LiabilityBalanceSide;
   };
   rows: LiabilityLedgerRow[];
   closingBalance: number;
+  closingSide?: LiabilityBalanceSide;
 };
 
 export type LiabilitySummaryReport = {
+  viewMode?: LiabilityViewMode;
   totalReceivable: number;
   totalPayable: number;
   netPosition: number;
@@ -100,4 +107,6 @@ export type LiabilityPersonWiseReportRow = {
   totalCredits?: number;
   totalDebits?: number;
   side: "receivable" | "payable";
+  sideLabel?: LiabilityBalanceSide;
+  viewMode?: LiabilityViewMode;
 };

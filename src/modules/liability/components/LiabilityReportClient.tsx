@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useRef, useMemo } from "react";
 import { 
-  IconPrinter, 
   IconUsers, 
   IconArrowUpRight, 
   IconArrowDownRight, 
@@ -128,6 +127,7 @@ export function LiabilityReportClient() {
             <p className="text-xs text-slate-400 mt-0.5">
               Receivable/payable summary and person-wise balances.
             </p>
+            <p className="text-[10px] text-slate-500 mt-1">Showing Person-side view</p>
           </div>
           <div className="flex items-center gap-3">
             <div className="relative group">
@@ -267,16 +267,24 @@ export function LiabilityReportClient() {
                           </td>
                           <td className={cn(
                             "py-3 px-4 text-right font-bold text-sm bg-slate-50/20 border-l border-slate-100",
-                            r.side === "receivable" ? "text-emerald-700" : "text-rose-700"
+                            (r.sideLabel ?? r.side) === "receivable"
+                              ? "text-emerald-700"
+                              : (r.sideLabel ?? r.side) === "payable"
+                                ? "text-rose-700"
+                                : "text-slate-700"
                           )}>
                             {formatAmount(Math.abs(r.balance))}
                           </td>
                           <td className="py-3 px-4">
                             <span className={cn(
                               "text-[10px] font-bold uppercase tracking-widest",
-                              r.side === "receivable" ? "text-emerald-600/70" : "text-rose-600/70"
+                              (r.sideLabel ?? r.side) === "receivable"
+                                ? "text-emerald-600/70"
+                                : (r.sideLabel ?? r.side) === "payable"
+                                  ? "text-rose-600/70"
+                                  : "text-slate-500"
                             )}>
-                              {r.side}
+                              {r.sideLabel ?? r.side}
                             </span>
                           </td>
                         </tr>
