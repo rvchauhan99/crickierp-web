@@ -17,7 +17,7 @@ import { useListingQueryStateReference } from "@/hooks/useListingQueryStateRefer
 import { tableColumnPresets } from "@/lib/tableStylePresets";
 import { createLiabilityEntry, exportLiabilityEntries, listLiabilityEntriesNormalized, listLiabilityPersonsNormalized } from "@/services/liabilityService";
 import { useExport } from "@/hooks/useExport";
-import { listBanksNormalized } from "@/services/bankService";
+import { listBankLookupOptions } from "@/services/lookupService";
 import { getApiErrorMessage } from "@/lib/apiError";
 import type { LiabilityAccountType, LiabilityEntryRow, LiabilityEntryType } from "@/types/liability";
 
@@ -58,16 +58,10 @@ export function LiabilityEntryClient() {
   }, []);
 
   const loadBankOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
-    const res = await listBanksNormalized({
-      page: 1,
-      limit: 30,
-      q: query || undefined,
-      sortBy: "createdAt",
-      sortOrder: "desc",
-    });
-    return res.data.map((b) => ({
+    const rows = await listBankLookupOptions({ q: query || undefined, limit: 30 });
+    return rows.map((b) => ({
       value: b.id,
-      label: `${b.holderName} - ${b.bankName} (${String(b.accountNumber).slice(-4)})`,
+      label: b.label,
     }));
   }, []);
 

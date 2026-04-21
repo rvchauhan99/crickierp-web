@@ -20,12 +20,11 @@ import { useListingQueryStateReference } from "@/hooks/useListingQueryStateRefer
 import { tableColumnPresets } from "@/lib/tableStylePresets";
 import {
   createExpense,
-  listExpenseTypes,
   listExpensesNormalized,
   updateExpense,
   uploadExpenseDocuments,
 } from "@/services/expenseService";
-import { listBanksNormalized } from "@/services/bankService";
+import { listBankLookupOptions, listExpenseTypeLookupOptions } from "@/services/lookupService";
 import { userService } from "@/services/userService";
 import { getApiErrorMessage } from "@/lib/apiError";
 import type { ExpenseRow } from "@/types/expense";
@@ -136,12 +135,12 @@ export function ExpenseAddClient() {
 
   const loadTypeOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {
-      const rows = await listExpenseTypes();
+      const rows = await listExpenseTypeLookupOptions({ q: query || undefined, limit: 50 });
       const q = query.trim().toLowerCase();
       return rows
         .filter((r) => !q || r.name.toLowerCase().includes(q) || (r.code ?? "").toLowerCase().includes(q))
         .map((r) => ({
-          value: r._id,
+          value: r.id,
           label: r.code ? `${r.name} (${r.code})` : r.name,
         }));
     } catch {
@@ -151,16 +150,10 @@ export function ExpenseAddClient() {
 
   const loadBankOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {
-      const res = await listBanksNormalized({
-        page: 1,
-        limit: 25,
-        q: query || undefined,
-        sortBy: "createdAt",
-        sortOrder: "desc",
-      });
-      return res.data.map((b) => ({
+      const rows = await listBankLookupOptions({ q: query || undefined, limit: 25 });
+      return rows.map((b) => ({
         value: b.id,
-        label: `${b.holderName} - ${b.bankName} (${String(b.accountNumber).slice(-4)})`,
+        label: b.label,
       }));
     } catch {
       return [];

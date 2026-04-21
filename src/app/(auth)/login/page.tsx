@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FormContainer } from "@/components/common/FormContainer";
 import { FormGrid } from "@/components/common/FormGrid";
@@ -15,7 +15,7 @@ import Link from "next/link";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, isAuthenticated, isBootstrapping } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -25,6 +25,21 @@ export default function LoginPage() {
   const [requires2Fa, setRequires2Fa] = useState(false);
   const [tempToken, setTempToken] = useState("");
   const [code, setCode] = useState("");
+
+  useEffect(() => {
+    if (isBootstrapping) return;
+    if (isAuthenticated) {
+      router.replace("/dashboard");
+    }
+  }, [isAuthenticated, isBootstrapping, router]);
+
+  if (isBootstrapping || isAuthenticated) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-4 text-sm text-gray-500">
+        Loading...
+      </div>
+    );
+  }
 
   async function onSubmit() {
     setError("");

@@ -37,9 +37,10 @@ import {
   exportWithdrawals,
 } from "@/services/withdrawalService";
 import { useExport } from "@/hooks/useExport";
-import { listBanksNormalized } from "@/services/bankService";
+import { listBankLookupOptions } from "@/services/lookupService";
 import { userService } from "@/services/userService";
 import type { WithdrawalRow } from "@/types/withdrawal";
+import { useApprovalQueueAutoRefresh } from "@/hooks/useApprovalQueueAutoRefresh";
 
 const COLUMN_FILTER_KEYS = [
   "utr",
@@ -216,6 +217,12 @@ export function WithdrawalBankerClient() {
   const [tableKey, setTableKey] = useState(0);
   const [selectedWithdrawal, setSelectedWithdrawal] = useState<WithdrawalRow | null>(null);
 
+  useApprovalQueueAutoRefresh({
+    module: "withdrawal",
+    view: "banker",
+    onRefresh: () => setTableKey((k) => k + 1),
+  });
+
   const [bankId, setBankId] = useState("");
   const [bankAutocompleteDefault, setBankAutocompleteDefault] = useState<AutocompleteOption | null>(null);
   const bankIdRef = useRef("");
@@ -268,16 +275,10 @@ export function WithdrawalBankerClient() {
 
   const loadBankOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {
-      const res = await listBanksNormalized({
-        page: 1,
-        limit: 25,
-        q: query || undefined,
-        sortBy: "createdAt",
-        sortOrder: "desc",
-      });
-      return res.data.map((b) => ({
+      const rows = await listBankLookupOptions({ q: query || undefined, limit: 25 });
+      return rows.map((b) => ({
         value: b.id,
-        label: `${b.holderName} - ${b.bankName} (${String(b.accountNumber).slice(-4)})`,
+        label: b.label,
       }));
     } catch {
       return [];
