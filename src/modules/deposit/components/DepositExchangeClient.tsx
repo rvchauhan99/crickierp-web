@@ -41,6 +41,7 @@ import { userService } from "@/services/userService";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { REASON_TYPES } from "@/lib/constants/reasonTypes";
 import { formatWholeRupee } from "@/lib/formatWholeRupee";
+import { useApprovalQueueAutoRefresh } from "@/hooks/useApprovalQueueAutoRefresh";
 
 const COLUMN_FILTER_KEYS = [
   "utr",
@@ -208,6 +209,12 @@ export function DepositExchangeClient() {
   const [rejectRemark, setRejectRemark] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [cachedUsers, setCachedUsers] = useState<Record<string, string>>({});
+
+  useApprovalQueueAutoRefresh({
+    module: "deposit",
+    view: "exchange",
+    onRefresh: () => setTableKey((k) => k + 1),
+  });
 
   useEffect(() => {
     let active = true;

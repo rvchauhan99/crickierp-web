@@ -33,6 +33,7 @@ import { listBankLookupOptions } from "@/services/lookupService";
 import type { DepositRow } from "@/types/deposit";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { formatWholeRupee } from "@/lib/formatWholeRupee";
+import { useApprovalQueueAutoRefresh } from "@/hooks/useApprovalQueueAutoRefresh";
 
 const COLUMN_FILTER_KEYS = [
   "utr",
@@ -102,6 +103,12 @@ export function DepositBankerClient() {
   const [editAmount, setEditAmount] = useState("");
   const [editLoading, setEditLoading] = useState(false);
   const [editErrors, setEditErrors] = useState<{ bankId?: string; utr?: string; amount?: string }>({});
+
+  useApprovalQueueAutoRefresh({
+    module: "deposit",
+    view: "banker",
+    onRefresh: () => setTableKey((k) => k + 1),
+  });
 
   const loadBankOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {

@@ -37,6 +37,7 @@ import {
   withdrawalStatusApiParam,
   withdrawalStatusColumnSelectValue,
 } from "@/modules/withdrawal/withdrawalListingStatusFilter";
+import { useApprovalQueueAutoRefresh } from "@/hooks/useApprovalQueueAutoRefresh";
 
 const COLUMN_FILTER_KEYS = [
   "utr",
@@ -127,6 +128,12 @@ export function WithdrawalExchangeClient() {
   const [totalCount, setTotalCount] = useState(0);
   const [tableKey, setTableKey] = useState(0);
   const [cachedUsers, setCachedUsers] = useState<Record<string, string>>({});
+
+  useApprovalQueueAutoRefresh({
+    module: "withdrawal",
+    view: "exchange",
+    onRefresh: () => setTableKey((k) => k + 1),
+  });
 
   const loadUserOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {

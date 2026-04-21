@@ -40,6 +40,7 @@ import { useExport } from "@/hooks/useExport";
 import { listBankLookupOptions } from "@/services/lookupService";
 import { userService } from "@/services/userService";
 import type { WithdrawalRow } from "@/types/withdrawal";
+import { useApprovalQueueAutoRefresh } from "@/hooks/useApprovalQueueAutoRefresh";
 
 const COLUMN_FILTER_KEYS = [
   "utr",
@@ -215,6 +216,12 @@ export function WithdrawalBankerClient() {
   const [totalCount, setTotalCount] = useState(0);
   const [tableKey, setTableKey] = useState(0);
   const [selectedWithdrawal, setSelectedWithdrawal] = useState<WithdrawalRow | null>(null);
+
+  useApprovalQueueAutoRefresh({
+    module: "withdrawal",
+    view: "banker",
+    onRefresh: () => setTableKey((k) => k + 1),
+  });
 
   const [bankId, setBankId] = useState("");
   const [bankAutocompleteDefault, setBankAutocompleteDefault] = useState<AutocompleteOption | null>(null);
