@@ -27,7 +27,7 @@ import {
   exportWithdrawals,
 } from "@/services/withdrawalService";
 import { useExport } from "@/hooks/useExport";
-import { listPlayersNormalized } from "@/services/playerService";
+import { listPlayerLookupOptions } from "@/services/lookupService";
 import { userService } from "@/services/userService";
 import type { SavedWithdrawalAccount, WithdrawalRow } from "@/types/withdrawal";
 import { getApiErrorMessage } from "@/lib/apiError";
@@ -161,15 +161,9 @@ export function WithdrawalExchangeClient() {
 
   const loadPlayerOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {
-      const res = await listPlayersNormalized({
-        page: 1,
-        limit: 25,
-        q: query || undefined,
-        sortBy: "playerId",
-        sortOrder: "asc",
-      });
-      return res.data.map((p) => ({
-        value: String(p._id || p.id || "").trim(),
+      const rows = await listPlayerLookupOptions({ q: query || undefined, limit: 25 });
+      return rows.map((p) => ({
+        value: String(p.id || "").trim(),
         label: `${p.playerId} · ${p.phone}`,
       }));
     } catch {

@@ -22,8 +22,7 @@ import {
 } from "@/components/ui/shadcn/select";
 import { AutocompleteField } from "@/components/common/AutocompleteField";
 
-import { listBanksNormalized } from "@/services/bankService";
-import { listExpenseTypes } from "@/services/expenseService";
+import { listBankLookupOptions, listExpenseTypeLookupOptions } from "@/services/lookupService";
 import { userService } from "@/services/userService";
 import {
   emptyExpenseFinalFilters,
@@ -131,16 +130,16 @@ export function ExpenseAnalysisFilterPanel({ q, filters, setQ, setFilters, onCle
   }, []);
 
   const loadBankOptions = useCallback(async (query: string) => {
-    const res = await listBanksNormalized({ q: query || undefined, page: 1, limit: 20 });
-    return res.data.map(b => ({ value: b.id, label: `${b.bankName} (${String(b.accountNumber).slice(-4)})` }));
+    const rows = await listBankLookupOptions({ q: query || undefined, limit: 20 });
+    return rows.map((b) => ({ value: b.id, label: `${b.bankName} (${String(b.accountNumber).slice(-4)})` }));
   }, []);
 
   const loadTypeOptions = useCallback(async (query: string) => {
-    const rows = await listExpenseTypes();
+    const rows = await listExpenseTypeLookupOptions({ q: query || undefined, limit: 50 });
     const qq = query.trim().toLowerCase();
     return rows
       .filter(r => !qq || r.name.toLowerCase().includes(qq))
-      .map(r => ({ value: r._id, label: r.name }));
+      .map(r => ({ value: r.id, label: r.name }));
   }, []);
 
   const activeCount = useMemo(() => {

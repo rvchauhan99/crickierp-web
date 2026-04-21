@@ -32,8 +32,7 @@ import {
   listDepositsNormalized,
   normalizeDeposit,
 } from "@/services/depositService";
-import { listBanksNormalized } from "@/services/bankService";
-import { listPlayersNormalized } from "@/services/playerService";
+import { listBankLookupOptions, listPlayerLookupOptions } from "@/services/lookupService";
 import { listReasonOptions } from "@/services/reasonService";
 import { REASON_TYPES } from "@/lib/constants/reasonTypes";
 import type { DepositRow } from "@/types/deposit";
@@ -228,16 +227,10 @@ export function DepositFinalListClient() {
 
   const loadBankOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {
-      const res = await listBanksNormalized({
-        page: 1,
-        limit: 25,
-        q: query || undefined,
-        sortBy: "createdAt",
-        sortOrder: "desc",
-      });
-      return res.data.map((b) => ({
+      const rows = await listBankLookupOptions({ q: query || undefined, limit: 25 });
+      return rows.map((b) => ({
         value: b.id,
-        label: `${b.holderName} - ${b.bankName} (${b.accountNumber.slice(-4)})`,
+        label: b.label,
       }));
     } catch {
       return [];
@@ -246,15 +239,9 @@ export function DepositFinalListClient() {
 
   const loadPlayerOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {
-      const { data } = await listPlayersNormalized({
-        page: 1,
-        limit: 20,
-        sortBy: "createdAt",
-        sortOrder: "desc",
-        q: query || undefined,
-      });
-      return data.map((p) => ({
-        value: p._id,
+      const rows = await listPlayerLookupOptions({ q: query || undefined, limit: 20 });
+      return rows.map((p) => ({
+        value: p.id,
         label: `${p.playerId}${p.phone ? ` · ${p.phone}` : ""}`,
       }));
     } catch {

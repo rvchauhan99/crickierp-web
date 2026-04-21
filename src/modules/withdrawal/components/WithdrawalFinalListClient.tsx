@@ -25,7 +25,7 @@ import { useAuth } from "@/context/AuthContext";
 import { NAV_PERMISSIONS } from "@/lib/constants/navPermissions";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { formatWholeRupee } from "@/lib/formatWholeRupee";
-import { listBanksNormalized } from "@/services/bankService";
+import { listBankLookupOptions } from "@/services/lookupService";
 import { listReasonOptions } from "@/services/reasonService";
 import { REASON_TYPES } from "@/lib/constants/reasonTypes";
 import {
@@ -177,16 +177,10 @@ export function WithdrawalFinalListClient() {
 
   const loadPayoutBankOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {
-      const res = await listBanksNormalized({
-        page: 1,
-        limit: 25,
-        q: query || undefined,
-        sortBy: "createdAt",
-        sortOrder: "desc",
-      });
-      return res.data.map((b) => ({
+      const rows = await listBankLookupOptions({ q: query || undefined, limit: 25 });
+      return rows.map((b) => ({
         value: b.id,
-        label: `${b.holderName} - ${b.bankName} (${b.accountNumber.slice(-4)})`,
+        label: b.label,
       }));
     } catch {
       return [];

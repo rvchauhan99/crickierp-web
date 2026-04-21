@@ -29,7 +29,7 @@ import {
   depositStatusApiParam,
   depositStatusColumnSelectValue,
 } from "@/modules/deposit/depositListingStatusFilter";
-import { listBanksNormalized } from "@/services/bankService";
+import { listBankLookupOptions } from "@/services/lookupService";
 import type { DepositRow } from "@/types/deposit";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { formatWholeRupee } from "@/lib/formatWholeRupee";
@@ -105,16 +105,10 @@ export function DepositBankerClient() {
 
   const loadBankOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {
-      const res = await listBanksNormalized({
-        page: 1,
-        limit: 25,
-        q: query || undefined,
-        sortBy: "createdAt",
-        sortOrder: "desc",
-      });
-      return res.data.map((b) => ({
+      const rows = await listBankLookupOptions({ q: query || undefined, limit: 25 });
+      return rows.map((b) => ({
         value: b.id,
-        label: `${b.holderName} - ${b.bankName} (${b.accountNumber.slice(-4)})`,
+        label: b.label,
       }));
     } catch {
       return [];
