@@ -1,9 +1,7 @@
 "use client";
 
 import { useCallback, useState, useRef } from "react";
-import { toast } from "sonner";
 import { 
-  IconPrinter, 
   IconFilter, 
   IconCalendar, 
   IconArrowUpRight, 
@@ -83,6 +81,7 @@ export function LiabilityLedgerClient() {
       const data = await getLiabilityPersonLedger(personId.trim(), {
         fromDate: fromDate || undefined,
         toDate: toDate || undefined,
+        viewMode: "person",
       });
       setLedger(data);
     } catch (e: unknown) {
@@ -106,6 +105,7 @@ export function LiabilityLedgerClient() {
     handleExport({
       fromDate: fromDate || undefined,
       toDate: toDate || undefined,
+      viewMode: "person",
     });
   }, [handleExport, personId, fromDate, toDate]);
 
@@ -114,17 +114,30 @@ export function LiabilityLedgerClient() {
   const periodClosingBalance = ledger && ledger.rows.length > 0 
     ? ledger.rows[ledger.rows.length - 1].runningBalance 
     : (ledger?.closingBalance ?? 0);
+  const runningDeltaForFirstRow = ledger?.rows[0]
+    ? (ledger.viewMode === "person"
+      ? ledger.rows[0].credit - ledger.rows[0].debit
+      : ledger.rows[0].debit - ledger.rows[0].credit)
+    : 0;
   const periodOpeningBalance = ledger && ledger.rows.length > 0 
-    ? ledger.rows[0].runningBalance - (ledger.rows[0].debit - ledger.rows[0].credit) 
-    : (ledger?.closingBalance ?? 0);
+    ? ledger.rows[0].runningBalance - runningDeltaForFirstRow
+    : (ledger?.person.openingBalance ?? 0);
 
-  const balanceType = ledger
-    ? ledger.closingBalance > 0
+  const closingSide = ledger?.closingSide
+    ?? (ledger
+      ? ledger.closingBalance > 0
+        ? "receivable"
+        : ledger.closingBalance < 0
+          ? "payable"
+          : "settled"
+      : "settled");
+
+  const balanceType =
+    closingSide === "receivable"
       ? "Receivable"
-      : ledger.closingBalance < 0
+      : closingSide === "payable"
         ? "Payable"
-        : "Settled"
-    : "";
+        : "Settled";
 
   const finalBalanceTone = !ledger
     ? {
@@ -134,7 +147,7 @@ export function LiabilityLedgerClient() {
         amountClass: "text-slate-900",
         footerClass: "text-slate-900 bg-slate-100",
       }
-    : ledger.closingBalance > 0
+    : closingSide === "receivable"
       ? {
           badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
           cardClass: "bg-emerald-50/40 border-l border-emerald-200",
@@ -142,7 +155,7 @@ export function LiabilityLedgerClient() {
           amountClass: "text-emerald-700",
           footerClass: "text-emerald-800 bg-emerald-50/70",
         }
-      : ledger.closingBalance < 0
+      : closingSide === "payable"
         ? {
             badgeClass: "bg-rose-50 text-rose-700 border-rose-200",
             cardClass: "bg-rose-50/40 border-l border-rose-200",
@@ -360,6 +373,7 @@ export function LiabilityLedgerClient() {
              <span className="text-[10px] text-slate-400">
                * Inward (Debit) increases receivable from person. Outward (Credit) decreases receivable from person.
              </span>
+             <span className="text-[10px] text-slate-500 ml-2">Showing Person-side view</span>
           </div>
 
           {/* Ledger Table */}

@@ -8,6 +8,7 @@ import type {
   LiabilityPersonUpdateInput,
   LiabilityPersonWiseReportRow,
   LiabilitySummaryReport,
+  LiabilityViewMode,
 } from "@/types/liability";
 
 function toOptionalParam(value: unknown): string | undefined {
@@ -172,7 +173,7 @@ export async function listLiabilityEntriesNormalized(params: Record<string, unkn
 
 export async function getLiabilityPersonLedger(
   personId: string,
-  query?: { fromDate?: string; toDate?: string },
+  query?: { fromDate?: string; toDate?: string; viewMode?: LiabilityViewMode },
 ): Promise<LiabilityLedgerResponse> {
   const res = await apiClient.get<{ success: boolean; data: LiabilityLedgerResponse }>(
     `/liability/persons/${personId}/ledger`,
@@ -184,6 +185,15 @@ export async function getLiabilityPersonLedger(
 export async function getLiabilitySummaryReport(): Promise<LiabilitySummaryReport> {
   const res = await apiClient.get<{ success: boolean; data: LiabilitySummaryReport }>(
     "/liability/reports/summary",
+    { params: { viewMode: "person" } },
+  );
+  return res.data.data;
+}
+
+export async function getLiabilitySummaryReportByMode(viewMode: LiabilityViewMode): Promise<LiabilitySummaryReport> {
+  const res = await apiClient.get<{ success: boolean; data: LiabilitySummaryReport }>(
+    "/liability/reports/summary",
+    { params: { viewMode } },
   );
   return res.data.data;
 }
@@ -191,6 +201,15 @@ export async function getLiabilitySummaryReport(): Promise<LiabilitySummaryRepor
 export async function getLiabilityPersonWiseReport(): Promise<LiabilityPersonWiseReportRow[]> {
   const res = await apiClient.get<{ success: boolean; data: LiabilityPersonWiseReportRow[] }>(
     "/liability/reports/person-wise",
+    { params: { viewMode: "person" } },
+  );
+  return Array.isArray(res.data?.data) ? res.data.data : [];
+}
+
+export async function getLiabilityPersonWiseReportByMode(viewMode: LiabilityViewMode): Promise<LiabilityPersonWiseReportRow[]> {
+  const res = await apiClient.get<{ success: boolean; data: LiabilityPersonWiseReportRow[] }>(
+    "/liability/reports/person-wise",
+    { params: { viewMode } },
   );
   return Array.isArray(res.data?.data) ? res.data.data : [];
 }
