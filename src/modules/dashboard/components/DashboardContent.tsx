@@ -21,6 +21,7 @@ import { DashboardRecentActivity, type RecentActivityItem } from "./DashboardRec
 import { DashboardExchangeSummary } from "./DashboardExchangeSummary";
 import { DashboardBankSummary } from "./DashboardBankSummary";
 import { DashboardExchangeClosingStrip } from "./DashboardExchangeClosingStrip";
+import { formatYyyyMmDdInTimeZone, resolveUserTimeZone } from "@/lib/userTimezone";
 import { reportService } from "@/services/reportService";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/Button";
@@ -44,12 +45,16 @@ function getInitialFilters(): DashboardFilters {
 
 function formatDisplayDate(dateStr: string): string {
   if (!dateStr) return "";
-  const d = new Date(dateStr);
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  const d = m
+    ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+    : new Date(dateStr);
   return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 function isToday(dateStr: string): boolean {
-  const today = new Date().toISOString().split("T")[0];
+  const tz = resolveUserTimeZone();
+  const today = formatYyyyMmDdInTimeZone(new Date(), tz);
   return dateStr === today;
 }
 
@@ -73,9 +78,14 @@ export function DashboardContent() {
     filters.search ? `Search: ${filters.search}` : "",
   ].filter(Boolean);
 
-  // Derive current time label
+  const userTz = resolveUserTimeZone();
   const now = new Date();
-  const timeLabel = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+  const timeLabel = now.toLocaleTimeString("en-IN", {
+    timeZone: userTz,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
   const todayBoth = isToday(filters.date_from) && isToday(filters.date_to);
 
   const fetchData = useCallback(async () => {
@@ -156,7 +166,7 @@ export function DashboardContent() {
   };
 
   const { exporting, handleExport } = useExport((params) => reportService.exportDashboardSummary(params), {
-    fileName: `dashboard-report-${new Date().toISOString().split("T")[0]}.xlsx`,
+    fileName: `dashboard-report-${formatYyyyMmDdInTimeZone(new Date(), resolveUserTimeZone())}.xlsx`,
   });
 
   const onExportClick = useCallback(() => {
@@ -276,7 +286,14 @@ export function DashboardContent() {
         <div className="flex items-center gap-2 px-3 py-2 bg-[var(--brand-primary)]/5 border border-[var(--brand-primary)]/20 rounded-xl">
           <div className="w-2 h-2 rounded-full bg-[var(--brand-primary)] animate-pulse" />
           <span className="text-xs font-medium text-[var(--brand-primary)]">
-            Full Day Summary — {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
+            Full Day Summary —{" "}
+            {new Date().toLocaleDateString("en-IN", {
+              timeZone: userTz,
+              weekday: "long",
+              day: "2-digit",
+              month: "long",
+              year: "numeric",
+            })}
           </span>
         </div>
       )}
