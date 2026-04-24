@@ -162,6 +162,7 @@ export async function listExpenseTypes(): Promise<ExpenseTypeOption[]> {
     name: String(r.name ?? ""),
     code: r.code != null ? String(r.code) : undefined,
     description: r.description != null ? String(r.description) : undefined,
+    requiresAudit: (r.auditRequired as boolean | undefined) !== false,
   }));
 }
 

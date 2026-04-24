@@ -30,6 +30,7 @@ import { getApiErrorMessage } from "@/lib/apiError";
 import { DATE_PRESETS } from "@/modules/dashboard/components/DashboardFilterBar";
 import { cn } from "@/lib/cn";
 import { BRANDING } from "@/lib/constants/branding";
+import { formatYyyyMmDdInTimeZone, resolveUserTimeZone } from "@/lib/userTimezone";
 
 function formatAmount(value: number) {
   const abs = Math.abs(value);
@@ -40,14 +41,14 @@ function formatAmount(value: number) {
   return value < 0 ? `−${formatted}` : formatted;
 }
 
-function todayYmd(): string {
-  return new Date().toISOString().slice(0, 10);
+function todayYmdInUserTz(): string {
+  return formatYyyyMmDdInTimeZone(new Date(), resolveUserTimeZone());
 }
 
 export function LiabilityLedgerClient() {
   const [personId, setPersonId] = useState("");
   const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState(todayYmd());
+  const [toDate, setToDate] = useState(todayYmdInUserTz());
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

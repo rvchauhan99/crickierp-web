@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { IconDeviceFloppy, IconPencil, IconX, IconPlus } from "@tabler/icons-react";
 import { AutocompleteField, type AutocompleteOption } from "@/components/common/AutocompleteField";
@@ -25,6 +25,7 @@ import {
   uploadExpenseDocuments,
 } from "@/services/expenseService";
 import { listBankLookupOptions, listExpenseTypeLookupOptions } from "@/services/lookupService";
+import { listLiabilityPersonsNormalized } from "@/services/liabilityService";
 import { userService } from "@/services/userService";
 import { getApiErrorMessage } from "@/lib/apiError";
 import type { ExpenseRow } from "@/types/expense";
@@ -81,6 +82,8 @@ function buildUserLabel(row: UserRow): string {
   return fn || un || "";
 }
 
+type ExpenseTypeMetaStatus = "idle" | "loading" | "ready";
+
 export function ExpenseAddClient() {
   const listingState = useListingQueryStateReference({
     defaultLimit: 10,
@@ -116,17 +119,47 @@ export function ExpenseAddClient() {
     [setFilter],
   );
 
+  const expenseTypeMetaRef = useRef<Map<string, boolean>>(new Map());
+
+  const syncExpenseTypeAuditMeta = useCallback(async (typeId: string): Promise<boolean> => {
+    const tid = typeId.trim();
+    if (!tid) return true;
+    try {
+      const byId = await listExpenseTypeLookupOptions({ id: tid, limit: 1 });
+      if (byId.length > 0) {
+        const row = byId[0]!;
+        expenseTypeMetaRef.current.set(row.id, row.requiresAudit);
+        return row.requiresAudit;
+      }
+      const rows = await listExpenseTypeLookupOptions({ limit: 100 });
+      for (const r of rows) {
+        expenseTypeMetaRef.current.set(r.id, r.requiresAudit);
+      }
+      const hit = rows.find((r) => r.id === tid);
+      if (hit) return hit.requiresAudit;
+      return expenseTypeMetaRef.current.get(tid) ?? true;
+    } catch {
+      return true;
+    }
+  }, []);
+
   const [expenseTypeId, setExpenseTypeId] = useState("");
+  const [expenseTypeMetaStatus, setExpenseTypeMetaStatus] = useState<ExpenseTypeMetaStatus>("idle");
+  const [typeRequiresAudit, setTypeRequiresAudit] = useState(true);
   const [amount, setAmount] = useState("");
   const [expenseDate, setExpenseDate] = useState(todayYmd);
   const [description, setDescription] = useState("");
   const [bankId, setBankId] = useState("");
+  const [settlementAccountType, setSettlementAccountType] = useState<"bank" | "person">("bank");
+  const [liabilityPersonId, setLiabilityPersonId] = useState("");
   const [loading, setLoading] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [errors, setErrors] = useState<{
     expenseTypeId?: string;
     amount?: string;
     expenseDate?: string;
+    bankId?: string;
+    liabilityPersonId?: string;
   }>({});
 
   const [totalCount, setTotalCount] = useState(0);
@@ -135,14 +168,78 @@ export function ExpenseAddClient() {
 
   const loadTypeOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {
-      const rows = await listExpenseTypeLookupOptions({ q: query || undefined, limit: 50 });
+      // API `lookupQuerySchema` allows max limit 100; higher values make the request fail and break the dropdown.
+      const rows = await listExpenseTypeLookupOptions({ q: query || undefined, limit: 100 });
       const q = query.trim().toLowerCase();
+      for (const r of rows) {
+        expenseTypeMetaRef.current.set(r.id, r.requiresAudit);
+      }
       return rows
         .filter((r) => !q || r.name.toLowerCase().includes(q) || (r.code ?? "").toLowerCase().includes(q))
         .map((r) => ({
           value: r.id,
           label: r.code ? `${r.name} (${r.code})` : r.name,
         }));
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const handleExpenseTypeChange = useCallback((id: string) => {
+    setExpenseTypeId(id);
+    const tid = id.trim();
+    if (tid) {
+      setExpenseTypeMetaStatus("loading");
+      const cached = expenseTypeMetaRef.current.get(tid);
+      setTypeRequiresAudit(cached === undefined ? true : cached);
+    } else {
+      setExpenseTypeMetaStatus("idle");
+      setTypeRequiresAudit(true);
+    }
+    setBankId("");
+    setLiabilityPersonId("");
+    setSettlementAccountType("bank");
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next.bankId;
+      delete next.liabilityPersonId;
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (editingId) return;
+    const id = expenseTypeId.trim();
+    if (!id) {
+      setTypeRequiresAudit(true);
+      setExpenseTypeMetaStatus("idle");
+      return;
+    }
+    setExpenseTypeMetaStatus("loading");
+    let cancelled = false;
+    void (async () => {
+      const req = await syncExpenseTypeAuditMeta(id);
+      if (!cancelled) {
+        setTypeRequiresAudit(req);
+        setExpenseTypeMetaStatus("ready");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [expenseTypeId, editingId, syncExpenseTypeAuditMeta]);
+
+  const loadLiabilityPersonOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
+    try {
+      const res = await listLiabilityPersonsNormalized({
+        page: 1,
+        limit: 25,
+        q: query || undefined,
+        sortBy: "name",
+        sortOrder: "asc",
+        isActive: "true",
+      });
+      return res.data.map((p) => ({ value: p.id, label: p.name }));
     } catch {
       return [];
     }
@@ -184,10 +281,14 @@ export function ExpenseAddClient() {
   const resetForm = useCallback(() => {
     setEditingId(null);
     setExpenseTypeId("");
+    setExpenseTypeMetaStatus("idle");
+    setTypeRequiresAudit(true);
     setAmount("");
     setExpenseDate(todayYmd());
     setDescription("");
     setBankId("");
+    setSettlementAccountType("bank");
+    setLiabilityPersonId("");
     setSelectedFiles([]);
     setErrors({});
   }, []);
@@ -209,11 +310,24 @@ export function ExpenseAddClient() {
 
   const onSubmit = async () => {
     const next: typeof errors = {};
+    if (!editingId && expenseTypeId.trim() && expenseTypeMetaStatus !== "ready") {
+      toast.error("Wait for the expense type to finish loading.");
+      return;
+    }
     if (!expenseTypeId.trim()) next.expenseTypeId = "Expense type is required.";
     const amt = Number(amount);
     if (!amount.trim() || Number.isNaN(amt) || amt < 0.01) next.amount = "Enter a valid amount.";
     if (!expenseDate.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(expenseDate.trim())) {
       next.expenseDate = "Expense date is required (YYYY-MM-DD).";
+    }
+    const skipsAudit = !editingId && typeRequiresAudit === false;
+    if (skipsAudit) {
+      if (settlementAccountType === "bank" && !bankId.trim()) {
+        next.bankId = "Select a bank to debit for settlement.";
+      }
+      if (settlementAccountType === "person" && !liabilityPersonId.trim()) {
+        next.liabilityPersonId = "Select a liability person for settlement.";
+      }
     }
     setErrors(next);
     if (Object.keys(next).length > 0) return;
@@ -230,21 +344,46 @@ export function ExpenseAddClient() {
         });
         toast.success("Expense updated.");
       } else {
-        const created = (await createExpense({
-          expenseTypeId: expenseTypeId.trim(),
-          amount: amt,
-          expenseDate: expenseDate.trim(),
-          description: description.trim() || undefined,
-          bankId: bankId.trim() || undefined,
-        })) as { _id?: string; id?: string } | null;
+        const createPayload =
+          skipsAudit && settlementAccountType === "person"
+            ? {
+                expenseTypeId: expenseTypeId.trim(),
+                amount: amt,
+                expenseDate: expenseDate.trim(),
+                description: description.trim() || undefined,
+                liabilityPersonId: liabilityPersonId.trim(),
+              }
+            : {
+                expenseTypeId: expenseTypeId.trim(),
+                amount: amt,
+                expenseDate: expenseDate.trim(),
+                description: description.trim() || undefined,
+                ...(skipsAudit && settlementAccountType === "bank"
+                  ? { bankId: bankId.trim() }
+                  : !skipsAudit
+                    ? { bankId: bankId.trim() || undefined }
+                    : {}),
+              };
+        const created = (await createExpense(createPayload)) as {
+          _id?: string;
+          id?: string;
+          status?: string;
+        } | null;
         const createdId = String(created?._id ?? created?.id ?? "").trim();
+        const isApproved = created?.status === "approved";
         if (selectedFiles.length > 0 && createdId) {
           await uploadExpenseDocuments(createdId, selectedFiles);
-          toast.success("Expense created and documents uploaded. Pending audit.");
+          toast.success(
+            isApproved
+              ? "Expense created, approved, and documents uploaded."
+              : "Expense created and documents uploaded. Pending audit.",
+          );
         } else if (selectedFiles.length > 0) {
           toast.warning("Expense created, but document upload was skipped because ID was unavailable.");
         } else {
-          toast.success("Expense created. Pending audit.");
+          toast.success(
+            isApproved ? "Expense created and approved." : "Expense created. Pending audit.",
+          );
         }
       }
       resetForm();
@@ -259,7 +398,22 @@ export function ExpenseAddClient() {
 
   const handleEditClick = (row: ExpenseRow) => {
     setEditingId(row.id);
-    setExpenseTypeId(row.expenseTypeId || "");
+    const tid = row.expenseTypeId || "";
+    setExpenseTypeId(tid);
+    setExpenseTypeMetaStatus("loading");
+    const req = tid ? expenseTypeMetaRef.current.get(tid) : undefined;
+    setTypeRequiresAudit(req === undefined ? true : req);
+    void (async () => {
+      if (!tid) {
+        setExpenseTypeMetaStatus("ready");
+        return;
+      }
+      const synced = await syncExpenseTypeAuditMeta(tid);
+      setTypeRequiresAudit(synced);
+      setExpenseTypeMetaStatus("ready");
+    })();
+    setSettlementAccountType("bank");
+    setLiabilityPersonId("");
     setAmount(String(row.amount));
     setExpenseDate(row.expenseDate || todayYmd());
     setDescription(row.description || "");
@@ -351,7 +505,7 @@ export function ExpenseAddClient() {
           ),
       },
     ],
-    [loadTypeOptions, loadBankOptions, loadUserOptions],
+    [loadTypeOptions, loadBankOptions, loadUserOptions, loadLiabilityPersonOptions],
   );
 
   return (
@@ -364,7 +518,7 @@ export function ExpenseAddClient() {
           description={
             editingId
               ? "Correct the details below. Changes will be saved to the existing pending record."
-              : "Enter the details for a new business expense. All entries require audit approval."
+              : "Enter the details for a new business expense. Types that skip audit are approved on save and require settlement (bank or liability person)."
           }
         >
           <FormGrid className="md:grid-cols-4">
@@ -372,7 +526,7 @@ export function ExpenseAddClient() {
               <FieldLabel>Expense type *</FieldLabel>
               <AutocompleteField
                 value={expenseTypeId}
-                onChange={setExpenseTypeId}
+                onChange={handleExpenseTypeChange}
                 loadOptions={loadTypeOptions}
                 placeholder="Select type"
               />
@@ -446,22 +600,118 @@ export function ExpenseAddClient() {
                 ) : null}
               </div>
             )}
-            <div className="md:col-span-4 space-y-1.5 border-t border-[var(--border)] pt-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <FieldLabel>Debit Account (optional)</FieldLabel>
-                  <p className="text-[10px] text-muted-foreground">Optional at this stage.</p>
-                </div>
-                <div className="w-full max-w-xs">
-                  <AutocompleteField
-                    value={bankId}
-                    onChange={setBankId}
-                    loadOptions={loadBankOptions}
-                    placeholder="Search bank…"
-                  />
+            {editingId ? (
+              <div className="md:col-span-4 space-y-1.5 border-t border-[var(--border)] pt-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <FieldLabel>Debit account (optional)</FieldLabel>
+                    <p className="text-[10px] text-muted-foreground">Optional on the pending record.</p>
+                  </div>
+                  <div className="w-full max-w-xs">
+                    <AutocompleteField
+                      value={bankId}
+                      onChange={setBankId}
+                      loadOptions={loadBankOptions}
+                      placeholder="Search bank…"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : !expenseTypeId.trim() ? (
+              <div className="md:col-span-4 space-y-1.5 border-t border-[var(--border)] pt-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <FieldLabel>Debit account (optional)</FieldLabel>
+                    <p className="text-[10px] text-muted-foreground">
+                      Optional draft bank; after you choose an expense type, settlement may be required instead.
+                    </p>
+                  </div>
+                  <div className="w-full max-w-xs">
+                    <AutocompleteField
+                      value={bankId}
+                      onChange={setBankId}
+                      loadOptions={loadBankOptions}
+                      placeholder="Search bank…"
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : expenseTypeMetaStatus === "loading" ? (
+              <div className="md:col-span-4 border-t border-[var(--border)] pt-4">
+                <p className="text-sm text-slate-500">Loading expense type…</p>
+              </div>
+            ) : expenseTypeMetaStatus === "ready" && typeRequiresAudit === false ? (
+              <div className="md:col-span-4 space-y-3 border-t border-[var(--border)] pt-4">
+                <div className="space-y-0.5">
+                  <FieldLabel>Settlement *</FieldLabel>
+                  <p className="text-[10px] text-muted-foreground">
+                    This type is approved on save — choose bank or person settlement (same as audit approval).
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <FieldLabel>Settlement account type *</FieldLabel>
+                  <select
+                    className="w-full max-w-xs rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
+                    value={settlementAccountType}
+                    onChange={(e) => {
+                      const v = e.target.value === "person" ? "person" : "bank";
+                      setSettlementAccountType(v);
+                      setErrors((prev) => {
+                        const n = { ...prev };
+                        delete n.bankId;
+                        delete n.liabilityPersonId;
+                        return n;
+                      });
+                    }}
+                  >
+                    <option value="bank">Bank</option>
+                    <option value="person">Person</option>
+                  </select>
+                </div>
+                {settlementAccountType === "bank" ? (
+                  <div className="space-y-1.5">
+                    <FieldLabel>Bank account to debit *</FieldLabel>
+                    <AutocompleteField
+                      value={bankId}
+                      onChange={setBankId}
+                      loadOptions={loadBankOptions}
+                      placeholder="Select bank…"
+                    />
+                    <FieldError message={errors.bankId} />
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <FieldLabel>Person account to credit *</FieldLabel>
+                    <AutocompleteField
+                      value={liabilityPersonId}
+                      onChange={setLiabilityPersonId}
+                      loadOptions={loadLiabilityPersonOptions}
+                      placeholder="Select liability person…"
+                    />
+                    <FieldError message={errors.liabilityPersonId} />
+                  </div>
+                )}
+              </div>
+            ) : expenseTypeMetaStatus === "ready" && typeRequiresAudit ? (
+              <div className="md:col-span-4 space-y-1.5 border-t border-[var(--border)] pt-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <FieldLabel>Debit account (optional)</FieldLabel>
+                    <p className="text-[10px] text-muted-foreground">
+                      Optional draft bank until an auditor approves and settles.
+                    </p>
+                  </div>
+                  <div className="w-full max-w-xs">
+                    <AutocompleteField
+                      value={bankId}
+                      onChange={setBankId}
+                      loadOptions={loadBankOptions}
+                      placeholder="Search bank…"
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </FormGrid>
           <FormActions className="justify-between px-5 py-4">
             <Button
