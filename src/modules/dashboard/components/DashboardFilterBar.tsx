@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { formatYyyyMmDdInTimeZone, resolveUserTimeZone } from "@/lib/userTimezone";
 import { IconCalendar, IconRefresh, IconFilter } from "@tabler/icons-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
@@ -9,53 +10,64 @@ export const DATE_PRESETS = [
   {
     label: "Today",
     fn: () => {
-      const d = new Date().toISOString().split("T")[0];
+      const tz = resolveUserTimeZone();
+      const now = new Date();
+      const d = formatYyyyMmDdInTimeZone(now, tz);
       return { date_from: d, date_to: d };
     },
   },
   {
     label: "This Week",
     fn: () => {
-      const n = new Date(), dy = n.getDay(), m = new Date(n);
+      const tz = resolveUserTimeZone();
+      const n = new Date(),
+        dy = n.getDay(),
+        m = new Date(n);
       m.setDate(n.getDate() - (dy === 0 ? 6 : dy - 1));
       const e = new Date(m);
       e.setDate(m.getDate() + 6);
-      return { date_from: m.toISOString().split("T")[0], date_to: e.toISOString().split("T")[0] };
+      return { date_from: formatYyyyMmDdInTimeZone(m, tz), date_to: formatYyyyMmDdInTimeZone(e, tz) };
     },
   },
   {
     label: "This Month",
     fn: () => {
+      const tz = resolveUserTimeZone();
       const n = new Date();
       return {
-        date_from: new Date(n.getFullYear(), n.getMonth(), 1).toISOString().split("T")[0],
-        date_to: new Date(n.getFullYear(), n.getMonth() + 1, 0).toISOString().split("T")[0],
+        date_from: formatYyyyMmDdInTimeZone(new Date(n.getFullYear(), n.getMonth(), 1), tz),
+        date_to: formatYyyyMmDdInTimeZone(new Date(n.getFullYear(), n.getMonth() + 1, 0), tz),
       };
     },
   },
   {
     label: "Last 30D",
     fn: () => {
-      const d = new Date(), p = new Date();
+      const tz = resolveUserTimeZone();
+      const d = new Date(),
+        p = new Date();
       p.setDate(p.getDate() - 30);
-      return { date_from: p.toISOString().split("T")[0], date_to: d.toISOString().split("T")[0] };
+      return { date_from: formatYyyyMmDdInTimeZone(p, tz), date_to: formatYyyyMmDdInTimeZone(d, tz) };
     },
   },
   {
     label: "Last 6M",
     fn: () => {
-      const n = new Date(), p = new Date(n);
+      const tz = resolveUserTimeZone();
+      const n = new Date(),
+        p = new Date(n);
       p.setMonth(n.getMonth() - 6);
-      return { date_from: p.toISOString().split("T")[0], date_to: n.toISOString().split("T")[0] };
+      return { date_from: formatYyyyMmDdInTimeZone(p, tz), date_to: formatYyyyMmDdInTimeZone(n, tz) };
     },
   },
   {
     label: "This Year",
     fn: () => {
+      const tz = resolveUserTimeZone();
       const n = new Date();
       return {
-        date_from: new Date(n.getFullYear(), 0, 1).toISOString().split("T")[0],
-        date_to: new Date(n.getFullYear(), 11, 31).toISOString().split("T")[0],
+        date_from: formatYyyyMmDdInTimeZone(new Date(n.getFullYear(), 0, 1), tz),
+        date_to: formatYyyyMmDdInTimeZone(new Date(n.getFullYear(), 11, 31), tz),
       };
     },
   },
