@@ -68,6 +68,13 @@ function normalizePlayer(row: Record<string, unknown>): PlayerRow {
   const createdByName = toOptionalParam(
     row.createdByName ?? row["created_by_name" as keyof typeof row] ?? createdByUser.name,
   );
+  const referredByRaw = row.referredByPlayerId;
+  const referredBy =
+    typeof referredByRaw === "string"
+      ? referredByRaw
+      : referredByRaw && typeof referredByRaw === "object"
+        ? (referredByRaw as { _id?: string; playerId?: string; phone?: string })
+        : undefined;
   return {
     _id: id,
     id,
@@ -76,6 +83,8 @@ function normalizePlayer(row: Record<string, unknown>): PlayerRow {
     phone: String(row.phone ?? ""),
     regularBonusPercentage: Number(row.regularBonusPercentage ?? row.bonusPercentage ?? 0),
     firstDepositBonusPercentage: Number(row.firstDepositBonusPercentage ?? 0),
+    referredByPlayerId: referredBy,
+    referralPercentage: Number(row.referralPercentage ?? 1),
     bonusPercentage: Number(row.regularBonusPercentage ?? row.bonusPercentage ?? 0),
     createdAt: row.createdAt as string | undefined,
     updatedAt: row.updatedAt as string | undefined,
@@ -111,6 +120,11 @@ export async function getPlayerById(
     phone: String(row.phone ?? ""),
     regularBonusPercentage,
     firstDepositBonusPercentage: Number(row.firstDepositBonusPercentage ?? 0),
+    referredByPlayerId:
+      typeof row.referredByPlayerId === "string"
+        ? row.referredByPlayerId
+        : ((row.referredByPlayerId as { _id?: string; playerId?: string; phone?: string } | undefined) ?? undefined),
+    referralPercentage: Number(row.referralPercentage ?? 1),
     bonusPercentage: regularBonusPercentage,
   };
 }

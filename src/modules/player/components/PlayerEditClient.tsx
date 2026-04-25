@@ -11,6 +11,7 @@ import { FormGrid } from "@/components/common/FormGrid";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { getApiErrorMessage } from "@/lib/apiError";
+import { listPlayerLookupOptions } from "@/services/lookupService";
 import { getPlayerById, listPlayersNormalized, updatePlayer } from "@/services/playerService";
 
 export function PlayerEditClient() {
@@ -21,11 +22,14 @@ export function PlayerEditClient() {
   const [phone, setPhone] = useState("");
   const [regularBonusPct, setRegularBonusPct] = useState("0");
   const [firstDepositBonusPct, setFirstDepositBonusPct] = useState("0");
+  const [referredByPlayerId, setReferredByPlayerId] = useState("");
+  const [referralPercentage, setReferralPercentage] = useState("1");
   const [errors, setErrors] = useState<{
     player?: string;
     phone?: string;
     regularBonusPercentage?: string;
     firstDepositBonusPercentage?: string;
+    referralPercentage?: string;
   }>({});
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -38,7 +42,18 @@ export function PlayerEditClient() {
     setPhone("");
     setRegularBonusPct("0");
     setFirstDepositBonusPct("0");
+    setReferredByPlayerId("");
+    setReferralPercentage("1");
     setErrors({});
+  }, []);
+
+  const loadReferrerOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
+    try {
+      const rows = await listPlayerLookupOptions({ q: query || undefined, limit: 25 });
+      return rows.map((p) => ({ value: p.id, label: `${p.playerId} · ${p.phone} · ${p.exchangeName}` }));
+    } catch {
+      return [];
+    }
   }, []);
 
   const loadPlayerOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
@@ -100,6 +115,12 @@ export function PlayerEditClient() {
         setPhone(row.phone);
         setRegularBonusPct(String(row.regularBonusPercentage ?? 0));
         setFirstDepositBonusPct(String(row.firstDepositBonusPercentage ?? 0));
+        const referredBy =
+          typeof row.referredByPlayerId === "string"
+            ? row.referredByPlayerId
+            : row.referredByPlayerId?._id ?? "";
+        setReferredByPlayerId(referredBy);
+        setReferralPercentage(String(row.referralPercentage ?? 1));
       } catch (error: unknown) {
         toast.error(getApiErrorMessage(error, "Failed to load player details"));
       } finally {
@@ -129,6 +150,12 @@ export function PlayerEditClient() {
     } else if (firstDepositBonus < 0 || firstDepositBonus > 100) {
       next.firstDepositBonusPercentage = "First deposit bonus percentage must be between 0 and 100.";
     }
+    const referralPctNum = Number(referralPercentage);
+    if (referralPercentage.trim() === "" || Number.isNaN(referralPctNum)) {
+      next.referralPercentage = "Referral percentage is required.";
+    } else if (referralPctNum < 0 || referralPctNum > 100) {
+      next.referralPercentage = "Referral percentage must be between 0 and 100.";
+    }
 
     setErrors(next);
     if (Object.keys(next).length > 0) return;
@@ -139,6 +166,8 @@ export function PlayerEditClient() {
         phone: phone.trim(),
         regularBonusPercentage: regularBonus,
         firstDepositBonusPercentage: firstDepositBonus,
+        referredByPlayerId: referredByPlayerId || null,
+        referralPercentage: referralPctNum,
       });
       toast.success("Player updated successfully.");
     } catch (error: unknown) {
@@ -212,6 +241,30 @@ export function PlayerEditClient() {
               disabled={!canEdit || saving || loadingDetails}
             />
             <FieldError message={errors.firstDepositBonusPercentage} />
+          </div>
+          <div>
+            <FieldLabel>Referred By (Old Player)</FieldLabel>
+            <AutocompleteField
+              value={referredByPlayerId}
+              onChange={setReferredByPlayerId}
+              loadOptions={loadReferrerOptions}
+              placeholder="search old player..."
+              disabled={!canEdit || saving || loadingDetails}
+            />
+          </div>
+          <div>
+            <FieldLabel>Referral Percentage *</FieldLabel>
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              step="0.01"
+              placeholder="1"
+              value={referralPercentage}
+              onChange={(e) => setReferralPercentage(e.target.value)}
+              disabled={!canEdit || saving || loadingDetails}
+            />
+            <FieldError message={errors.referralPercentage} />
           </div>
         </FormGrid>
         <FormActions className="justify-between px-5 py-4">
