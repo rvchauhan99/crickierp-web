@@ -44,4 +44,7 @@ export const NAV_PERMISSIONS = {
   LIABILITY_ENTRY_LIST: "liability.entry_list",
   LIABILITY_LEDGER_VIEW: "liability.ledger_view",
   LIABILITY_REPORT_VIEW: "liability.report_view",
+
+  REFERRAL_LIST: "referral.list",
+  REFERRAL_SETTLE: "referral.settle",
 } as const;

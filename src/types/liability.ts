@@ -1,6 +1,8 @@
 export type LiabilityViewMode = "platform" | "person";
 export type LiabilityBalanceSide = "receivable" | "payable" | "settled";
 
+export type LiabilityOpeningKind = "payable" | "receivable";
+
 export type LiabilityPersonRow = {
   _id: string;
   id: string;
@@ -10,9 +12,13 @@ export type LiabilityPersonRow = {
   notes?: string;
   isActive: boolean;
   openingBalance: number;
+  openingBalanceAbs: number;
+  openingBalanceSide: LiabilityBalanceSide;
   totalDebits: number;
   totalCredits: number;
   closingBalance: number;
+  closingBalanceAbs: number;
+  closingBalanceSide: LiabilityBalanceSide;
   createdAt?: string;
   updatedAt?: string;
   createdByName?: string;
@@ -47,7 +53,10 @@ export type LiabilityPersonCreateInput = {
   phone?: string;
   email?: string;
   notes?: string;
+  /** Legacy signed value; ignored by API when openingAmount is sent. */
   openingBalance?: number;
+  openingAmount?: number;
+  openingKind?: LiabilityOpeningKind;
   isActive?: boolean;
 };
 
@@ -74,6 +83,8 @@ export type LiabilityLedgerRow = {
   debit: number;
   credit: number;
   runningBalance: number;
+  runningBalanceAbs: number;
+  runningBalanceSide: LiabilityBalanceSide;
   referenceNo?: string;
   remark?: string;
 };
@@ -84,11 +95,15 @@ export type LiabilityLedgerResponse = {
     _id: string;
     name: string;
     openingBalance: number;
+    openingBalanceAbs: number;
     openingSide?: LiabilityBalanceSide;
   };
   rows: LiabilityLedgerRow[];
   closingBalance: number;
   closingSide?: LiabilityBalanceSide;
+  periodOpeningBalance?: number;
+  periodOpeningBalanceAbs?: number;
+  periodOpeningSide?: LiabilityBalanceSide;
 };
 
 export type LiabilitySummaryReport = {
@@ -96,6 +111,8 @@ export type LiabilitySummaryReport = {
   totalReceivable: number;
   totalPayable: number;
   netPosition: number;
+  netPositionAbs?: number;
+  netPositionSide?: LiabilityBalanceSide;
   totalPersons: number;
 };
 
@@ -104,6 +121,7 @@ export type LiabilityPersonWiseReportRow = {
   name: string;
   isActive: boolean;
   balance: number;
+  balanceAbs: number;
   totalCredits?: number;
   totalDebits?: number;
   side: "receivable" | "payable";

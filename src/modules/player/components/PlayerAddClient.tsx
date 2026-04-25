@@ -10,7 +10,7 @@ import { FieldLabel } from "@/components/common/FieldLabel";
 import { FieldError } from "@/components/common/FieldError";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
-import { listExchangeLookupOptions } from "@/services/lookupService";
+import { listExchangeLookupOptions, listPlayerLookupOptions } from "@/services/lookupService";
 import {
   createPlayer,
   createPlayerImportJob,
@@ -35,12 +35,15 @@ export function PlayerAddClient() {
   const [phone, setPhone] = useState("");
   const [regularBonusPct, setRegularBonusPct] = useState("0");
   const [firstDepositBonusPct, setFirstDepositBonusPct] = useState("0");
+  const [referredByPlayerId, setReferredByPlayerId] = useState("");
+  const [referralPercentage, setReferralPercentage] = useState("1");
   const [manualErrors, setManualErrors] = useState<{
     exchangeId?: string;
     playerId?: string;
     phone?: string;
     regularBonusPercentage?: string;
     firstDepositBonusPercentage?: string;
+    referralPercentage?: string;
   }>({});
   const [manualLoading, setManualLoading] = useState(false);
 
@@ -73,8 +76,22 @@ export function PlayerAddClient() {
     setPhone("");
     setRegularBonusPct("0");
     setFirstDepositBonusPct("0");
+    setReferredByPlayerId("");
+    setReferralPercentage("1");
     setManualErrors({});
   };
+
+  const loadPlayerOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
+    try {
+      const rows = await listPlayerLookupOptions({ q: query || undefined, limit: 25 });
+      return rows.map((player) => ({
+        value: player.id,
+        label: `${player.playerId} · ${player.phone} · ${player.exchangeName}`,
+      }));
+    } catch {
+      return [];
+    }
+  }, []);
 
   const triggerCsvDownload = (blob: Blob, fileName: string) => {
     const url = URL.createObjectURL(blob);
@@ -105,6 +122,12 @@ export function PlayerAddClient() {
     } else if (firstDepositBonus < 0 || firstDepositBonus > 100) {
       next.firstDepositBonusPercentage = "First deposit bonus percentage must be between 0 and 100.";
     }
+    const referralPctNum = Number(referralPercentage);
+    if (referralPercentage.trim() === "" || Number.isNaN(referralPctNum)) {
+      next.referralPercentage = "Referral percentage is required.";
+    } else if (referralPctNum < 0 || referralPctNum > 100) {
+      next.referralPercentage = "Referral percentage must be between 0 and 100.";
+    }
     setManualErrors(next);
     if (Object.keys(next).length > 0) return;
 
@@ -116,6 +139,8 @@ export function PlayerAddClient() {
         phone: phone.trim(),
         regularBonusPercentage: regularBonus,
         firstDepositBonusPercentage: firstDepositBonus,
+        referredByPlayerId: referredByPlayerId || null,
+        referralPercentage: referralPctNum,
       });
       toast.success("Player saved successfully.");
       resetManual();
@@ -299,6 +324,28 @@ export function PlayerAddClient() {
               onChange={(e) => setFirstDepositBonusPct(e.target.value)}
             />
             <FieldError message={manualErrors.firstDepositBonusPercentage} />
+          </div>
+          <div>
+            <FieldLabel>Referred By (Old Player)</FieldLabel>
+            <AutocompleteField
+              value={referredByPlayerId}
+              onChange={setReferredByPlayerId}
+              loadOptions={loadPlayerOptions}
+              placeholder="search old player..."
+            />
+          </div>
+          <div>
+            <FieldLabel>Referral Percentage *</FieldLabel>
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              step="0.01"
+              placeholder="1"
+              value={referralPercentage}
+              onChange={(e) => setReferralPercentage(e.target.value)}
+            />
+            <FieldError message={manualErrors.referralPercentage} />
           </div>
         </FormGrid>
         <FormActions className="justify-between px-5 py-4">

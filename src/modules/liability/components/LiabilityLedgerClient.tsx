@@ -25,21 +25,18 @@ import { Button } from "@/components/ui/Button";
 import { AutocompleteField, type AutocompleteOption } from "@/components/common/AutocompleteField";
 import { exportLiabilityLedger, getLiabilityPersonLedger, listLiabilityPersonsNormalized } from "@/services/liabilityService";
 import { useExport } from "@/hooks/useExport";
-import type { LiabilityLedgerResponse } from "@/types/liability";
+import type { LiabilityBalanceSide, LiabilityLedgerResponse } from "@/types/liability";
 import { getApiErrorMessage } from "@/lib/apiError";
+import {
+  formatLiabilityMoneyAbs,
+  liabilitySideAmountClass,
+  liabilitySideBadgeClass,
+  liabilitySideFromSigned,
+} from "@/lib/liabilityDisplay";
 import { DATE_PRESETS } from "@/modules/dashboard/components/DashboardFilterBar";
 import { cn } from "@/lib/cn";
 import { BRANDING } from "@/lib/constants/branding";
 import { formatYyyyMmDdInTimeZone, resolveUserTimeZone } from "@/lib/userTimezone";
-
-function formatAmount(value: number) {
-  const abs = Math.abs(value);
-  let formatted: string;
-  if (abs >= 10_00_00_000) formatted = `₹${(abs / 10_00_00_000).toFixed(2)}Cr`;
-  else if (abs >= 10_00_000) formatted = `₹${(abs / 10_00_000).toFixed(2)}L`;
-  else formatted = `₹${abs.toLocaleString("en-IN")}`;
-  return value < 0 ? `−${formatted}` : formatted;
-}
 
 function todayYmdInUserTz(): string {
   return formatYyyyMmDdInTimeZone(new Date(), resolveUserTimeZone());
@@ -82,7 +79,7 @@ export function LiabilityLedgerClient() {
       const data = await getLiabilityPersonLedger(personId.trim(), {
         fromDate: fromDate || undefined,
         toDate: toDate || undefined,
-        viewMode: "person",
+        viewMode: "platform",
       });
       setLedger(data);
     } catch (e: unknown) {
@@ -106,32 +103,42 @@ export function LiabilityLedgerClient() {
     handleExport({
       fromDate: fromDate || undefined,
       toDate: toDate || undefined,
-      viewMode: "person",
+      viewMode: "platform",
     });
   }, [handleExport, personId, fromDate, toDate]);
 
   const totalCredits = ledger?.rows.reduce((acc, r) => acc + r.credit, 0) ?? 0;
   const totalDebits = ledger?.rows.reduce((acc, r) => acc + r.debit, 0) ?? 0;
-  const periodClosingBalance = ledger && ledger.rows.length > 0 
-    ? ledger.rows[ledger.rows.length - 1].runningBalance 
-    : (ledger?.closingBalance ?? 0);
   const runningDeltaForFirstRow = ledger?.rows[0]
     ? (ledger.viewMode === "person"
       ? ledger.rows[0].credit - ledger.rows[0].debit
       : ledger.rows[0].debit - ledger.rows[0].credit)
     : 0;
-  const periodOpeningBalance = ledger && ledger.rows.length > 0 
-    ? ledger.rows[0].runningBalance - runningDeltaForFirstRow
-    : (ledger?.person.openingBalance ?? 0);
 
-  const closingSide = ledger?.closingSide
-    ?? (ledger
-      ? ledger.closingBalance > 0
-        ? "receivable"
-        : ledger.closingBalance < 0
-          ? "payable"
-          : "settled"
-      : "settled");
+  const periodOpeningSigned =
+    ledger?.periodOpeningBalance !== undefined
+      ? ledger.periodOpeningBalance
+      : ledger && ledger.rows.length > 0
+        ? ledger.rows[0].runningBalance - runningDeltaForFirstRow
+        : (ledger?.person.openingBalance ?? 0);
+
+  const periodOpeningAbs =
+    ledger?.periodOpeningBalanceAbs ?? Math.abs(periodOpeningSigned);
+  const periodOpeningSide: LiabilityBalanceSide =
+    ledger?.periodOpeningSide ?? liabilitySideFromSigned(periodOpeningSigned);
+
+  const periodClosingSigned =
+    ledger && ledger.rows.length > 0
+      ? ledger.rows[ledger.rows.length - 1].runningBalance
+      : (ledger?.closingBalance ?? 0);
+  const periodClosingAbs =
+    ledger && ledger.rows.length > 0
+      ? ledger.rows[ledger.rows.length - 1].runningBalanceAbs
+      : Math.abs(ledger?.closingBalance ?? 0);
+  const closingSide: LiabilityBalanceSide =
+    ledger && ledger.rows.length > 0
+      ? ledger.rows[ledger.rows.length - 1].runningBalanceSide
+      : ledger?.closingSide ?? liabilitySideFromSigned(ledger?.closingBalance ?? 0);
 
   const balanceType =
     closingSide === "receivable"
@@ -344,17 +351,31 @@ export function LiabilityLedgerClient() {
 
           {/* KPI Summary Strip */}
           <div className="grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-slate-100 border-b border-slate-200 bg-white">
-            <div className="p-4 flex flex-col justify-center">
-              <span className="text-[10px] uppercase font-semibold tracking-widest text-slate-400 mb-1">Opening Balance</span>
-              <span className="text-xl font-bold text-slate-800">{formatAmount(periodOpeningBalance)}</span>
+            <div className="p-4 flex flex-col justify-center gap-1">
+              <span className="text-[10px] uppercase font-semibold tracking-widest text-slate-400 mb-0.5">Opening balance</span>
+              <span className={cn("text-xl font-bold", liabilitySideAmountClass(periodOpeningSide))}>
+                {formatLiabilityMoneyAbs(periodOpeningAbs)}
+              </span>
+              <span
+                className={cn(
+                  "inline-flex w-fit rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide",
+                  liabilitySideBadgeClass(periodOpeningSide),
+                )}
+              >
+                {periodOpeningSide}
+              </span>
             </div>
             <div className="p-4 flex flex-col justify-center">
-              <span className="text-[10px] uppercase font-semibold tracking-widest text-emerald-600/70 mb-1 flex items-center gap-1"><IconArrowUpRight className="w-3 h-3"/> Total Inward (DR)</span>
-              <span className="text-xl font-bold text-emerald-700">{formatAmount(totalDebits)}</span>
+              <span className="text-[10px] uppercase font-semibold tracking-widest text-slate-500 mb-1 flex items-center gap-1">
+                <IconArrowUpRight className="w-3 h-3" /> Total inward (DR)
+              </span>
+              <span className="text-xl font-bold text-slate-800">{formatLiabilityMoneyAbs(totalDebits)}</span>
             </div>
             <div className="p-4 flex flex-col justify-center">
-              <span className="text-[10px] uppercase font-semibold tracking-widest text-rose-600/70 mb-1 flex items-center gap-1"><IconArrowDownRight className="w-3 h-3"/> Total Outward (CR)</span>
-              <span className="text-xl font-bold text-rose-700">{formatAmount(totalCredits)}</span>
+              <span className="text-[10px] uppercase font-semibold tracking-widest text-slate-500 mb-1 flex items-center gap-1">
+                <IconArrowDownRight className="w-3 h-3" /> Total outward (CR)
+              </span>
+              <span className="text-xl font-bold text-slate-800">{formatLiabilityMoneyAbs(totalCredits)}</span>
             </div>
             <div className={cn("p-4 flex flex-col justify-center", finalBalanceTone.cardClass)}>
               <div className="flex items-center justify-between gap-2 mb-1">
@@ -365,16 +386,18 @@ export function LiabilityLedgerClient() {
                   Final: {balanceType}
                 </span>
               </div>
-              <span className={cn("text-2xl font-bold", finalBalanceTone.amountClass)}>{formatAmount(periodClosingBalance)}</span>
+              <span className={cn("text-2xl font-bold", finalBalanceTone.amountClass)}>
+                {formatLiabilityMoneyAbs(periodClosingAbs)}
+              </span>
             </div>
           </div>
 
           {/* Help Note */}
           <div className="bg-slate-50/50 border-b border-slate-100 px-6 py-2">
              <span className="text-[10px] text-slate-400">
-               * Inward (Debit) increases receivable from person. Outward (Credit) decreases receivable from person.
+               * Inward and outward are movement amounts (always shown positive). Balance column shows receivable or payable using green and red.
              </span>
-             <span className="text-[10px] text-slate-500 ml-2">Showing Person-side view</span>
+             <span className="text-[10px] text-slate-500 ml-2">Showing Platform-side view</span>
           </div>
 
           {/* Ledger Table */}
@@ -387,7 +410,7 @@ export function LiabilityLedgerClient() {
                   <th className="py-3 px-4">From / To</th>
                   <th className="py-3 px-4 text-right w-[120px]">Inward (DR)</th>
                   <th className="py-3 px-4 text-right w-[120px]">Outward (CR)</th>
-                  <th className="py-3 px-4 text-right w-[140px] bg-slate-100/50 border-l border-slate-200 text-slate-800">Balance</th>
+                  <th className="py-3 px-4 text-right w-[160px] bg-slate-100/50 border-l border-slate-200 text-slate-800">Balance</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -399,13 +422,9 @@ export function LiabilityLedgerClient() {
                   </tr>
                 ) : (
                   ledger.rows.map((r, i) => (
-                    <tr 
-                      key={`${r._id}-${i}`} 
-                      className={cn(
-                        "hover:bg-slate-50/50 transition-colors group",
-                        r.debit > 0 && "bg-emerald-50/10",
-                        r.credit > 0 && "bg-rose-50/10"
-                      )}
+                    <tr
+                      key={`${r._id}-${i}`}
+                      className="hover:bg-slate-50/50 transition-colors group"
                     >
                       <td className="py-3 px-4 whitespace-nowrap text-slate-500">
                         {new Date(r.at).toLocaleString('en-IN', {
@@ -428,20 +447,28 @@ export function LiabilityLedgerClient() {
                       </td>
                       <td className="py-3 px-4 text-right">
                         {r.debit > 0 ? (
-                          <span className="font-semibold text-emerald-600">
-                            {formatAmount(r.debit)}
-                          </span>
+                          <span className="font-semibold text-slate-700">{formatLiabilityMoneyAbs(r.debit)}</span>
                         ) : null}
                       </td>
                       <td className="py-3 px-4 text-right">
                         {r.credit > 0 ? (
-                          <span className="font-semibold text-rose-600">
-                            {formatAmount(r.credit)}
-                          </span>
+                          <span className="font-semibold text-slate-700">{formatLiabilityMoneyAbs(r.credit)}</span>
                         ) : null}
                       </td>
-                      <td className="py-3 px-4 text-right font-medium text-slate-800 bg-slate-50/30 border-l border-slate-100">
-                        {formatAmount(r.runningBalance)}
+                      <td className="py-3 px-4 text-right bg-slate-50/30 border-l border-slate-100">
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className={cn("font-semibold", liabilitySideAmountClass(r.runningBalanceSide))}>
+                            {formatLiabilityMoneyAbs(r.runningBalanceAbs)}
+                          </span>
+                          <span
+                            className={cn(
+                              "rounded-full border px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide",
+                              liabilitySideBadgeClass(r.runningBalanceSide),
+                            )}
+                          >
+                            {r.runningBalanceSide}
+                          </span>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -452,14 +479,14 @@ export function LiabilityLedgerClient() {
                   <td colSpan={3} className="py-3 px-4 text-right font-semibold text-slate-600 uppercase text-[10px] tracking-wider">
                     Ledger Totals ({ledger.rows.length} entries)
                   </td>
-                  <td className="py-3 px-4 text-right font-bold text-emerald-700">
-                    {formatAmount(totalDebits)}
+                  <td className="py-3 px-4 text-right font-bold text-slate-800">
+                    {formatLiabilityMoneyAbs(totalDebits)}
                   </td>
-                  <td className="py-3 px-4 text-right font-bold text-rose-700">
-                    {formatAmount(totalCredits)}
+                  <td className="py-3 px-4 text-right font-bold text-slate-800">
+                    {formatLiabilityMoneyAbs(totalCredits)}
                   </td>
                   <td className={cn("py-3 px-4 text-right font-bold", finalBalanceTone.footerClass)}>
-                    {formatAmount(periodClosingBalance)}
+                    {formatLiabilityMoneyAbs(periodClosingAbs)}
                   </td>
                 </tr>
               </tfoot>

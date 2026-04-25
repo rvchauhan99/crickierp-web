@@ -6,6 +6,8 @@ export type PlayerRow = {
   phone: string;
   regularBonusPercentage: number;
   firstDepositBonusPercentage: number;
+  referredByPlayerId?: string | { _id?: string; playerId?: string; phone?: string };
+  referralPercentage?: number;
   bonusPercentage?: number;
   createdAt?: string;
   updatedAt?: string;
@@ -20,17 +22,28 @@ export type PlayerCreateInput = {
   phone: string;
   regularBonusPercentage: number;
   firstDepositBonusPercentage: number;
+  referredByPlayerId?: string | null;
+  referralPercentage?: number;
 };
 
 export type PlayerUpdateInput = {
   phone: string;
   regularBonusPercentage: number;
   firstDepositBonusPercentage: number;
+  referredByPlayerId?: string | null;
+  referralPercentage?: number;
 };
 
 export type PlayerDetail = Pick<
   PlayerRow,
-  "exchange" | "playerId" | "phone" | "regularBonusPercentage" | "firstDepositBonusPercentage" | "bonusPercentage"
+  | "exchange"
+  | "playerId"
+  | "phone"
+  | "regularBonusPercentage"
+  | "firstDepositBonusPercentage"
+  | "referredByPlayerId"
+  | "referralPercentage"
+  | "bonusPercentage"
 >;
 
 export type PlayerImportResult = {

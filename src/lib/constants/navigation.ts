@@ -294,6 +294,19 @@ export const NAV_ITEMS: AppNavNode[] = [
     ],
   },
   {
+    id: "referral",
+    label: "Referral",
+    children: [
+      {
+        id: "referral-settlement",
+        label: "Settlement",
+        href: "/referral/settlement",
+        keywords: ["bonus", "accrual", "manual"],
+        requiredPermission: NAV_PERMISSIONS.REFERRAL_LIST,
+      },
+    ],
+  },
+  {
     id: "masters",
     label: "Masters",
     allowedRoles: ["superadmin"],

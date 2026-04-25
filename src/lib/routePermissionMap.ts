@@ -66,6 +66,13 @@ const PREFIX_RULES: { prefix: string; access: RouteAccess }[] = [
     access: { kind: "permission", permission: NAV_PERMISSIONS.LIABILITY_LEDGER_VIEW },
   },
   {
+    prefix: "/referral/settlement",
+    access: {
+      kind: "anyPermission",
+      permissions: [NAV_PERMISSIONS.REFERRAL_LIST, NAV_PERMISSIONS.REFERRAL_SETTLE],
+    },
+  },
+  {
     prefix: "/reports/liability",
     access: { kind: "permission", permission: NAV_PERMISSIONS.LIABILITY_REPORT_VIEW },
   },
