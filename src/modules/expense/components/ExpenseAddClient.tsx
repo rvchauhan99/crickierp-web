@@ -190,8 +190,9 @@ export function ExpenseAddClient() {
     const tid = id.trim();
     if (tid) {
       setExpenseTypeMetaStatus("loading");
-      const cached = expenseTypeMetaRef.current.get(tid);
-      setTypeRequiresAudit(cached === undefined ? true : cached);
+      // Avoid showing stale branch while id-based metadata refresh is in-flight.
+      expenseTypeMetaRef.current.delete(tid);
+      setTypeRequiresAudit(true);
     } else {
       setExpenseTypeMetaStatus("idle");
       setTypeRequiresAudit(true);
