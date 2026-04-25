@@ -29,15 +29,13 @@ import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { BRANDING } from "@/lib/constants/branding";
-
-function formatAmount(value: number) {
-  const abs = Math.abs(value);
-  let formatted: string;
-  if (abs >= 10_00_00_000) formatted = `₹${(abs / 10_00_00_000).toFixed(2)}Cr`;
-  else if (abs >= 10_00_000) formatted = `₹${(abs / 10_00_000).toFixed(2)}L`;
-  else formatted = `₹${abs.toLocaleString("en-IN")}`;
-  return value < 0 ? `−${formatted}` : formatted;
-}
+import {
+  formatLiabilityMoneyAbs,
+  liabilitySideAmountClass,
+  liabilitySideBadgeClass,
+  liabilitySideFromSigned,
+} from "@/lib/liabilityDisplay";
+import type { LiabilityBalanceSide } from "@/types/liability";
 
 export function LiabilityReportClient() {
   const [summary, setSummary] = useState<LiabilitySummaryReport | null>(null);
@@ -127,7 +125,7 @@ export function LiabilityReportClient() {
             <p className="text-xs text-slate-400 mt-0.5">
               Receivable/payable summary and person-wise balances.
             </p>
-            <p className="text-[10px] text-slate-500 mt-1">Showing Person-side view</p>
+            <p className="text-[10px] text-slate-500 mt-1">Showing Platform-side view</p>
           </div>
           <div className="flex items-center gap-3">
             <div className="relative group">
@@ -182,19 +180,57 @@ export function LiabilityReportClient() {
                   <span className="text-[10px] uppercase font-bold tracking-widest text-emerald-600/70 mb-1 flex items-center gap-1">
                     <IconArrowUpRight className="w-3 h-3"/> Total Receivable
                   </span>
-                  <span className="text-xl font-bold text-emerald-700">{formatAmount(summary.totalReceivable)}</span>
+                  <span className="text-xl font-bold text-emerald-700">
+                    {formatLiabilityMoneyAbs(summary.totalReceivable)}
+                  </span>
                 </div>
                 <div className="p-4 flex flex-col justify-center">
                   <span className="text-[10px] uppercase font-bold tracking-widest text-rose-600/70 mb-1 flex items-center gap-1">
                     <IconArrowDownRight className="w-3 h-3"/> Total Payable
                   </span>
-                  <span className="text-xl font-bold text-rose-700">{formatAmount(summary.totalPayable)}</span>
-                </div>
-                <div className="p-4 flex flex-col justify-center">
-                  <span className="text-[10px] uppercase font-bold tracking-widest text-blue-600/70 mb-1 flex items-center gap-1">
-                    <IconScale className="w-3 h-3"/> Net Position
+                  <span className="text-xl font-bold text-rose-700">
+                    {formatLiabilityMoneyAbs(summary.totalPayable)}
                   </span>
-                  <span className="text-xl font-bold text-blue-700">{formatAmount(summary.netPosition)}</span>
+                </div>
+                <div className="p-4 flex flex-col justify-center gap-1">
+                  {(() => {
+                    const netSide: LiabilityBalanceSide =
+                      summary.netPositionSide ?? liabilitySideFromSigned(summary.netPosition);
+                    const netAbs = summary.netPositionAbs ?? Math.abs(summary.netPosition);
+                    const netTitle =
+                      netSide === "receivable"
+                        ? "Net receivable"
+                        : netSide === "payable"
+                          ? "Net payable"
+                          : "Net position";
+                    return (
+                      <>
+                        <span
+                          className={cn(
+                            "text-[10px] uppercase font-bold tracking-widest mb-0.5 flex items-center gap-1",
+                            netSide === "receivable"
+                              ? "text-emerald-600/70"
+                              : netSide === "payable"
+                                ? "text-rose-600/70"
+                                : "text-slate-500",
+                          )}
+                        >
+                          <IconScale className="w-3 h-3" /> {netTitle}
+                        </span>
+                        <span className={cn("text-xl font-bold", liabilitySideAmountClass(netSide))}>
+                          {formatLiabilityMoneyAbs(netAbs)}
+                        </span>
+                        <span
+                          className={cn(
+                            "inline-flex w-fit rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide",
+                            liabilitySideBadgeClass(netSide),
+                          )}
+                        >
+                          {netSide}
+                        </span>
+                      </>
+                    );
+                  })()}
                 </div>
                 <div className="p-4 flex flex-col justify-center bg-slate-50/50">
                   <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500 mb-1 flex items-center gap-1">
@@ -257,13 +293,17 @@ export function LiabilityReportClient() {
                           </td>
                           <td className="py-3 px-4 text-right">
                              {r.totalDebits !== undefined ? (
-                               <span className="text-slate-600">{formatAmount(r.totalDebits)}</span>
-                             ) : <span className="text-slate-300">−</span>}
+                               <span className="text-slate-600">{formatLiabilityMoneyAbs(r.totalDebits)}</span>
+                             ) : (
+                               <span className="text-slate-400">—</span>
+                             )}
                           </td>
                           <td className="py-3 px-4 text-right">
                              {r.totalCredits !== undefined ? (
-                               <span className="text-slate-600">{formatAmount(r.totalCredits)}</span>
-                             ) : <span className="text-slate-300">−</span>}
+                               <span className="text-slate-600">{formatLiabilityMoneyAbs(r.totalCredits)}</span>
+                             ) : (
+                               <span className="text-slate-400">—</span>
+                             )}
                           </td>
                           <td className={cn(
                             "py-3 px-4 text-right font-bold text-sm bg-slate-50/20 border-l border-slate-100",
@@ -273,7 +313,7 @@ export function LiabilityReportClient() {
                                 ? "text-rose-700"
                                 : "text-slate-700"
                           )}>
-                            {formatAmount(Math.abs(r.balance))}
+                            {formatLiabilityMoneyAbs(r.balanceAbs ?? Math.abs(r.balance))}
                           </td>
                           <td className="py-3 px-4">
                             <span className={cn(
@@ -296,8 +336,33 @@ export function LiabilityReportClient() {
                            Reporting Totals:
                          </td>
                          <td colSpan={2} className="py-3 px-4" />
-                         <td className="py-3 px-4 text-right font-bold text-slate-900 bg-slate-100/50">
-                            Net: {summary ? formatAmount(summary.netPosition) : "−"}
+                         <td className="py-3 px-4 text-right font-bold bg-slate-100/50">
+                            {summary ? (
+                              <span className="flex flex-col items-end gap-0.5">
+                                <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                                  Net
+                                </span>
+                                <span
+                                  className={liabilitySideAmountClass(
+                                    summary.netPositionSide ?? liabilitySideFromSigned(summary.netPosition),
+                                  )}
+                                >
+                                  {formatLiabilityMoneyAbs(summary.netPositionAbs ?? Math.abs(summary.netPosition))}
+                                </span>
+                                <span
+                                  className={cn(
+                                    "rounded-full border px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide",
+                                    liabilitySideBadgeClass(
+                                      summary.netPositionSide ?? liabilitySideFromSigned(summary.netPosition),
+                                    ),
+                                  )}
+                                >
+                                  {summary.netPositionSide ?? liabilitySideFromSigned(summary.netPosition)}
+                                </span>
+                              </span>
+                            ) : (
+                              <span className="text-slate-500">—</span>
+                            )}
                          </td>
                          <td className="py-3 px-4" />
                        </tr>

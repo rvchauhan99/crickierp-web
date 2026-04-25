@@ -5,6 +5,7 @@ export type ExpenseTypeOption = {
   name: string;
   code?: string;
   description?: string;
+  requiresAudit?: boolean;
 };
 
 export type ExpenseDocumentMeta = {
@@ -51,6 +52,7 @@ export type ExpenseCreateInput = {
   expenseDate: string;
   description?: string;
   bankId?: string;
+  liabilityPersonId?: string;
 };
 
 export type ExpenseUpdateInput = {

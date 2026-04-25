@@ -19,7 +19,12 @@ import { tableColumnPresets } from "@/lib/tableStylePresets";
 import { createLiabilityPerson, exportLiabilityPersons, listLiabilityPersonsNormalized, updateLiabilityPerson } from "@/services/liabilityService";
 import { useExport } from "@/hooks/useExport";
 import { getApiErrorMessage } from "@/lib/apiError";
-import type { LiabilityPersonRow } from "@/types/liability";
+import type { LiabilityOpeningKind, LiabilityPersonRow } from "@/types/liability";
+import {
+  formatLiabilityMoneyAbs,
+  liabilitySideAmountClass,
+  liabilitySideBadgeClass,
+} from "@/lib/liabilityDisplay";
 
 const FILTER_KEYS = ["isActive"];
 
@@ -39,7 +44,8 @@ export function LiabilityPersonClient() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [notes, setNotes] = useState("");
-  const [openingBalance, setOpeningBalance] = useState("");
+  const [openingAmount, setOpeningAmount] = useState("");
+  const [openingKind, setOpeningKind] = useState<LiabilityOpeningKind>("receivable");
   const [isActive, setIsActive] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -51,7 +57,8 @@ export function LiabilityPersonClient() {
     setPhone("");
     setEmail("");
     setNotes("");
-    setOpeningBalance("");
+    setOpeningAmount("");
+    setOpeningKind("receivable");
     setIsActive(true);
     setEditingId(null);
   }, []);
@@ -86,6 +93,12 @@ export function LiabilityPersonClient() {
       toast.error("Name is required");
       return;
     }
+    const amtRaw = openingAmount.trim();
+    const amt = amtRaw ? Number(amtRaw) : 0;
+    if (amtRaw && (Number.isNaN(amt) || amt < 0)) {
+      toast.error("Opening amount must be a non-negative number.");
+      return;
+    }
     setLoading(true);
     try {
       const payload = {
@@ -93,7 +106,8 @@ export function LiabilityPersonClient() {
         phone: phone.trim() || undefined,
         email: email.trim() || undefined,
         notes: notes.trim() || undefined,
-        openingBalance: openingBalance.trim() ? Number(openingBalance) : 0,
+        openingAmount: amt,
+        ...(amt > 0 ? { openingKind } : {}),
         isActive,
       };
       if (editingId) {
@@ -119,8 +133,19 @@ export function LiabilityPersonClient() {
       { field: "email", label: "Email", render: (r: LiabilityPersonRow) => r.email || "—" },
       {
         field: "openingBalance",
-        label: "Opening Balance",
-        render: (r: LiabilityPersonRow) => r.openingBalance.toLocaleString(),
+        label: "Opening",
+        render: (r: LiabilityPersonRow) => (
+          <div className="flex flex-col items-end gap-0.5">
+            <span className={liabilitySideAmountClass(r.openingBalanceSide)}>
+              {formatLiabilityMoneyAbs(r.openingBalanceAbs)}
+            </span>
+            <span
+              className={`inline-block rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${liabilitySideBadgeClass(r.openingBalanceSide)}`}
+            >
+              {r.openingBalanceSide}
+            </span>
+          </div>
+        ),
       },
       {
         field: "totalDebits",
@@ -134,8 +159,19 @@ export function LiabilityPersonClient() {
       },
       {
         field: "closingBalance",
-        label: "Closing Balance",
-        render: (r: LiabilityPersonRow) => r.closingBalance.toLocaleString(),
+        label: "Closing",
+        render: (r: LiabilityPersonRow) => (
+          <div className="flex flex-col items-end gap-0.5">
+            <span className={liabilitySideAmountClass(r.closingBalanceSide)}>
+              {formatLiabilityMoneyAbs(r.closingBalanceAbs)}
+            </span>
+            <span
+              className={`inline-block rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${liabilitySideBadgeClass(r.closingBalanceSide)}`}
+            >
+              {r.closingBalanceSide}
+            </span>
+          </div>
+        ),
       },
       {
         field: "status",
@@ -161,7 +197,12 @@ export function LiabilityPersonClient() {
               setPhone(r.phone || "");
               setEmail(r.email || "");
               setNotes(r.notes || "");
-              setOpeningBalance(String(r.openingBalance ?? 0));
+              setOpeningAmount(String(r.openingBalanceAbs ?? 0));
+              setOpeningKind(
+                r.openingBalanceSide === "payable"
+                  ? "payable"
+                  : "receivable",
+              );
               setIsActive(r.isActive);
             }}
           >
@@ -193,13 +234,26 @@ export function LiabilityPersonClient() {
             <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
           </div>
           <div className="space-y-1.5">
-            <FieldLabel>Opening Balance</FieldLabel>
+            <FieldLabel>Opening amount</FieldLabel>
             <Input
               inputMode="decimal"
-              value={openingBalance}
-              onChange={(e) => setOpeningBalance(e.target.value)}
+              min={0}
+              value={openingAmount}
+              onChange={(e) => setOpeningAmount(e.target.value)}
               placeholder="0"
             />
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel>Opening type</FieldLabel>
+            <select
+              className="w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
+              value={openingKind}
+              onChange={(e) => setOpeningKind(e.target.value as LiabilityOpeningKind)}
+              disabled={!openingAmount.trim() || Number(openingAmount) === 0}
+            >
+              <option value="receivable">Receivable (we are owed)</option>
+              <option value="payable">Payable (we owe)</option>
+            </select>
           </div>
           <div className="space-y-1.5">
             <FieldLabel>Status</FieldLabel>

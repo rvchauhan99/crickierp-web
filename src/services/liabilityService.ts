@@ -1,8 +1,10 @@
 import { apiClient } from "./apiClient";
 import type {
+  LiabilityBalanceSide,
   LiabilityEntryCreateInput,
   LiabilityEntryRow,
   LiabilityLedgerResponse,
+  LiabilityLedgerRow,
   LiabilityPersonCreateInput,
   LiabilityPersonRow,
   LiabilityPersonUpdateInput,
@@ -10,6 +12,7 @@ import type {
   LiabilitySummaryReport,
   LiabilityViewMode,
 } from "@/types/liability";
+import { liabilitySideFromSigned } from "@/lib/liabilityDisplay";
 
 function toOptionalParam(value: unknown): string | undefined {
   if (value === null || value === undefined) return undefined;
@@ -34,6 +37,16 @@ function parseUserName(value: unknown): string | undefined {
 
 function normalizePerson(row: Record<string, unknown>): LiabilityPersonRow {
   const id = String(row._id ?? row.id ?? "");
+  const openingBalance = Number(row.openingBalance ?? 0);
+  const closingBalance = Number(row.closingBalance ?? row.openingBalance ?? 0);
+  const openingBalanceAbs =
+    row.openingBalanceAbs != null ? Number(row.openingBalanceAbs) : Math.abs(openingBalance);
+  const closingBalanceAbs =
+    row.closingBalanceAbs != null ? Number(row.closingBalanceAbs) : Math.abs(closingBalance);
+  const openingBalanceSide =
+    (row.openingBalanceSide as LiabilityBalanceSide | undefined) ?? liabilitySideFromSigned(openingBalance);
+  const closingBalanceSide =
+    (row.closingBalanceSide as LiabilityBalanceSide | undefined) ?? liabilitySideFromSigned(closingBalance);
   return {
     _id: id,
     id,
@@ -42,10 +55,14 @@ function normalizePerson(row: Record<string, unknown>): LiabilityPersonRow {
     email: String(row.email ?? "").trim() || undefined,
     notes: String(row.notes ?? "").trim() || undefined,
     isActive: Boolean(row.isActive ?? true),
-    openingBalance: Number(row.openingBalance ?? 0),
+    openingBalance,
+    openingBalanceAbs,
+    openingBalanceSide,
     totalDebits: Number(row.totalDebits ?? 0),
     totalCredits: Number(row.totalCredits ?? 0),
-    closingBalance: Number(row.closingBalance ?? row.openingBalance ?? 0),
+    closingBalance,
+    closingBalanceAbs,
+    closingBalanceSide,
     createdAt: row.createdAt != null ? String(row.createdAt) : undefined,
     updatedAt: row.updatedAt != null ? String(row.updatedAt) : undefined,
     createdByName: parseUserName(row.createdBy),
@@ -171,6 +188,27 @@ export async function listLiabilityEntriesNormalized(params: Record<string, unkn
   };
 }
 
+function normalizeLedgerResponse(data: LiabilityLedgerResponse): LiabilityLedgerResponse {
+  const opening = Number(data.person?.openingBalance ?? 0);
+  const rows: LiabilityLedgerRow[] = (data.rows ?? []).map((r) => {
+    const running = Number(r.runningBalance ?? 0);
+    return {
+      ...r,
+      runningBalanceAbs: r.runningBalanceAbs ?? Math.abs(running),
+      runningBalanceSide:
+        r.runningBalanceSide ?? liabilitySideFromSigned(running),
+    };
+  });
+  return {
+    ...data,
+    person: {
+      ...data.person,
+      openingBalanceAbs: data.person.openingBalanceAbs ?? Math.abs(opening),
+    },
+    rows,
+  };
+}
+
 export async function getLiabilityPersonLedger(
   personId: string,
   query?: { fromDate?: string; toDate?: string; viewMode?: LiabilityViewMode },
@@ -179,15 +217,24 @@ export async function getLiabilityPersonLedger(
     `/liability/persons/${personId}/ledger`,
     { params: query },
   );
-  return res.data.data;
+  return normalizeLedgerResponse(res.data.data);
+}
+
+function normalizeSummaryReport(data: LiabilitySummaryReport): LiabilitySummaryReport {
+  const net = Number(data.netPosition ?? 0);
+  return {
+    ...data,
+    netPositionAbs: data.netPositionAbs ?? Math.abs(net),
+    netPositionSide: data.netPositionSide ?? liabilitySideFromSigned(net),
+  };
 }
 
 export async function getLiabilitySummaryReport(): Promise<LiabilitySummaryReport> {
   const res = await apiClient.get<{ success: boolean; data: LiabilitySummaryReport }>(
     "/liability/reports/summary",
-    { params: { viewMode: "person" } },
+    { params: { viewMode: "platform" } },
   );
-  return res.data.data;
+  return normalizeSummaryReport(res.data.data);
 }
 
 export async function getLiabilitySummaryReportByMode(viewMode: LiabilityViewMode): Promise<LiabilitySummaryReport> {
@@ -195,15 +242,24 @@ export async function getLiabilitySummaryReportByMode(viewMode: LiabilityViewMod
     "/liability/reports/summary",
     { params: { viewMode } },
   );
-  return res.data.data;
+  return normalizeSummaryReport(res.data.data);
+}
+
+function normalizePersonWiseRow(r: LiabilityPersonWiseReportRow): LiabilityPersonWiseReportRow {
+  const bal = Number(r.balance ?? 0);
+  return {
+    ...r,
+    balanceAbs: r.balanceAbs ?? Math.abs(bal),
+  };
 }
 
 export async function getLiabilityPersonWiseReport(): Promise<LiabilityPersonWiseReportRow[]> {
   const res = await apiClient.get<{ success: boolean; data: LiabilityPersonWiseReportRow[] }>(
     "/liability/reports/person-wise",
-    { params: { viewMode: "person" } },
+    { params: { viewMode: "platform" } },
   );
-  return Array.isArray(res.data?.data) ? res.data.data : [];
+  const rows = Array.isArray(res.data?.data) ? res.data.data : [];
+  return rows.map((r) => normalizePersonWiseRow(r));
 }
 
 export async function getLiabilityPersonWiseReportByMode(viewMode: LiabilityViewMode): Promise<LiabilityPersonWiseReportRow[]> {
@@ -211,7 +267,8 @@ export async function getLiabilityPersonWiseReportByMode(viewMode: LiabilityView
     "/liability/reports/person-wise",
     { params: { viewMode } },
   );
-  return Array.isArray(res.data?.data) ? res.data.data : [];
+  const rows = Array.isArray(res.data?.data) ? res.data.data : [];
+  return rows.map((r) => normalizePersonWiseRow(r));
 }
 
 export async function exportLiabilityPersons(params: Record<string, unknown>): Promise<Blob> {

@@ -14,6 +14,9 @@ export type LookupExpenseTypeOption = {
   name: string;
   code?: string;
   description?: string;
+  /** False only when master `auditRequired` is explicitly false (auto-approve + settlement on create). */
+  requiresAudit: boolean;
+  auditNotRequired: boolean;
 };
 
 export type LookupPlayerOption = {
@@ -44,12 +47,22 @@ export type LookupExchangeOption = {
 type LookupListParams = {
   q?: string;
   limit?: number;
+  /** Exact expense type id (24-char hex); resolves audit flags outside list pagination. */
+  id?: string;
 };
 
-function normalizeQueryParams(params?: LookupListParams): Required<LookupListParams> {
+type NormalizedLookupQuery = {
+  q: string;
+  limit: number;
+  id?: string;
+};
+
+function normalizeQueryParams(params?: LookupListParams): NormalizedLookupQuery {
+  const idTrim = params?.id?.trim();
   return {
     q: params?.q?.trim() || "",
     limit: Number(params?.limit) > 0 ? Number(params?.limit) : 20,
+    ...(idTrim && /^[a-f0-9]{24}$/i.test(idTrim) ? { id: idTrim } : {}),
   };
 }
 
@@ -68,7 +81,11 @@ export async function listExpenseTypeLookupOptions(
   const res = await apiClient.get<{ success: boolean; data: LookupExpenseTypeOption[] }>(
     "/lookup/expense-types",
     {
-      params: { q: query.q || undefined, limit: query.limit },
+      params: {
+        q: query.q || undefined,
+        limit: query.limit,
+        ...(query.id ? { id: query.id } : {}),
+      },
     },
   );
   return Array.isArray(res.data?.data) ? res.data.data : [];
