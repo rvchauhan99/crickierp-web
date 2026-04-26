@@ -137,6 +137,7 @@ export function ReferralSettlementClient() {
               value={referrerPlayerId}
               onChange={setReferrerPlayerId}
               loadOptions={loadPlayerOptions}
+              autoSelectSingleOption
               placeholder="search referrer..."
             />
           </div>

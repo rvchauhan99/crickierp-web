@@ -761,6 +761,7 @@ export function DepositExchangeClient() {
                   value={playerId}
                   onChange={handlePlayerIdChange}
                   loadOptions={loadPlayerOptions}
+              autoSelectSingleOption
                   placeholder="Search player…"
                   disabled={!canApproveOnSelection}
                 />

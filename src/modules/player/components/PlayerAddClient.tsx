@@ -331,6 +331,7 @@ export function PlayerAddClient() {
               value={referredByPlayerId}
               onChange={setReferredByPlayerId}
               loadOptions={loadPlayerOptions}
+              autoSelectSingleOption
               placeholder="search old player..."
             />
           </div>
