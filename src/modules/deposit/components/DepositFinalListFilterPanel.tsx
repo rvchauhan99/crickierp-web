@@ -499,6 +499,7 @@ export function DepositFinalListFilterPanel({
               value={local.player}
               onChange={(v) => handleChange("player", v)}
               loadOptions={loadPlayerOptions}
+              autoSelectSingleOption
               placeholder="Search player…"
               emptyText="No players found"
             />

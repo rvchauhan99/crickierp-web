@@ -178,6 +178,7 @@ export function ExchangeStatementClient() {
                 setStatement(null);
               }}
               loadOptions={loadPlayerOptions}
+              autoSelectSingleOption
               placeholder={exchangeId ? "Search player..." : "Select exchange first"}
             />
           </div>

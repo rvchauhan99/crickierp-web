@@ -534,6 +534,7 @@ export function WithdrawalExchangeClient() {
                   setSavedPreset("");
                 }}
                 loadOptions={loadPlayerOptions}
+              autoSelectSingleOption
                 placeholder="Search player…"
                 emptyText="No players found"
                 disabled={!!editingId} // lock player on edit
