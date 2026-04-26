@@ -700,6 +700,7 @@ export function DepositFinalListClient() {
               value={amendPlayerId}
               onChange={(v) => setAmendPlayerId(v)}
               loadOptions={loadPlayerOptions}
+              autoSelectSingleOption
               placeholder="Search player…"
               defaultOption={amendPlayerDefault}
             />

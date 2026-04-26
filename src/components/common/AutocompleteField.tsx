@@ -37,6 +37,8 @@ type Props = {
    * `defaultOption` is absent or does not match — same idea as techhind `resolveOptionById`.
    */
   resolveOptionByValue?: (value: string) => Promise<AutocompleteOption | null>;
+  /** Auto-pick single match while typing (query must be non-empty). */
+  autoSelectSingleOption?: boolean;
 };
 
 export function AutocompleteField({
@@ -49,6 +51,7 @@ export function AutocompleteField({
   emptyText = "No records found",
   defaultOption = null,
   resolveOptionByValue,
+  autoSelectSingleOption = false,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -118,11 +121,26 @@ export function AutocompleteField({
       try {
         const rows = await loadOptionsRef.current(text);
         setOptions(rows);
+        const normalizedQuery = text.trim();
+        if (
+          autoSelectSingleOption &&
+          normalizedQuery.length > 0 &&
+          rows.length === 1 &&
+          rows[0] &&
+          rows[0].value !== value
+        ) {
+          const picked = rows[0];
+          selectedCacheRef.current = picked;
+          setSelectedOption(picked);
+          onChange(picked.value);
+          setOpen(false);
+          setQuery("");
+        }
       } finally {
         setLoading(false);
       }
     },
-    [],
+    [autoSelectSingleOption, onChange, value],
   );
 
   // Sync display label when value / options / defaultOption change (mirrors techhind selected-option cache).

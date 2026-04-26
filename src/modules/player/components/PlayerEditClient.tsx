@@ -189,6 +189,7 @@ export function PlayerEditClient() {
                 void onPlayerChange(v);
               }}
               loadOptions={loadPlayerOptions}
+              autoSelectSingleOption
               resolveOptionByValue={resolveOptionByValue}
               defaultOption={selectedPlayerOption}
               placeholder="search..."
@@ -248,6 +249,7 @@ export function PlayerEditClient() {
               value={referredByPlayerId}
               onChange={setReferredByPlayerId}
               loadOptions={loadReferrerOptions}
+              autoSelectSingleOption
               placeholder="search old player..."
               disabled={!canEdit || saving || loadingDetails}
             />
