@@ -9,8 +9,6 @@ export function liabilitySideFromSigned(balance: number): LiabilityBalanceSide {
 export function formatLiabilityMoneyAbs(value: number): string {
   const abs = Math.abs(Number(value));
   if (!Number.isFinite(abs)) return "₹0";
-  if (abs >= 10_00_00_000) return `₹${(abs / 10_00_00_000).toFixed(2)}Cr`;
-  if (abs >= 10_00_000) return `₹${(abs / 10_00_000).toFixed(2)}L`;
   return `₹${abs.toLocaleString("en-IN")}`;
 }
 
