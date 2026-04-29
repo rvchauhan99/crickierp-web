@@ -72,8 +72,6 @@ export function AutocompleteField({
   const defaultResolveAttemptRef = useRef<string | null>(null);
   /** Avoid repeated `loadOptions("")` when value is still missing from the loaded page. */
   const emptySearchAttemptRef = useRef<string | null>(null);
-  /** Prevent duplicate debounce call when we just prefetched on open. */
-  const skipNextDebounceRef = useRef(false);
 
   const [dropdownBox, setDropdownBox] = useState<{
     top: number;
@@ -230,17 +228,7 @@ export function AutocompleteField({
 
   useEffect(() => {
     if (!open || disabled) return;
-    if (query.trim() === "") {
-      skipNextDebounceRef.current = true;
-      setActiveIndex(-1);
-      void runLoad("");
-      return;
-    }
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    if (skipNextDebounceRef.current) {
-      skipNextDebounceRef.current = false;
-      return;
-    }
     debounceRef.current = window.setTimeout(() => {
       runLoad(query);
     }, debounceMs);
