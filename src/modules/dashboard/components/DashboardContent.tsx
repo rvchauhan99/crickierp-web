@@ -110,17 +110,18 @@ export function DashboardContent() {
       const data = res?.data ?? res;
       if (!data) return;
 
-      setSummary({
+      const nextSummary = {
         deposit: data.deposit ?? { totalAmount: 0, totalCount: 0, pendingCount: 0, pendingAmount: 0, verifiedAmount: 0, verifiedCount: 0, rejectedCount: 0, bonusTotal: 0 },
         withdrawal: data.withdrawal ?? { totalAmount: 0, totalCount: 0, pendingCount: 0, pendingAmount: 0, approvedAmount: 0, approvedCount: 0, rejectedCount: 0, reverseBonusTotal: 0 },
         expense: data.expense ?? { totalAmount: 0, totalCount: 0, pendingCount: 0, approvedAmount: 0 },
         pnl: data.pnl ?? { gross: 0, net: 0 },
         exchanges: data.exchanges ?? { total: 0, active: 0 },
         users: data.users ?? { total: 0 },
-        todayMetrics: data.todayMetrics ?? { newPlayersToday: 0, firstTimeDepositAmountToday: 0 },
+        periodMetrics: data.periodMetrics ?? { newPlayers: 0, firstTimeDepositAmount: 0 },
         exchangesBreakdown: Array.isArray(data.exchangesBreakdown) ? data.exchangesBreakdown : [],
         banksBreakdown: Array.isArray(data.banksBreakdown) ? data.banksBreakdown : [],
-      });
+      } as DashboardSummary;
+      setSummary(nextSummary);
       setTrendData(Array.isArray(data.trendData) ? data.trendData : []);
       setRecentActivity(Array.isArray(data.recentActivity) ? data.recentActivity : []);
     } catch (err: unknown) {
