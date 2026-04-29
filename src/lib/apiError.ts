@@ -6,6 +6,12 @@ type ApiErrorPayload = {
       error?: {
         message?: string;
         details?: {
+          duplicateTransaction?: {
+            type?: string;
+            id?: string;
+            status?: string;
+            dateTime?: string;
+          };
           errors?: { row: number; message: string }[];
           fieldErrors?: Record<string, string[] | undefined>;
           formErrors?: string[];
@@ -44,6 +50,22 @@ export function getApiErrorMessage(error: unknown, fallback: string) {
     if (msg === "Validation failed" && err?.details) {
       const fromDetails = messageFromValidationDetails(err.details);
       if (fromDetails) msg = fromDetails;
+    }
+    if (msg === "UTR already exists in another transaction" && err?.details) {
+      const dup = err.details.duplicateTransaction;
+      const txType = String(dup?.type ?? "").trim();
+      const txId = String(dup?.id ?? "").trim();
+      const txStatus = String(dup?.status ?? "").trim();
+      const txDate = String(dup?.dateTime ?? "").trim();
+      const pieces = [
+        txType ? `type: ${txType}` : "",
+        txId ? `id: ${txId}` : "",
+        txStatus ? `status: ${txStatus}` : "",
+        txDate ? `date: ${txDate}` : "",
+      ].filter(Boolean);
+      if (pieces.length > 0) {
+        msg = `${msg} (${pieces.join(", ")})`;
+      }
     }
     return msg;
   }
