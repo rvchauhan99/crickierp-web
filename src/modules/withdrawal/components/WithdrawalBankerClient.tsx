@@ -11,6 +11,7 @@ import {
   IconCurrencyRupee,
   IconClock,
   IconRefresh,
+  IconBuildingBank,
 } from "@tabler/icons-react";
 import { ConfirmSensitiveActionDialog } from "@/components/common/ConfirmSensitiveActionDialog";
 import { AutocompleteField, type AutocompleteOption } from "@/components/common/AutocompleteField";
@@ -38,8 +39,9 @@ import {
 } from "@/services/withdrawalService";
 import { useExport } from "@/hooks/useExport";
 import { listBankLookupOptions } from "@/services/lookupService";
+import { listLiabilityPersonsNormalized } from "@/services/liabilityService";
 import { userService } from "@/services/userService";
-import type { WithdrawalRow } from "@/types/withdrawal";
+import type { WithdrawalBankerPayoutInput, WithdrawalRow } from "@/types/withdrawal";
 import { useApprovalQueueAutoRefresh } from "@/hooks/useApprovalQueueAutoRefresh";
 
 const COLUMN_FILTER_KEYS = [
@@ -120,6 +122,16 @@ function WithdrawalDetailCard({ withdrawal }: { withdrawal: WithdrawalRow }) {
       icon: <IconClock className="size-4 shrink-0 text-gray-400" />,
       label: "Requested at",
       value: withdrawal.createdAt ? new Date(withdrawal.createdAt).toLocaleString() : "—",
+    },
+    {
+      icon: <IconBuildingBank className="size-4 shrink-0 text-[var(--brand-primary)]" />,
+      label: "Company payout source",
+      value:
+        withdrawal.payoutSettlementType === "person"
+          ? withdrawal.payoutLiabilityPersonName?.trim()
+            ? `LP: ${withdrawal.payoutLiabilityPersonName.trim()}`
+            : "—"
+          : withdrawal.payoutBankName?.trim() || "(pending)",
     },
   ];
 
@@ -223,8 +235,11 @@ export function WithdrawalBankerClient() {
     onRefresh: () => setTableKey((k) => k + 1),
   });
 
+  const [payoutSettlementType, setPayoutSettlementType] = useState<"bank" | "person">("bank");
   const [bankId, setBankId] = useState("");
   const [bankAutocompleteDefault, setBankAutocompleteDefault] = useState<AutocompleteOption | null>(null);
+  const [liabilityPersonId, setLiabilityPersonId] = useState("");
+  const [payoutPersonAutocompleteDefault, setPayoutPersonAutocompleteDefault] = useState<AutocompleteOption | null>(null);
   const bankIdRef = useRef("");
   const hasConsumedInitialListMetaRef = useRef(false);
 
@@ -250,7 +265,7 @@ export function WithdrawalBankerClient() {
   const [rejectReasonId, setRejectReasonId] = useState("");
   const [rejectRemark, setRejectRemark] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
-  const [errors, setErrors] = useState<{ bankId?: string; utr?: string }>({});
+  const [errors, setErrors] = useState<{ bankId?: string; liabilityPersonId?: string; utr?: string }>({});
 
   const loadUserOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {
@@ -285,8 +300,27 @@ export function WithdrawalBankerClient() {
     }
   }, []);
 
+  const loadLiabilityPersonOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
+    try {
+      const res = await listLiabilityPersonsNormalized({
+        page: 1,
+        limit: 25,
+        q: query || undefined,
+        sortBy: "name",
+        sortOrder: "asc",
+        isActive: "true",
+      });
+      return res.data.map((p) => ({ value: p.id, label: p.name }));
+    } catch {
+      return [];
+    }
+  }, []);
+
   const closeSidebar = useCallback(() => {
     setSelectedWithdrawal(null);
+    setPayoutSettlementType("bank");
+    setLiabilityPersonId("");
+    setPayoutPersonAutocompleteDefault(null);
     setUtr("");
     setRejectOpen(false);
     setRejectReasonId("");
@@ -297,17 +331,22 @@ export function WithdrawalBankerClient() {
   const onPayoutSubmit = async () => {
     if (!selectedWithdrawal) return;
     const next: typeof errors = {};
-    if (!bankId.trim()) next.bankId = "Payout bank is required.";
+    if (payoutSettlementType === "bank" && !bankId.trim()) next.bankId = "Payout bank is required.";
+    if (payoutSettlementType === "person" && !liabilityPersonId.trim()) {
+      next.liabilityPersonId = "Liability person is required.";
+    }
     if (!utr.trim()) next.utr = "UTR reference is required.";
     setErrors(next);
     if (Object.keys(next).length > 0) return;
 
+    const body: WithdrawalBankerPayoutInput =
+      payoutSettlementType === "bank"
+        ? { payoutSettlementType: "bank", bankId: bankId.trim(), utr: utr.trim() }
+        : { payoutSettlementType: "person", liabilityPersonId: liabilityPersonId.trim(), utr: utr.trim() };
+
     setActionLoading(true);
     try {
-      await updateWithdrawalBankerPayout(selectedWithdrawal.id, {
-        bankId: bankId.trim(),
-        utr: utr.trim(),
-      });
+      await updateWithdrawalBankerPayout(selectedWithdrawal.id, body);
       toast.success("Payout recorded successfully.");
       closeSidebar();
       setTableKey((k) => k + 1);
@@ -397,6 +436,18 @@ export function WithdrawalBankerClient() {
           { value: "rejected", label: "Rejected" },
           { value: "finalized", label: "Finalized" },
         ],
+      },
+      {
+        field: "payoutSource",
+        label: "Payout via",
+        sortable: false,
+        minWidth: 140,
+        render: (row: WithdrawalRow) =>
+          row.payoutSettlementType === "person" && row.payoutLiabilityPersonName?.trim()
+            ? `LP: ${row.payoutLiabilityPersonName.trim()}`
+            : row.payoutBankName?.trim()
+              ? row.payoutBankName.trim()
+              : "—",
       },
       {
         field: "createdBy",
@@ -533,31 +584,73 @@ export function WithdrawalBankerClient() {
           <div className="flex flex-col gap-6">
             <WithdrawalDetailCard withdrawal={selectedWithdrawal} />
 
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <FieldLabel>Company payout bank *</FieldLabel>
-                <AutocompleteField
-                  value={bankId}
-                  onChange={setBankId}
-                  loadOptions={loadBankOptions}
-                  placeholder="Select bank..."
-                  emptyText="No banks found"
-                  defaultOption={bankAutocompleteDefault}
-                  disabled={selectedWithdrawal.status !== "requested" || actionLoading}
-                />
-                <FieldError message={errors.bankId} />
+            <div className="flex flex-col gap-3">
+              <div className="flex gap-3">
+                <div className="flex-1 space-y-1">
+                  <FieldLabel className="mb-1 text-xs text-muted-foreground">Payout settlement *</FieldLabel>
+                  <select
+                    className="w-full h-9 rounded-md border border-[var(--border)] bg-white px-3 py-1.5 text-sm"
+                    value={payoutSettlementType}
+                    onChange={(e) => {
+                      const v = e.target.value === "person" ? "person" : "bank";
+                      setPayoutSettlementType(v);
+                      setErrors((prev) => {
+                        const n = { ...prev };
+                        delete n.bankId;
+                        delete n.liabilityPersonId;
+                        return n;
+                      });
+                    }}
+                    disabled={selectedWithdrawal.status !== "requested" || actionLoading}
+                  >
+                    <option value="bank">Bank</option>
+                    <option value="person">Liability person</option>
+                  </select>
+                </div>
+                <div className="flex-1 space-y-1">
+                  <FieldLabel className="mb-1 text-xs text-muted-foreground">UTR Reference *</FieldLabel>
+                  <Input
+                    className="h-9 text-sm"
+                    value={utr}
+                    onChange={(e) => setUtr(e.target.value)}
+                    placeholder="Enter UTR"
+                    disabled={selectedWithdrawal.status !== "requested" || actionLoading}
+                  />
+                  <FieldError message={errors.utr} />
+                </div>
               </div>
 
-              <div className="space-y-1.5">
-                <FieldLabel>UTR Reference *</FieldLabel>
-                <Input
-                  value={utr}
-                  onChange={(e) => setUtr(e.target.value)}
-                  placeholder="Enter UTR reference"
-                  disabled={selectedWithdrawal.status !== "requested" || actionLoading}
-                />
-                <FieldError message={errors.utr} />
-              </div>
+              {payoutSettlementType === "bank" ? (
+                <div className="space-y-1">
+                  <FieldLabel className="mb-1 text-xs text-muted-foreground">Company payout bank *</FieldLabel>
+                  <AutocompleteField
+                    value={bankId}
+                    onChange={setBankId}
+                    loadOptions={loadBankOptions}
+                    placeholder="Select bank..."
+                    emptyText="No banks found"
+                    defaultOption={bankAutocompleteDefault}
+                    disabled={selectedWithdrawal.status !== "requested" || actionLoading}
+                  />
+                  <FieldError message={errors.bankId} />
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <FieldLabel className="mb-1 text-xs text-muted-foreground">Liability person paying out *</FieldLabel>
+                  <AutocompleteField
+                    value={liabilityPersonId}
+                    onChange={setLiabilityPersonId}
+                    loadOptions={loadLiabilityPersonOptions}
+                    placeholder="Search liability person..."
+                    emptyText="No persons found"
+                    defaultOption={payoutPersonAutocompleteDefault}
+                    disabled={selectedWithdrawal.status !== "requested" || actionLoading}
+                  />
+                  <FieldError message={errors.liabilityPersonId} />
+                </div>
+              )}
+
+
 
               <div className="flex flex-col gap-2 pt-2 border-t border-[var(--border)]">
                 <Button

@@ -80,6 +80,11 @@ export type DashboardSummary = {
     bankName: string;
     openingBalance: number;
     entries: number;
+    depositCount: number;
+    withdrawalCount: number;
+    expenseCount: number;
+    transferOutCount: number;
+    transferInCount: number;
     deposit: number;
     withdrawal: number;
     expenses: number;

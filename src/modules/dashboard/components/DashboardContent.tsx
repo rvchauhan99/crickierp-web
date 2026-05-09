@@ -119,7 +119,17 @@ export function DashboardContent() {
         users: data.users ?? { total: 0 },
         periodMetrics: data.periodMetrics ?? { newPlayers: 0, firstTimeDepositAmount: 0 },
         exchangesBreakdown: Array.isArray(data.exchangesBreakdown) ? data.exchangesBreakdown : [],
-        banksBreakdown: Array.isArray(data.banksBreakdown) ? data.banksBreakdown : [],
+        banksBreakdown: Array.isArray(data.banksBreakdown)
+          ? data.banksBreakdown.map((row: Record<string, unknown>) => ({
+              ...row,
+              depositCount: Number(row.depositCount ?? 0),
+              withdrawalCount: Number(row.withdrawalCount ?? 0),
+              expenseCount: Number(row.expenseCount ?? 0),
+              transferOutCount: Number(row.transferOutCount ?? 0),
+              transferInCount: Number(row.transferInCount ?? 0),
+              entries: Number(row.entries ?? 0),
+            }))
+          : [],
       } as DashboardSummary;
       setSummary(nextSummary);
       setTrendData(Array.isArray(data.trendData) ? data.trendData : []);

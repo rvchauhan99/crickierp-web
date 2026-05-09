@@ -2,16 +2,29 @@ export type DepositView = "banker" | "exchange" | "final";
 
 export type DepositStatus = "pending" | "not_settled" | "verified" | "rejected" | "finalized";
 
-export type DepositCreateInput = {
-  bankId: string;
-  utr: string;
-  amount: number;
-  entryAt?: string;
-};
+export type DepositSettlementAccountType = "bank" | "person";
+
+export type DepositCreateInput =
+  | {
+      settlementAccountType: "bank";
+      bankId: string;
+      utr: string;
+      amount: number;
+      entryAt?: string;
+    }
+  | {
+      settlementAccountType: "person";
+      liabilityPersonId: string;
+      utr: string;
+      amount: number;
+      entryAt?: string;
+    };
 
 export type DepositAmendmentSnapshot = {
   bankId?: string;
   bankName?: string;
+  liabilityPersonId?: string;
+  liabilityPersonName?: string;
   utr?: string;
   amount?: number;
   playerId?: string;
@@ -30,8 +43,11 @@ export type DepositAmendmentEntry = {
 export type DepositRow = {
   _id: string;
   id: string;
+  settlementAccountType?: DepositSettlementAccountType;
   bankId?: string;
   bankName: string;
+  liabilityPersonId?: string;
+  liabilityPersonName?: string;
   utr: string;
   amount: number;
   status: DepositStatus;
@@ -62,7 +78,8 @@ export type DepositRow = {
 };
 
 export type DepositAmendInput = {
-  bankId: string;
+  /** Required when amending bank-settled deposits; omit for liability-person settlement. */
+  bankId?: string;
   utr: string;
   amount: number;
   playerId: string;

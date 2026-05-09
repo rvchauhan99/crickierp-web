@@ -30,7 +30,8 @@ import {
   depositStatusColumnSelectValue,
 } from "@/modules/deposit/depositListingStatusFilter";
 import { listBankLookupOptions } from "@/services/lookupService";
-import type { DepositRow } from "@/types/deposit";
+import { listLiabilityPersonsNormalized } from "@/services/liabilityService";
+import type { DepositCreateInput, DepositRow } from "@/types/deposit";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { formatWholeRupee } from "@/lib/formatWholeRupee";
 import { useApprovalQueueAutoRefresh } from "@/hooks/useApprovalQueueAutoRefresh";
@@ -82,8 +83,11 @@ export function DepositBankerClient() {
   const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setFilter, setSort, clearFilters } =
     listingState;
 
+  const [settlementAccountType, setSettlementAccountType] = useState<"bank" | "person">("bank");
   const [bankId, setBankId] = useState("");
   const [bankAutocompleteDefault, setBankAutocompleteDefault] = useState<AutocompleteOption | null>(null);
+  const [liabilityPersonId, setLiabilityPersonId] = useState("");
+  const [personAutocompleteDefault, setPersonAutocompleteDefault] = useState<AutocompleteOption | null>(null);
   const bankIdRef = useRef(bankId);
   const hasConsumedInitialListMetaRef = useRef(false);
 
@@ -94,7 +98,12 @@ export function DepositBankerClient() {
   const [amount, setAmount] = useState("");
   const [entryAt, setEntryAt] = useState(getCurrentDateTimeLocal());
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<{ bankId?: string; utr?: string; amount?: string }>({});
+  const [errors, setErrors] = useState<{
+    bankId?: string;
+    liabilityPersonId?: string;
+    utr?: string;
+    amount?: string;
+  }>({});
   const [totalCount, setTotalCount] = useState(0);
   const [tableKey, setTableKey] = useState(0);
   const [editDeposit, setEditDeposit] = useState<DepositRow | null>(null);
@@ -102,7 +111,15 @@ export function DepositBankerClient() {
   const [editUtr, setEditUtr] = useState("");
   const [editAmount, setEditAmount] = useState("");
   const [editLoading, setEditLoading] = useState(false);
-  const [editErrors, setEditErrors] = useState<{ bankId?: string; utr?: string; amount?: string }>({});
+  const [editSettlementAccountType, setEditSettlementAccountType] = useState<"bank" | "person">("bank");
+  const [editLiabilityPersonId, setEditLiabilityPersonId] = useState("");
+  const [editPersonAutocompleteDefault, setEditPersonAutocompleteDefault] = useState<AutocompleteOption | null>(null);
+  const [editErrors, setEditErrors] = useState<{
+    bankId?: string;
+    liabilityPersonId?: string;
+    utr?: string;
+    amount?: string;
+  }>({});
 
   useApprovalQueueAutoRefresh({
     module: "deposit",
@@ -122,9 +139,28 @@ export function DepositBankerClient() {
     }
   }, []);
 
+  const loadLiabilityPersonOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
+    try {
+      const res = await listLiabilityPersonsNormalized({
+        page: 1,
+        limit: 25,
+        q: query || undefined,
+        sortBy: "name",
+        sortOrder: "asc",
+        isActive: "true",
+      });
+      return res.data.map((p) => ({ value: p.id, label: p.name }));
+    } catch {
+      return [];
+    }
+  }, []);
+
   const onSubmit = async () => {
     const next: typeof errors = {};
-    if (!bankId.trim()) next.bankId = "Bank is required.";
+    if (settlementAccountType === "bank" && !bankId.trim()) next.bankId = "Bank is required.";
+    if (settlementAccountType === "person" && !liabilityPersonId.trim()) {
+      next.liabilityPersonId = "Liability person is required.";
+    }
     if (!utr.trim()) next.utr = "UTR is required.";
     const amt = Number(amount);
     if (!amount.trim() || Number.isNaN(amt) || amt < 1) {
@@ -135,14 +171,26 @@ export function DepositBankerClient() {
     setErrors(next);
     if (Object.keys(next).length > 0) return;
 
+    const payload: DepositCreateInput =
+      settlementAccountType === "bank"
+        ? {
+            settlementAccountType: "bank",
+            bankId: bankId.trim(),
+            utr: utr.trim(),
+            amount: amt,
+            entryAt,
+          }
+        : {
+            settlementAccountType: "person",
+            liabilityPersonId: liabilityPersonId.trim(),
+            utr: utr.trim(),
+            amount: amt,
+            entryAt,
+          };
+
     setLoading(true);
     try {
-      await createDeposit({
-        bankId: bankId.trim(),
-        utr: utr.trim(),
-        amount: amt,
-        entryAt,
-      });
+      await createDeposit(payload);
       toast.success("Deposit recorded successfully.");
       setUtr("");
       setAmount("");
@@ -157,8 +205,11 @@ export function DepositBankerClient() {
   };
 
   const reset = () => {
+    setSettlementAccountType("bank");
     setBankId("");
     setBankAutocompleteDefault(null);
+    setLiabilityPersonId("");
+    setPersonAutocompleteDefault(null);
     setUtr("");
     setAmount("");
     setEntryAt(getCurrentDateTimeLocal());
@@ -167,7 +218,10 @@ export function DepositBankerClient() {
 
   const closeEdit = () => {
     setEditDeposit(null);
+    setEditSettlementAccountType("bank");
     setEditBankId("");
+    setEditLiabilityPersonId("");
+    setEditPersonAutocompleteDefault(null);
     setEditUtr("");
     setEditAmount("");
     setEditErrors({});
@@ -176,7 +230,10 @@ export function DepositBankerClient() {
   const onEditSubmit = async () => {
     if (!editDeposit) return;
     const next: typeof editErrors = {};
-    if (!editBankId.trim()) next.bankId = "Bank is required.";
+    if (editSettlementAccountType === "bank" && !editBankId.trim()) next.bankId = "Bank is required.";
+    if (editSettlementAccountType === "person" && !editLiabilityPersonId.trim()) {
+      next.liabilityPersonId = "Liability person is required.";
+    }
     if (!editUtr.trim()) next.utr = "UTR is required.";
     const amt = Number(editAmount);
     if (!editAmount.trim() || Number.isNaN(amt) || amt < 1) {
@@ -187,13 +244,24 @@ export function DepositBankerClient() {
     setEditErrors(next);
     if (Object.keys(next).length > 0) return;
 
+    const editPayload: DepositCreateInput =
+      editSettlementAccountType === "bank"
+        ? {
+            settlementAccountType: "bank",
+            bankId: editBankId.trim(),
+            utr: editUtr.trim(),
+            amount: amt,
+          }
+        : {
+            settlementAccountType: "person",
+            liabilityPersonId: editLiabilityPersonId.trim(),
+            utr: editUtr.trim(),
+            amount: amt,
+          };
+
     setEditLoading(true);
     try {
-      await updateDeposit(editDeposit.id, {
-        bankId: editBankId.trim(),
-        utr: editUtr.trim(),
-        amount: amt,
-      });
+      await updateDeposit(editDeposit.id, editPayload);
       toast.success("Deposit updated.");
       closeEdit();
       setTableKey((k) => k + 1);
@@ -275,8 +343,13 @@ export function DepositBankerClient() {
       },
       {
         field: "bankName",
-        label: "Bank / Holder",
-        render: (row: DepositRow) => row.bankName,
+        label: "Bank / Liable person",
+        render: (row: DepositRow) =>
+          row.settlementAccountType === "person"
+            ? row.liabilityPersonName?.trim()
+              ? `LP: ${row.liabilityPersonName.trim()}`
+              : "—"
+            : row.bankName || "—",
         ...tableColumnPresets.nameCol,
         sortable: true,
         filterType: "text" as const,
@@ -345,7 +418,15 @@ export function DepositBankerClient() {
               startIcon={<IconPencil size={16} />}
               onClick={() => {
                 setEditDeposit(row);
+                const mode = row.settlementAccountType === "person" ? "person" : "bank";
+                setEditSettlementAccountType(mode);
                 setEditBankId(row.bankId ?? "");
+                setEditLiabilityPersonId(row.liabilityPersonId ?? "");
+                setEditPersonAutocompleteDefault(
+                  row.liabilityPersonId && row.liabilityPersonName
+                    ? { value: row.liabilityPersonId, label: row.liabilityPersonName }
+                    : null,
+                );
                 setEditUtr(row.utr);
                 setEditAmount(String(row.amount));
                 setEditErrors({});
@@ -368,57 +449,95 @@ export function DepositBankerClient() {
         <FormContainer
           className="!flex-none"
           title="Banker deposit"
-          description="Select a bank account, enter UTR and amount. Pending items appear below and in Exchange Depositors."
+          description="Default settlement is bank. Rare cases may settle through a liable person instead; exchange approval posts the liability ledger entry when person is chosen."
+          contentOverflow="visible"
         >
-        <FormGrid>
-          <div>
-            <FieldLabel>Entry date & time *</FieldLabel>
-            <Input type="datetime-local" value={entryAt} onChange={(e) => setEntryAt(e.target.value)} />
+        <div className="flex flex-wrap items-start gap-4 px-5 py-4">
+          <div className="w-[180px]">
+            <FieldLabel className="mb-1 text-xs text-muted-foreground">Entry date & time *</FieldLabel>
+            <Input type="datetime-local" className="h-9 text-sm" value={entryAt} onChange={(e) => setEntryAt(e.target.value)} />
           </div>
-          <div>
-            <FieldLabel>Bank *</FieldLabel>
-            <AutocompleteField
-              value={bankId}
-              onChange={setBankId}
-              loadOptions={loadBankOptions}
-              placeholder="Search bank..."
-              emptyText="No banks found"
-              defaultOption={bankAutocompleteDefault}
-            />
-            <FieldError message={errors.bankId} />
+          <div className="w-[140px] space-y-1.5">
+            <FieldLabel className="mb-1 text-xs text-muted-foreground">Settlement *</FieldLabel>
+            <select
+              className="w-full h-9 rounded-md border border-[var(--border)] bg-white px-3 py-1.5 text-sm"
+              value={settlementAccountType}
+              onChange={(e) => {
+                const v = e.target.value === "person" ? "person" : "bank";
+                setSettlementAccountType(v);
+                setErrors((prev) => {
+                  const n = { ...prev };
+                  delete n.bankId;
+                  delete n.liabilityPersonId;
+                  return n;
+                });
+              }}
+            >
+              <option value="bank">Bank</option>
+              <option value="person">Liability person</option>
+            </select>
           </div>
-          <div>
-            <FieldLabel>UTR *</FieldLabel>
-            <Input placeholder="UTR" value={utr} onChange={(e) => setUtr(e.target.value)} />
+          {settlementAccountType === "bank" ? (
+            <div className="min-w-[200px] flex-1">
+              <FieldLabel className="mb-1 text-xs text-muted-foreground">Bank *</FieldLabel>
+              <AutocompleteField
+                value={bankId}
+                onChange={setBankId}
+                loadOptions={loadBankOptions}
+                placeholder="Search bank..."
+                emptyText="No banks found"
+                defaultOption={bankAutocompleteDefault}
+              />
+              <FieldError message={errors.bankId} />
+            </div>
+          ) : (
+            <div className="min-w-[200px] flex-1">
+              <FieldLabel className="mb-1 text-xs text-muted-foreground">Liability person *</FieldLabel>
+              <AutocompleteField
+                value={liabilityPersonId}
+                onChange={setLiabilityPersonId}
+                loadOptions={loadLiabilityPersonOptions}
+                placeholder="Search liability person..."
+                emptyText="No persons found"
+                defaultOption={personAutocompleteDefault}
+              />
+              <FieldError message={errors.liabilityPersonId} />
+            </div>
+          )}
+          <div className="w-[160px]">
+            <FieldLabel className="mb-1 text-xs text-muted-foreground">UTR *</FieldLabel>
+            <Input placeholder="UTR" className="h-9 text-sm" value={utr} onChange={(e) => setUtr(e.target.value)} />
             <FieldError message={errors.utr} />
           </div>
-          <div>
-            <FieldLabel>Amount *</FieldLabel>
+          <div className="w-[140px]">
+            <FieldLabel className="mb-1 text-xs text-muted-foreground">Amount *</FieldLabel>
             <Input
               type="number"
               min={1}
               step="1"
               placeholder="0"
+              className="h-9 text-sm"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
             />
             <FieldError message={errors.amount} />
           </div>
-        </FormGrid>
-        <FormActions className="justify-between px-5 py-4">
-          <Button
-            type="button"
-            variant="success"
-            startIcon={<IconCheck size={18} />}
-            onClick={onSubmit}
-            disabled={loading}
-          >
-            {loading ? "Saving…" : "Save"}
-          </Button>
-          <Button type="button" variant="danger" startIcon={<IconX size={18} />} onClick={reset} disabled={loading}>
-            Clear
-          </Button>
-        </FormActions>
+          <div className="flex shrink-0 items-start gap-2 mt-[22px]">
+            <Button
+              type="button"
+              variant="success"
+              startIcon={<IconCheck size={16} />}
+              onClick={onSubmit}
+              disabled={loading}
+              className="h-9 px-4"
+            >
+              {loading ? "Saving…" : "Save"}
+            </Button>
+            <Button type="button" variant="danger" startIcon={<IconX size={16} />} onClick={reset} disabled={loading} className="h-9 px-3">
+              Clear
+            </Button>
+          </div>
+        </div>
         </FormContainer>
       </div>
 
@@ -482,44 +601,83 @@ export function DepositBankerClient() {
           <div className="card w-full max-w-lg space-y-4 p-5">
             <h3 className="text-lg font-semibold">Edit pending deposit</h3>
             <p className="text-sm text-muted-foreground">
-              Bank, UTR, and amount can be corrected while the deposit is pending.
+              Settlement mode, counterparty, UTR, and amount can be corrected while the deposit is pending.
             </p>
-            <FormGrid>
-              <div className="md:col-span-2">
-                <FieldLabel>Bank *</FieldLabel>
-            <AutocompleteField
-              value={editBankId}
-              onChange={setEditBankId}
-              loadOptions={loadBankOptions}
-              placeholder="Search bank..."
-              emptyText="No banks found"
-              defaultOption={
-                editDeposit && editBankId
-                  ? { value: editBankId, label: editDeposit.bankName.trim() || "—" }
-                  : null
-              }
-            />
-                <FieldError message={editErrors.bankId} />
+            <div className="flex flex-wrap items-start gap-4 pt-2">
+              <div className="w-[140px] space-y-1">
+                <FieldLabel className="mb-1 text-xs text-muted-foreground">Settlement *</FieldLabel>
+                <select
+                  className="w-full max-w-xs rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
+                  value={editSettlementAccountType}
+                  onChange={(e) => {
+                    const v = e.target.value === "person" ? "person" : "bank";
+                    setEditSettlementAccountType(v);
+                    setEditErrors((prev) => {
+                      const n = { ...prev };
+                      delete n.bankId;
+                      delete n.liabilityPersonId;
+                      return n;
+                    });
+                  }}
+                  disabled={editLoading}
+                >
+                  <option value="bank">Bank</option>
+                  <option value="person">Liability person</option>
+                </select>
               </div>
-              <div>
-                <FieldLabel>UTR *</FieldLabel>
-                <Input placeholder="UTR" value={editUtr} onChange={(e) => setEditUtr(e.target.value)} />
+              {editSettlementAccountType === "bank" ? (
+                <div className="min-w-[200px] flex-1">
+                  <FieldLabel className="mb-1 text-xs text-muted-foreground">Bank *</FieldLabel>
+                  <AutocompleteField
+                    value={editBankId}
+                    onChange={setEditBankId}
+                    loadOptions={loadBankOptions}
+                    placeholder="Search bank..."
+                    emptyText="No banks found"
+                    defaultOption={
+                      editDeposit && editBankId
+                        ? { value: editBankId, label: editDeposit.bankName.trim() || "—" }
+                        : null
+                    }
+                    disabled={editLoading}
+                  />
+                  <FieldError message={editErrors.bankId} />
+                </div>
+              ) : (
+                <div className="min-w-[200px] flex-1">
+                  <FieldLabel className="mb-1 text-xs text-muted-foreground">Liability person *</FieldLabel>
+                  <AutocompleteField
+                    value={editLiabilityPersonId}
+                    onChange={setEditLiabilityPersonId}
+                    loadOptions={loadLiabilityPersonOptions}
+                    placeholder="Search liability person..."
+                    emptyText="No persons found"
+                    defaultOption={editPersonAutocompleteDefault}
+                    disabled={editLoading}
+                  />
+                  <FieldError message={editErrors.liabilityPersonId} />
+                </div>
+              )}
+              <div className="w-[160px]">
+                <FieldLabel className="mb-1 text-xs text-muted-foreground">UTR *</FieldLabel>
+                <Input placeholder="UTR" className="h-9 text-sm" value={editUtr} onChange={(e) => setEditUtr(e.target.value)} />
                 <FieldError message={editErrors.utr} />
               </div>
-              <div>
-                <FieldLabel>Amount *</FieldLabel>
+              <div className="w-[140px]">
+                <FieldLabel className="mb-1 text-xs text-muted-foreground">Amount *</FieldLabel>
                 <Input
                   type="number"
                   min={1}
                   step="1"
                   placeholder="0"
+                  className="h-9 text-sm"
                   value={editAmount}
                   onChange={(e) => setEditAmount(e.target.value)}
                 />
                 <FieldError message={editErrors.amount} />
               </div>
-            </FormGrid>
-            <div className="flex justify-end gap-2 pt-2">
+            </div>
+            <div className="flex justify-end gap-2 pt-4 border-t border-[var(--border)] mt-4">
               <Button type="button" variant="secondary" onClick={closeEdit} disabled={editLoading}>
                 Cancel
               </Button>

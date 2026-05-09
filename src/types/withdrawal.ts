@@ -2,6 +2,12 @@ export type WithdrawalView = "exchange" | "banker" | "final";
 
 export type WithdrawalStatus = "requested" | "approved" | "rejected" | "finalized";
 
+export type WithdrawalPayoutSettlementType = "bank" | "person";
+
+export type WithdrawalBankerPayoutInput =
+  | { payoutSettlementType: "bank"; bankId: string; utr: string }
+  | { payoutSettlementType: "person"; liabilityPersonId: string; utr: string };
+
 export type WithdrawalCreateInput = {
   playerId: string;
   accountNumber: string;
@@ -19,6 +25,8 @@ export type WithdrawalAmendmentSnapshot = {
   payableAmount?: number;
   payoutBankId?: string;
   payoutBankName?: string;
+  payoutLiabilityPersonId?: string;
+  payoutLiabilityPersonName?: string;
   utr?: string;
 };
 
@@ -33,7 +41,8 @@ export type WithdrawalAmendmentEntry = {
 export type WithdrawalAmendInput = {
   amount: number;
   reverseBonus: number;
-  payoutBankId: string;
+  /** Required when amending bank-settled payouts; omit for liability-person settlement. */
+  payoutBankId?: string;
   utr: string;
   requestedAt?: string;
   reasonId: string;
@@ -52,6 +61,9 @@ export type WithdrawalRow = {
   amount: number;
   reverseBonus?: number;
   payableAmount?: number;
+  payoutSettlementType?: WithdrawalPayoutSettlementType;
+  payoutLiabilityPersonId?: string;
+  payoutLiabilityPersonName?: string;
   payoutBankId?: string;
   payoutBankName?: string;
   utr?: string;
