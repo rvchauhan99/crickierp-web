@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/Button";
 import { AutocompleteField, type AutocompleteOption } from "@/components/common/AutocompleteField";
 import { exportLiabilityLedger, getLiabilityPersonLedger, listLiabilityPersonsNormalized } from "@/services/liabilityService";
 import { useExport } from "@/hooks/useExport";
-import type { LiabilityBalanceSide, LiabilityLedgerResponse } from "@/types/liability";
+import type { LiabilityBalanceSide, LiabilityLedgerResponse, LiabilityViewMode } from "@/types/liability";
 import { getApiErrorMessage } from "@/lib/apiError";
 import {
   formatLiabilityMoneyAbs,
@@ -47,6 +47,8 @@ export function LiabilityLedgerClient() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState(todayYmdInUserTz());
   const [activePreset, setActivePreset] = useState<string | null>(null);
+  /** Default platform perspective; Person (master) aligns with stored `closingBalance` and rollups for full history. */
+  const [viewMode, setViewMode] = useState<LiabilityViewMode>("platform");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ledger, setLedger] = useState<LiabilityLedgerResponse | null>(null);
@@ -79,7 +81,7 @@ export function LiabilityLedgerClient() {
       const data = await getLiabilityPersonLedger(personId.trim(), {
         fromDate: fromDate || undefined,
         toDate: toDate || undefined,
-        viewMode: "platform",
+        viewMode,
       });
       setLedger(data);
     } catch (e: unknown) {
@@ -103,9 +105,9 @@ export function LiabilityLedgerClient() {
     handleExport({
       fromDate: fromDate || undefined,
       toDate: toDate || undefined,
-      viewMode: "platform",
+      viewMode,
     });
-  }, [handleExport, personId, fromDate, toDate]);
+  }, [handleExport, personId, fromDate, toDate, viewMode]);
 
   const totalCredits = ledger?.rows.reduce((acc, r) => acc + r.credit, 0) ?? 0;
   const totalDebits = ledger?.rows.reduce((acc, r) => acc + r.debit, 0) ?? 0;
@@ -290,6 +292,40 @@ export function LiabilityLedgerClient() {
             
             <div className="h-5 w-px bg-slate-200" />
 
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] uppercase font-semibold tracking-wider text-slate-500">Balance perspective</span>
+              <div className="flex rounded-lg border border-slate-200 bg-white p-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode("person");
+                    setLedger(null);
+                  }}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 text-[10px] font-semibold transition-colors",
+                    viewMode === "person" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50",
+                  )}
+                >
+                  Person (master)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode("platform");
+                    setLedger(null);
+                  }}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 text-[10px] font-semibold transition-colors",
+                    viewMode === "platform" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50",
+                  )}
+                >
+                  Platform
+                </button>
+              </div>
+            </div>
+
+            <div className="h-5 w-px bg-slate-200" />
+
             <Button 
               onClick={onLoad} 
               loading={loading} 
@@ -397,7 +433,11 @@ export function LiabilityLedgerClient() {
              <span className="text-[10px] text-slate-400">
                * Inward and outward are movement amounts (always shown positive). Balance column shows receivable or payable using green and red.
              </span>
-             <span className="text-[10px] text-slate-500 ml-2">Showing Platform-side view</span>
+             <span className="text-[10px] text-slate-500 ml-2">
+               {ledger.viewMode === "person"
+                 ? "Person-side view — closing matches the Liability Person master total for full history."
+                 : "Platform-side view — running balance uses the inverted sign convention from the master list."}
+             </span>
           </div>
 
           {/* Ledger Table */}

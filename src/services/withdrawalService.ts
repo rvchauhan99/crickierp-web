@@ -3,6 +3,7 @@ import type {
   SavedWithdrawalAccount,
   WithdrawalAmendInput,
   WithdrawalAmendmentEntry,
+  WithdrawalBankerPayoutInput,
   WithdrawalCreateInput,
   WithdrawalRow,
   WithdrawalView,
@@ -43,6 +44,28 @@ export function normalizeWithdrawal(row: Record<string, unknown>): WithdrawalRow
   const createdByRef = parseUserRef(row.createdBy);
   const approvedByRef = parseUserRef(row.approvedBy);
   const lastAmendedByRef = parseUserRef(row.lastAmendedBy);
+
+  const liabilityPop = row.payoutLiabilityPersonId as Record<string, unknown> | undefined;
+  let payoutLiabilityPersonName = row.payoutLiabilityPersonName != null ? String(row.payoutLiabilityPersonName).trim() : "";
+  const payoutLiabilityPersonId =
+    row.payoutLiabilityPersonId != null &&
+    typeof row.payoutLiabilityPersonId === "object" &&
+    "_id" in (row.payoutLiabilityPersonId as object)
+      ? String((row.payoutLiabilityPersonId as { _id?: unknown })._id)
+      : typeof row.payoutLiabilityPersonId === "string"
+        ? row.payoutLiabilityPersonId
+        : undefined;
+  if (!payoutLiabilityPersonName && liabilityPop && liabilityPop.name != null) {
+    payoutLiabilityPersonName = String(liabilityPop.name).trim();
+  }
+
+  const rawPayoutMode = row.payoutSettlementType;
+  let payoutSettlementType: WithdrawalRow["payoutSettlementType"] =
+    rawPayoutMode === "person" ? "person" : rawPayoutMode === "bank" ? "bank" : undefined;
+  if (payoutSettlementType == null) {
+    payoutSettlementType = payoutLiabilityPersonId && !row.payoutBankId ? "person" : "bank";
+  }
+
   const rawHistory = row.amendmentHistory;
   let amendmentHistory: WithdrawalAmendmentEntry[] | undefined;
   if (Array.isArray(rawHistory)) {
@@ -60,6 +83,10 @@ export function normalizeWithdrawal(row: Record<string, unknown>): WithdrawalRow
           payableAmount: oldSnap.payableAmount != null ? Number(oldSnap.payableAmount) : undefined,
           payoutBankId: oldSnap.payoutBankId != null ? String(oldSnap.payoutBankId) : undefined,
           payoutBankName: oldSnap.payoutBankName != null ? String(oldSnap.payoutBankName) : undefined,
+          payoutLiabilityPersonId:
+            oldSnap.payoutLiabilityPersonId != null ? String(oldSnap.payoutLiabilityPersonId) : undefined,
+          payoutLiabilityPersonName:
+            oldSnap.payoutLiabilityPersonName != null ? String(oldSnap.payoutLiabilityPersonName) : undefined,
           utr: oldSnap.utr != null ? String(oldSnap.utr) : undefined,
         },
         new: {
@@ -68,6 +95,10 @@ export function normalizeWithdrawal(row: Record<string, unknown>): WithdrawalRow
           payableAmount: newSnap.payableAmount != null ? Number(newSnap.payableAmount) : undefined,
           payoutBankId: newSnap.payoutBankId != null ? String(newSnap.payoutBankId) : undefined,
           payoutBankName: newSnap.payoutBankName != null ? String(newSnap.payoutBankName) : undefined,
+          payoutLiabilityPersonId:
+            newSnap.payoutLiabilityPersonId != null ? String(newSnap.payoutLiabilityPersonId) : undefined,
+          payoutLiabilityPersonName:
+            newSnap.payoutLiabilityPersonName != null ? String(newSnap.payoutLiabilityPersonName) : undefined,
           utr: newSnap.utr != null ? String(newSnap.utr) : undefined,
         },
       };
@@ -86,6 +117,9 @@ export function normalizeWithdrawal(row: Record<string, unknown>): WithdrawalRow
     amount: Number(row.amount ?? 0),
     reverseBonus: row.reverseBonus != null ? Number(row.reverseBonus) : undefined,
     payableAmount: row.payableAmount != null ? Number(row.payableAmount) : undefined,
+    payoutSettlementType,
+    payoutLiabilityPersonId,
+    payoutLiabilityPersonName: payoutLiabilityPersonName || undefined,
     payoutBankId:
       row.payoutBankId != null && typeof row.payoutBankId === "object" && "_id" in (row.payoutBankId as object)
         ? String((row.payoutBankId as { _id?: unknown })._id)
@@ -233,7 +267,7 @@ export async function listWithdrawalsNormalized(
   };
 }
 
-export async function updateWithdrawalBankerPayout(id: string, body: { bankId: string; utr: string }): Promise<unknown> {
+export async function updateWithdrawalBankerPayout(id: string, body: WithdrawalBankerPayoutInput): Promise<unknown> {
   const response = await apiClient.patch<{ success: boolean; data: unknown }>(`/withdrawal/${id}/banker-payout`, body);
   return response.data?.data;
 }
@@ -257,10 +291,19 @@ export async function listSavedAccountsForPlayer(playerId: string): Promise<Save
 }
 
 export async function amendWithdrawal(id: string, body: WithdrawalAmendInput): Promise<unknown> {
-  const response = await apiClient.post<{ success: boolean; data: unknown }>(`/withdrawal/${id}/amend`, {
-    ...body,
-    requestedAt: normalizeDateTimeInput(body.requestedAt),
-  });
+  const payload: Record<string, unknown> = {
+    amount: body.amount,
+    reverseBonus: body.reverseBonus,
+    utr: body.utr,
+    reasonId: body.reasonId,
+  };
+  const requestedAtIso = normalizeDateTimeInput(body.requestedAt);
+  if (requestedAtIso) payload.requestedAt = requestedAtIso;
+  const bankId = body.payoutBankId?.trim();
+  if (bankId) payload.payoutBankId = bankId;
+  const remark = body.remark?.trim();
+  if (remark) payload.remark = remark;
+  const response = await apiClient.post<{ success: boolean; data: unknown }>(`/withdrawal/${id}/amend`, payload);
   return response.data?.data;
 }
 
