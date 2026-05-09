@@ -51,6 +51,23 @@ export function normalizeDeposit(row: Record<string, unknown>): DepositRow {
       `${bankPop.holderName} - ${bankPop.bankName ?? ""} - ${String(bankPop.accountNumber ?? "").slice(-4)}`.trim();
   }
 
+  const lpPop = row.liabilityPersonId as Record<string, unknown> | undefined;
+  let liabilityPersonName = String(row.liabilityPersonName ?? "").trim();
+  const liabilityPersonId =
+    row.liabilityPersonId != null && typeof row.liabilityPersonId === "object" && "_id" in (row.liabilityPersonId as object)
+      ? String((row.liabilityPersonId as { _id?: unknown })._id)
+      : typeof row.liabilityPersonId === "string"
+        ? row.liabilityPersonId
+        : undefined;
+  if (!liabilityPersonName && lpPop && lpPop.name != null) liabilityPersonName = String(lpPop.name).trim();
+
+  const rawSettle = row.settlementAccountType;
+  let settlementAccountType: DepositRow["settlementAccountType"] =
+    rawSettle === "person" ? "person" : rawSettle === "bank" ? "bank" : undefined;
+  if (settlementAccountType == null) {
+    settlementAccountType = liabilityPersonId && !row.bankId ? "person" : "bank";
+  }
+
   const st = row.status;
   const status: DepositRow["status"] =
     st === "verified" ||
@@ -78,6 +95,10 @@ export function normalizeDeposit(row: Record<string, unknown>): DepositRow {
         old: {
           bankId: oldSnap.bankId != null ? String(oldSnap.bankId) : undefined,
           bankName: oldSnap.bankName != null ? String(oldSnap.bankName) : undefined,
+          liabilityPersonId:
+            oldSnap.liabilityPersonId != null ? String(oldSnap.liabilityPersonId) : undefined,
+          liabilityPersonName:
+            oldSnap.liabilityPersonName != null ? String(oldSnap.liabilityPersonName) : undefined,
           utr: oldSnap.utr != null ? String(oldSnap.utr) : undefined,
           amount: oldSnap.amount != null ? Number(oldSnap.amount) : undefined,
           playerId: oldSnap.playerId != null ? String(oldSnap.playerId) : undefined,
@@ -87,6 +108,10 @@ export function normalizeDeposit(row: Record<string, unknown>): DepositRow {
         new: {
           bankId: newSnap.bankId != null ? String(newSnap.bankId) : undefined,
           bankName: newSnap.bankName != null ? String(newSnap.bankName) : undefined,
+          liabilityPersonId:
+            newSnap.liabilityPersonId != null ? String(newSnap.liabilityPersonId) : undefined,
+          liabilityPersonName:
+            newSnap.liabilityPersonName != null ? String(newSnap.liabilityPersonName) : undefined,
           utr: newSnap.utr != null ? String(newSnap.utr) : undefined,
           amount: newSnap.amount != null ? Number(newSnap.amount) : undefined,
           playerId: newSnap.playerId != null ? String(newSnap.playerId) : undefined,
@@ -100,6 +125,9 @@ export function normalizeDeposit(row: Record<string, unknown>): DepositRow {
   return {
     _id: id,
     id,
+    settlementAccountType,
+    liabilityPersonId,
+    liabilityPersonName: liabilityPersonName || undefined,
     bankId: row.bankId != null && typeof row.bankId === "object" && "_id" in (row.bankId as object)
       ? String((row.bankId as { _id?: unknown })._id)
       : typeof row.bankId === "string"
@@ -140,6 +168,27 @@ function str(params: Record<string, unknown>, key: string): string {
   return String(v);
 }
 
+/** Must match API `listDepositQuerySchema.sortBy` enum. */
+const DEPOSIT_LIST_SORT_BY = [
+  "entryAt",
+  "createdAt",
+  "amount",
+  "utr",
+  "status",
+  "bonusAmount",
+  "totalAmount",
+  "settledAt",
+  "bankName",
+] as const;
+
+type DepositListSortBy = (typeof DEPOSIT_LIST_SORT_BY)[number];
+
+function coerceDepositListSortBy(raw: unknown): DepositListSortBy {
+  const s = typeof raw === "string" ? raw.trim() : "";
+  if ((DEPOSIT_LIST_SORT_BY as readonly string[]).includes(s)) return s as DepositListSortBy;
+  return "entryAt";
+}
+
 function normalizeDateTimeInput(value: string | undefined): string | undefined {
   if (!value) return undefined;
   const trimmed = value.trim();
@@ -178,16 +227,7 @@ export async function listDepositsNormalized(
 }> {
   const page = Number(params.page) || 1;
   const limit = Number(params.limit) || 20;
-  const sortBy =
-    (str(params, "sortBy") || "entryAt") as
-      | "entryAt"
-      | "createdAt"
-      | "amount"
-      | "utr"
-      | "status"
-      | "totalAmount"
-      | "settledAt"
-      | "bankName";
+  const sortBy = coerceDepositListSortBy(str(params, "sortBy") || "entryAt");
   const sortOrder = str(params, "sortOrder") === "asc" ? "asc" : "desc";
 
   const response = await apiClient.get<{
@@ -245,16 +285,7 @@ export async function listDepositsNormalized(
 export async function exportDeposits(view: DepositView, params: Record<string, unknown>): Promise<Blob> {
   const page = Number(params.page) || 1;
   const limit = Number(params.limit) || 20;
-  const sortBy =
-    (str(params, "sortBy") || "entryAt") as
-      | "entryAt"
-      | "createdAt"
-      | "amount"
-      | "utr"
-      | "status"
-      | "totalAmount"
-      | "settledAt"
-      | "bankName";
+  const sortBy = coerceDepositListSortBy(str(params, "sortBy") || "entryAt");
   const sortOrder = str(params, "sortOrder") === "asc" ? "asc" : "desc";
 
   const response = await apiClient.get("/deposit/export", {

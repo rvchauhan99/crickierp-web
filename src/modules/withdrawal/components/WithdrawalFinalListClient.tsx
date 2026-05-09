@@ -95,6 +95,8 @@ export function WithdrawalFinalListClient() {
   const [amendReasonId, setAmendReasonId] = useState("");
   const [amendReasonDefault, setAmendReasonDefault] = useState<AutocompleteOption | null>(null);
   const [amendReason, setAmendReason] = useState("");
+  /** Matches the row when the amend dialog was opened (bank vs liability-person payout). */
+  const [amendIsPersonPayout, setAmendIsPersonPayout] = useState(false);
   const [amendLoading, setAmendLoading] = useState(false);
   const [amendErrors, setAmendErrors] = useState<{
     amount?: string;
@@ -197,12 +199,14 @@ export function WithdrawalFinalListClient() {
 
   const openAmendDialog = useCallback((row: WithdrawalRow) => {
     if (!canAmend || row.status !== "approved") return;
+    const isLp = row.payoutSettlementType === "person";
+    setAmendIsPersonPayout(isLp);
     setAmendAmount(String(row.amount));
     setAmendReverseBonus(String(row.reverseBonus ?? 0));
     setAmendRequestedAt(toDateTimeLocalInput(row.requestedAt));
-    setAmendPayoutBankId(row.payoutBankId?.trim() || "");
+    setAmendPayoutBankId(isLp ? "" : row.payoutBankId?.trim() || "");
     setAmendPayoutBankDefault(
-      row.payoutBankId && row.payoutBankName
+      !isLp && row.payoutBankId && row.payoutBankName
         ? { value: row.payoutBankId, label: row.payoutBankName }
         : null,
     );
@@ -235,7 +239,7 @@ export function WithdrawalFinalListClient() {
     } else if (!Number.isInteger(reverseBonusNum)) {
       next.reverseBonus = "Reverse bonus must be a whole number (no decimals).";
     }
-    if (!amendPayoutBankId.trim()) next.payoutBankId = "Payout bank is required.";
+    if (!amendIsPersonPayout && !amendPayoutBankId.trim()) next.payoutBankId = "Payout bank is required.";
     if (!amendUtr.trim()) next.utr = "UTR is required.";
     if (!amendReasonId.trim()) next.reason = "Reason selection is required.";
     if (Object.keys(next).length) {
@@ -244,14 +248,17 @@ export function WithdrawalFinalListClient() {
     }
     setAmendLoading(true);
     try {
-      const raw = await amendWithdrawal(selectedWithdrawal.id, {
+      const amendBody = {
         amount: amountNum,
         reverseBonus: reverseBonusNum,
-        payoutBankId: amendPayoutBankId.trim(),
         utr: amendUtr.trim(),
         requestedAt: amendRequestedAt || undefined,
         reasonId: amendReasonId.trim(),
         remark: amendReason.trim() || undefined,
+      };
+      const raw = await amendWithdrawal(selectedWithdrawal.id, {
+        ...amendBody,
+        ...(amendIsPersonPayout ? {} : { payoutBankId: amendPayoutBankId.trim() }),
       });
       toast.success("Withdrawal amended.");
       setAmendOpen(false);
@@ -273,6 +280,7 @@ export function WithdrawalFinalListClient() {
     amendUtr,
     amendReasonId,
     amendReason,
+    amendIsPersonPayout,
   ]);
 
   const submitDelete = useCallback(async () => {
@@ -313,11 +321,16 @@ export function WithdrawalFinalListClient() {
         ),
       },
       {
-        field: "payoutBankName",
-        label: "Payout bank",
-        minWidth: 160,
+        field: "payoutBankOrLp",
+        label: "Payout bank / Liable person",
+        minWidth: 180,
         sortable: false,
-        render: (row: WithdrawalRow) => row.payoutBankName || "—",
+        render: (row: WithdrawalRow) =>
+          row.payoutSettlementType === "person"
+            ? row.payoutLiabilityPersonName != null && row.payoutLiabilityPersonName !== ""
+              ? `LP: ${row.payoutLiabilityPersonName}`
+              : "LP: —"
+            : row.payoutBankName || "—",
       },
       {
         field: "utr",
@@ -391,7 +404,7 @@ export function WithdrawalFinalListClient() {
     <>
       <ListingPageContainer
         title="Withdrawal / Final list"
-        description="All withdrawals including rejections. Click a row for details and amendment activity."
+        description="All withdrawals including rejections. Person intermediary payouts appear as “LP: …” in the payout column. Click a row for details and amendment activity."
         density="compact"
         fullWidth
         secondaryButtonLabel="Reset filters"
@@ -464,8 +477,20 @@ export function WithdrawalFinalListClient() {
                   <dd className="text-right font-medium">{selectedWithdrawal.playerName || "—"}</dd>
                 </div>
                 <div className="flex justify-between gap-2">
-                  <dt className="text-gray-500">Payout bank</dt>
-                  <dd className="max-w-[60%] text-right font-medium">{selectedWithdrawal.payoutBankName || "—"}</dd>
+                  <dt className="text-gray-500">Payout settlement</dt>
+                  <dd className="text-right font-medium">
+                    {selectedWithdrawal.payoutSettlementType === "person" ? "Liability person" : "Company bank"}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <dt className="text-gray-500">
+                    {selectedWithdrawal.payoutSettlementType === "person" ? "Liable person" : "Payout bank"}
+                  </dt>
+                  <dd className="max-w-[60%] text-right font-medium">
+                    {selectedWithdrawal.payoutSettlementType === "person"
+                      ? selectedWithdrawal.payoutLiabilityPersonName || "—"
+                      : selectedWithdrawal.payoutBankName || "—"}
+                  </dd>
                 </div>
                 <div className="flex justify-between gap-2">
                   <dt className="text-gray-500">Amount / reverse / payable</dt>
@@ -554,7 +579,9 @@ export function WithdrawalFinalListClient() {
 
       <Dialog open={amendOpen} title="Amend approved withdrawal" onClose={() => !amendLoading && setAmendOpen(false)}>
         <p className="mb-3 text-sm text-gray-600">
-          Changes update settlement balances and are recorded in amendment history and audit logs.
+          {amendIsPersonPayout
+            ? "Company bank balances are unchanged for liability-person payouts. The payable liability line may refresh when payable amount, UTR, or requested time change. Amendments are recorded in history and audit logs."
+            : "Changes update settlement balances and are recorded in amendment history and audit logs."}
         </p>
         <FormGrid>
           <div>
@@ -590,17 +617,28 @@ export function WithdrawalFinalListClient() {
               onChange={(e) => setAmendRequestedAt(e.target.value)}
             />
           </div>
-          <div className="sm:col-span-2">
-            <FieldLabel>Payout bank</FieldLabel>
-            <AutocompleteField
-              value={amendPayoutBankId}
-              onChange={(v) => setAmendPayoutBankId(v)}
-              loadOptions={loadPayoutBankOptions}
-              placeholder="Search bank…"
-              defaultOption={amendPayoutBankDefault}
-            />
-            <FieldError message={amendErrors.payoutBankId} />
-          </div>
+          {amendIsPersonPayout ? (
+            <div className="sm:col-span-2">
+              <FieldLabel>Liable person (payout)</FieldLabel>
+              <p className="rounded-md border border-[var(--border)] bg-slate-50 px-3 py-2 text-sm text-gray-800">
+                {selectedWithdrawal?.payoutLiabilityPersonName?.trim()
+                  ? selectedWithdrawal.payoutLiabilityPersonName
+                  : selectedWithdrawal?.payoutLiabilityPersonId || "—"}
+              </p>
+            </div>
+          ) : (
+            <div className="sm:col-span-2">
+              <FieldLabel>Payout bank</FieldLabel>
+              <AutocompleteField
+                value={amendPayoutBankId}
+                onChange={(v) => setAmendPayoutBankId(v)}
+                loadOptions={loadPayoutBankOptions}
+                placeholder="Search bank…"
+                defaultOption={amendPayoutBankDefault}
+              />
+              <FieldError message={amendErrors.payoutBankId} />
+            </div>
+          )}
           <div className="sm:col-span-2">
             <FieldLabel>UTR</FieldLabel>
             <Input className="h-9" value={amendUtr} onChange={(e) => setAmendUtr(e.target.value)} />
@@ -646,6 +684,25 @@ export function WithdrawalFinalListClient() {
           <div><span className="font-medium">Status:</span> {selectedWithdrawal?.status || "—"}</div>
           <div><span className="font-medium">Amount:</span> {selectedWithdrawal?.amount != null ? formatWholeRupee(selectedWithdrawal.amount) : "—"}</div>
           <div><span className="font-medium">Player:</span> {selectedWithdrawal?.playerName || "—"}</div>
+          <div>
+            <span className="font-medium">Payout settlement:</span>{" "}
+            {selectedWithdrawal?.payoutSettlementType === "person" ? "Liability person" : "Company bank"}
+          </div>
+          {selectedWithdrawal?.payoutSettlementType === "person" ? (
+            <div>
+              <span className="font-medium">Liable person:</span>{" "}
+              {selectedWithdrawal?.payoutLiabilityPersonName || "—"}
+            </div>
+          ) : (
+            <div>
+              <span className="font-medium">Payout bank:</span> {selectedWithdrawal?.payoutBankName || "—"}
+            </div>
+          )}
+          {selectedWithdrawal?.payoutSettlementType === "person" && selectedWithdrawal?.status === "approved" && (
+            <p className="pt-1 text-xs text-gray-600">
+              The liability ledger row tied to this withdrawal will be removed as part of the reversal.
+            </p>
+          )}
         </div>
         <div className="mt-4 flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={() => setDeleteOpen(false)} disabled={deleteLoading}>

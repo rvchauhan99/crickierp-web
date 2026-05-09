@@ -123,6 +123,9 @@ export function DepositFinalListClient() {
   const [amendReason, setAmendReason] = useState("");
   const [amendReasonId, setAmendReasonId] = useState("");
   const [amendReasonDefault, setAmendReasonDefault] = useState<AutocompleteOption | null>(null);
+  /** Mirrors the deposit row being amended when the dialog opens. */
+  const [amendIsPersonSettlement, setAmendIsPersonSettlement] = useState(false);
+  const [amendLiabilityPersonLabel, setAmendLiabilityPersonLabel] = useState("");
   const [amendLoading, setAmendLoading] = useState(false);
   const [amendErrors, setAmendErrors] = useState<{
     bankId?: string;
@@ -260,12 +263,20 @@ export function DepositFinalListClient() {
   const openAmendDialog = useCallback((row: DepositRow) => {
     if (!canAmend || row.status !== "verified") return;
     const pid = row.playerMongoId?.trim() || "";
-    setAmendBankId(row.bankId?.trim() || "");
-    setAmendBankDefault(
-      row.bankId && row.bankName
-        ? { value: row.bankId, label: row.bankName }
-        : null,
-    );
+    const isPerson = row.settlementAccountType === "person";
+    setAmendIsPersonSettlement(isPerson);
+    setAmendLiabilityPersonLabel(row.liabilityPersonName?.trim() || "—");
+    if (isPerson) {
+      setAmendBankId("");
+      setAmendBankDefault(null);
+    } else {
+      setAmendBankId(row.bankId?.trim() || "");
+      setAmendBankDefault(
+        row.bankId && row.bankName
+          ? { value: row.bankId, label: row.bankName }
+          : null,
+      );
+    }
     setAmendUtr(row.utr);
     setAmendAmount(String(row.amount));
     setAmendEntryAt(toDateTimeLocalInput(row.entryAt));
@@ -294,7 +305,7 @@ export function DepositFinalListClient() {
   const submitAmend = useCallback(async () => {
     if (!selectedDeposit) return;
     const next: typeof amendErrors = {};
-    if (!amendBankId.trim()) next.bankId = "Bank is required.";
+    if (!amendIsPersonSettlement && !amendBankId.trim()) next.bankId = "Bank is required.";
     if (!amendUtr.trim()) next.utr = "UTR is required.";
     const amt = Number(amendAmount);
     if (!Number.isFinite(amt) || amt < 1) {
@@ -317,7 +328,7 @@ export function DepositFinalListClient() {
     setAmendLoading(true);
     try {
       const raw = await amendDeposit(selectedDeposit.id, {
-        bankId: amendBankId.trim(),
+        ...(amendIsPersonSettlement ? {} : { bankId: amendBankId.trim() }),
         utr: amendUtr.trim(),
         amount: amt,
         entryAt: amendEntryAt || undefined,
@@ -341,6 +352,7 @@ export function DepositFinalListClient() {
   }, [
     selectedDeposit,
     amendBankId,
+    amendIsPersonSettlement,
     amendUtr,
     amendAmount,
     amendEntryAt,
@@ -377,8 +389,13 @@ export function DepositFinalListClient() {
       },
       {
         field: "bankName",
-        label: "Bank",
-        render: (row: DepositRow) => row.bankName,
+        label: "Bank / Liable person",
+        render: (row: DepositRow) =>
+          row.settlementAccountType === "person"
+            ? row.liabilityPersonName?.trim()
+              ? `LP: ${row.liabilityPersonName.trim()}`
+              : "—"
+            : row.bankName || "—",
         ...tableColumnPresets.nameCol,
         sortable: true,
       },
@@ -480,7 +497,7 @@ export function DepositFinalListClient() {
     <>
       <ListingPageContainer
         title="Deposit / Final list"
-        description="All deposits including rejections. Click a row for details and amendments (verified deposits). Use advanced filters for UTR, bank, status, dates, and more."
+        description="All deposits including rejections. Person-settled rows show liable person under Bank / Liable person. Verified rows can be amended; person-settled amendments update the liability ledger when amount or UTR changes."
         density="compact"
         fullWidth
         secondaryButtonLabel="Reset filters"
@@ -549,8 +566,20 @@ export function DepositFinalListClient() {
               </div>
               <dl className="space-y-2 text-sm">
                 <div className="flex justify-between gap-2">
-                  <dt className="text-gray-500">Bank</dt>
-                  <dd className="max-w-[60%] text-right font-medium">{selectedDeposit.bankName}</dd>
+                  <dt className="text-gray-500">Settlement</dt>
+                  <dd className="max-w-[60%] text-right font-medium">
+                    {selectedDeposit.settlementAccountType === "person" ? "Liability person" : "Bank"}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <dt className="text-gray-500">
+                    {selectedDeposit.settlementAccountType === "person" ? "Liable person" : "Bank"}
+                  </dt>
+                  <dd className="max-w-[60%] text-right font-medium">
+                    {selectedDeposit.settlementAccountType === "person"
+                      ? selectedDeposit.liabilityPersonName?.trim() || "—"
+                      : selectedDeposit.bankName || "—"}
+                  </dd>
                 </div>
                 <div className="flex justify-between gap-2">
                   <dt className="text-gray-500">Amount / bonus / total</dt>
@@ -649,20 +678,29 @@ export function DepositFinalListClient() {
         onClose={() => !amendLoading && setAmendOpen(false)}
       >
         <p className="mb-3 text-sm text-gray-600">
-          Changes update bank and exchange balances and are recorded in the amendment history and audit log.
+          {amendIsPersonSettlement
+            ? "Liability-person settlement: bank balances are not changed. If you change amount, entry time, or UTR, the linked liability ledger entry will be rebuilt. Changes are recorded in amendment history and the audit log."
+            : "Changes update bank and exchange balances and are recorded in the amendment history and audit log."}
         </p>
         <FormGrid>
-          <div className="sm:col-span-2">
-            <FieldLabel>Bank account</FieldLabel>
-            <AutocompleteField
-              value={amendBankId}
-              onChange={(v) => setAmendBankId(v)}
-              loadOptions={loadBankOptions}
-              placeholder="Search bank…"
-              defaultOption={amendBankDefault}
-            />
-            <FieldError message={amendErrors.bankId} />
-          </div>
+          {amendIsPersonSettlement ? (
+            <div className="sm:col-span-2 rounded-md border border-[var(--border)] bg-slate-50 px-3 py-2">
+              <FieldLabel className="text-xs text-muted-foreground">Liable person (read-only)</FieldLabel>
+              <p className="text-sm font-medium text-slate-900">{amendLiabilityPersonLabel}</p>
+            </div>
+          ) : (
+            <div className="sm:col-span-2">
+              <FieldLabel>Bank account</FieldLabel>
+              <AutocompleteField
+                value={amendBankId}
+                onChange={(v) => setAmendBankId(v)}
+                loadOptions={loadBankOptions}
+                placeholder="Search bank…"
+                defaultOption={amendBankDefault}
+              />
+              <FieldError message={amendErrors.bankId} />
+            </div>
+          )}
           <div>
             <FieldLabel>UTR</FieldLabel>
             <Input
@@ -755,13 +793,24 @@ export function DepositFinalListClient() {
         onClose={() => !deleteLoading && setDeleteOpen(false)}
       >
         <p className="mb-3 text-sm text-gray-600">
-          This will permanently delete the deposit and reverse impacted balances based on current status.
+          This will permanently delete the deposit and reverse impacted balances (including removing the linked liability
+          ledger row for person-settled deposits, where applicable).
         </p>
         <div className="space-y-1 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-gray-700">
           <div><span className="font-medium">UTR:</span> {selectedDeposit?.utr || "—"}</div>
           <div><span className="font-medium">Status:</span> {selectedDeposit?.status || "—"}</div>
+          <div><span className="font-medium">Settlement:</span>{" "}
+            {selectedDeposit?.settlementAccountType === "person" ? "Liability person" : "Bank"}
+          </div>
           <div><span className="font-medium">Amount:</span> {selectedDeposit?.amount != null ? formatWholeRupee(selectedDeposit.amount) : "—"}</div>
-          <div><span className="font-medium">Bank:</span> {selectedDeposit?.bankName || "—"}</div>
+          <div>
+            <span className="font-medium">
+              {selectedDeposit?.settlementAccountType === "person" ? "Liable person:" : "Bank:"}
+            </span>{" "}
+            {selectedDeposit?.settlementAccountType === "person"
+              ? selectedDeposit?.liabilityPersonName?.trim() || "—"
+              : selectedDeposit?.bankName || "—"}
+          </div>
         </div>
         <div className="mt-4 flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={() => setDeleteOpen(false)} disabled={deleteLoading}>
