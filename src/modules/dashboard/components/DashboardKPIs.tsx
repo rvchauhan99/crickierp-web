@@ -191,6 +191,8 @@ export function DashboardKPIs({ summary, loading = false }: Props) {
   const ex = summary?.exchanges;
   const us = summary?.users;
   const pm = summary?.periodMetrics;
+  const netBonus = (d?.bonusTotal ?? 0) - (w?.reverseBonusTotal ?? 0);
+  const grossPL = (d?.totalAmount ?? 0) - (w?.totalAmount ?? 0) - netBonus;
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -258,15 +260,15 @@ export function DashboardKPIs({ summary, loading = false }: Props) {
       <KPICard
         loading={loading}
         title="Gross P & L"
-        value={formatDashboardCurrency(pnl?.gross ?? 0)}
-        subtitle="Verified Deposits − Approved Withdrawals"
+        value={formatDashboardCurrency(grossPL)}
+        subtitle="Total Deposits − Total Withdrawals − Net Bonus"
         icon={
-          (pnl?.gross ?? 0) >= 0
+          grossPL >= 0
             ? <IconTrendingUp className="w-5 h-5 text-emerald-600" />
             : <IconTrendingDown className="w-5 h-5 text-rose-600" />
         }
-        iconBg={(pnl?.gross ?? 0) >= 0 ? "bg-emerald-50" : "bg-rose-50"}
-        valueColor={(pnl?.gross ?? 0) >= 0 ? "text-emerald-700" : "text-rose-700"}
+        iconBg={grossPL >= 0 ? "bg-emerald-50" : "bg-rose-50"}
+        valueColor={grossPL >= 0 ? "text-emerald-700" : "text-rose-700"}
       />
 
       {/* 5. Total Expenses */}
