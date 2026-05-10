@@ -187,12 +187,12 @@ export function DashboardKPIs({ summary, loading = false }: Props) {
   const d = summary?.deposit;
   const w = summary?.withdrawal;
   const e = summary?.expense;
-  const pnl = summary?.pnl;
   const ex = summary?.exchanges;
   const us = summary?.users;
   const pm = summary?.periodMetrics;
   const netBonus = (d?.bonusTotal ?? 0) - (w?.reverseBonusTotal ?? 0);
   const grossPL = (d?.totalAmount ?? 0) - (w?.totalAmount ?? 0) - netBonus;
+  const netPL = grossPL - (e?.approvedAmount ?? 0);
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -296,15 +296,15 @@ export function DashboardKPIs({ summary, loading = false }: Props) {
       <KPICard
         loading={loading}
         title="Net P & L"
-        value={formatDashboardCurrency(pnl?.net ?? 0)}
+        value={formatDashboardCurrency(netPL)}
         subtitle="Gross P&L − Approved Expenses"
         icon={
-          (pnl?.net ?? 0) >= 0
+          netPL >= 0
             ? <IconTrendingUp className="w-5 h-5 text-blue-600" />
             : <IconTrendingDown className="w-5 h-5 text-rose-600" />
         }
-        iconBg={(pnl?.net ?? 0) >= 0 ? "bg-blue-50" : "bg-rose-50"}
-        valueColor={(pnl?.net ?? 0) >= 0 ? "text-blue-700" : "text-rose-700"}
+        iconBg={netPL >= 0 ? "bg-blue-50" : "bg-rose-50"}
+        valueColor={netPL >= 0 ? "text-blue-700" : "text-rose-700"}
       />
 
       {/* 7. Active Exchanges */}
