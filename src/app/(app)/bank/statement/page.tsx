@@ -1,16 +1,31 @@
 "use client";
 
 import { useCallback, useEffect, useState, useRef } from "react";
-import { IconPrinter, IconFilter, IconCalendar, IconArrowUpRight, IconArrowDownRight, IconReceipt, IconInfoCircle } from "@tabler/icons-react";
+import {
+  IconPrinter,
+  IconFilter,
+  IconCalendar,
+  IconArrowUpRight,
+  IconArrowDownRight,
+  IconInfoCircle,
+} from "@tabler/icons-react";
 import { AutocompleteField, type AutocompleteOption } from "@/components/common/AutocompleteField";
 import { FieldLabel } from "@/components/common/FieldLabel";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
-import { getBankLedger, listBanksRaw, type BankLedgerResponse, type BankLedgerRow } from "@/services/bankService";
+import {
+  createBankSettlement,
+  getBankComputedClosing,
+  getBankLedger,
+  listBanksRaw,
+  type BankLedgerResponse,
+} from "@/services/bankService";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { cn } from "@/lib/cn";
-import { DATE_PRESETS, DEFAULT_PRESET } from "@/modules/dashboard/components/DashboardFilterBar";
+import { DATE_PRESETS } from "@/modules/dashboard/components/DashboardFilterBar";
 import { BRANDING } from "@/lib/constants/branding";
+import { useAuth } from "@/context/AuthContext";
+import { formControlFocus } from "@/lib/formControlClasses";
 
 function formatAmount(value: number) {
   const abs = Math.abs(value);
@@ -21,12 +36,30 @@ function formatAmount(value: number) {
   return value < 0 ? `−${formatted}` : formatted;
 }
 
+function toDatetimeLocalValue(d: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+const ENTRY_TYPES = ["all", "deposit", "withdrawal", "expense", "liability", "settlement"] as const;
+type EntryTypeFilter = (typeof ENTRY_TYPES)[number];
+
 export default function BankStatementPage() {
+  const { user } = useAuth();
+  const isSuperadmin = user?.role === "superadmin";
   const [bankId, setBankId] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-  const [entryType, setEntryType] = useState<"all" | "deposit" | "withdrawal" | "expense">("all");
+  const [entryType, setEntryType] = useState<EntryTypeFilter>("all");
   const [activePreset, setActivePreset] = useState<string | null>(null);
+
+  const [systemClosingBalance, setSystemClosingBalance] = useState<number | null>(null);
+  const [systemClosingLoading, setSystemClosingLoading] = useState(false);
+  const [masterReportedBalance, setMasterReportedBalance] = useState("");
+  const [settlementReason, setSettlementReason] = useState("");
+  const [settlementEffectiveAt, setSettlementEffectiveAt] = useState(() => toDatetimeLocalValue(new Date()));
+  const [settlementSubmitting, setSettlementSubmitting] = useState(false);
+  const [settlementError, setSettlementError] = useState<string | null>(null);
 
   const [ledger, setLedger] = useState<BankLedgerResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -45,14 +78,30 @@ export default function BankStatementPage() {
     }
   }, []);
 
-  const handlePreset = (preset: typeof DATE_PRESETS[0]) => {
-    const dates = preset.fn();
-    setFromDate(dates.date_from);
-    setToDate(dates.date_to);
-    setActivePreset(preset.label);
-  };
+  useEffect(() => {
+    if (!isSuperadmin || !bankId.trim()) {
+      setSystemClosingBalance(null);
+      setSettlementError(null);
+      return;
+    }
+    let cancelled = false;
+    setSystemClosingLoading(true);
+    getBankComputedClosing(bankId.trim())
+      .then((res) => {
+        if (!cancelled) setSystemClosingBalance(res.systemClosingBalance);
+      })
+      .catch(() => {
+        if (!cancelled) setSystemClosingBalance(null);
+      })
+      .finally(() => {
+        if (!cancelled) setSystemClosingLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [bankId, isSuperadmin]);
 
-  const loadLedger = async () => {
+  const loadLedger = useCallback(async () => {
     if (!bankId.trim()) {
       setError("Please select a bank account first.");
       return;
@@ -72,6 +121,52 @@ export default function BankStatementPage() {
     } finally {
       setLoading(false);
     }
+  }, [bankId, fromDate, toDate, entryType]);
+
+  const handleSettlementSubmit = async () => {
+    if (!bankId.trim()) {
+      setSettlementError("Select a bank first.");
+      return;
+    }
+    const master = Number(masterReportedBalance);
+    if (!Number.isFinite(master) || master < 0) {
+      setSettlementError("Enter a valid non-negative master balance.");
+      return;
+    }
+    const reason = settlementReason.trim();
+    if (reason.length < 3) {
+      setSettlementError("Reason must be at least 3 characters.");
+      return;
+    }
+    const effective = new Date(settlementEffectiveAt);
+    if (Number.isNaN(effective.getTime())) {
+      setSettlementError("Invalid effective date/time.");
+      return;
+    }
+    setSettlementSubmitting(true);
+    setSettlementError(null);
+    try {
+      await createBankSettlement(bankId.trim(), {
+        effectiveAt: effective.toISOString(),
+        masterReportedBalance: master,
+        reason,
+      });
+      setSettlementReason("");
+      const next = await getBankComputedClosing(bankId.trim());
+      setSystemClosingBalance(next.systemClosingBalance);
+      await loadLedger();
+    } catch (e: unknown) {
+      setSettlementError(getApiErrorMessage(e, "Settlement failed"));
+    } finally {
+      setSettlementSubmitting(false);
+    }
+  };
+
+  const handlePreset = (preset: (typeof DATE_PRESETS)[0]) => {
+    const dates = preset.fn();
+    setFromDate(dates.date_from);
+    setToDate(dates.date_to);
+    setActivePreset(preset.label);
   };
 
   const handlePrint = () => {
@@ -143,6 +238,9 @@ export default function BankStatementPage() {
                 onChange={(v) => {
                   setBankId(v);
                   setLedger(null);
+                  setMasterReportedBalance("");
+                  setSettlementReason("");
+                  setSettlementEffectiveAt(toDatetimeLocalValue(new Date()));
                 }}
                 loadOptions={loadBankOptions}
                 placeholder="Search bank..."
@@ -196,7 +294,7 @@ export default function BankStatementPage() {
             <div className="flex items-center gap-1 flex-1">
               <span className="text-[11px] uppercase font-semibold tracking-wider text-slate-500 mr-2">Type:</span>
               <div className="flex gap-1">
-                {(['all', 'deposit', 'withdrawal', 'expense'] as const).map(type => (
+                {ENTRY_TYPES.map((type) => (
                   <Button
                     key={type}
                     size="xs"
@@ -204,9 +302,7 @@ export default function BankStatementPage() {
                     onClick={() => setEntryType(type)}
                     className={cn(
                       "text-[11px] px-2.5 h-7 rounded-md capitalize font-medium",
-                      entryType === type 
-                        ? "bg-slate-200 text-slate-800"
-                        : "text-slate-500 hover:bg-slate-100"
+                      entryType === type ? "bg-slate-200 text-slate-800" : "text-slate-500 hover:bg-slate-100",
                     )}
                   >
                     {type}
@@ -229,6 +325,79 @@ export default function BankStatementPage() {
             <div className="bg-red-50 text-red-700 p-3 rounded-lg border border-red-200 text-sm flex items-center gap-2">
               <IconInfoCircle className="w-4 h-4" />
               {error}
+            </div>
+          )}
+
+          {isSuperadmin && bankId.trim() && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-4 space-y-3">
+              <div>
+                <h3 className="text-sm font-semibold text-amber-950">Master balance settlement</h3>
+                <p className="text-[11px] text-amber-900/80 mt-0.5">
+                  Superadmin only. Enter the bank&apos;s current balance (passbook / net banking). The ERP records the
+                  difference as a settlement line and updates stored current balance.
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <FieldLabel>System balance before settle</FieldLabel>
+                  <div className="text-sm font-mono font-semibold text-slate-800 min-h-8 flex items-center">
+                    {systemClosingLoading ? "…" : systemClosingBalance != null ? formatAmount(systemClosingBalance) : "—"}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <FieldLabel>
+                    Bank current / closing balance (master) <span className="text-red-500">*</span>
+                  </FieldLabel>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={masterReportedBalance}
+                    onChange={(e) => setMasterReportedBalance(e.target.value)}
+                    className="text-xs h-9"
+                    placeholder="Amount from bank"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <FieldLabel>Effective date &amp; time</FieldLabel>
+                  <Input
+                    type="datetime-local"
+                    value={settlementEffectiveAt}
+                    onChange={(e) => setSettlementEffectiveAt(e.target.value)}
+                    className="text-xs h-9"
+                  />
+                </div>
+                <div className="space-y-1 sm:col-span-2">
+                  <FieldLabel>
+                    Reason <span className="text-red-500">*</span>
+                  </FieldLabel>
+                  <textarea
+                    value={settlementReason}
+                    onChange={(e) => setSettlementReason(e.target.value)}
+                    rows={2}
+                    className={cn(
+                      "w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 placeholder:text-slate-400",
+                      formControlFocus,
+                    )}
+                    placeholder="Why this adjustment (audit trail)"
+                  />
+                </div>
+              </div>
+              {settlementError && (
+                <div className="text-xs text-red-700 bg-red-50 border border-red-100 rounded px-2 py-1.5">
+                  {settlementError}
+                </div>
+              )}
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                loading={settlementSubmitting}
+                onClick={handleSettlementSubmit}
+                className="text-xs"
+              >
+                Record settlement
+              </Button>
             </div>
           )}
         </div>
@@ -326,7 +495,9 @@ export default function BankStatementPage() {
                       className={cn(
                         "hover:bg-slate-50/50 transition-colors group",
                         r.kind === "deposit" && "bg-emerald-50/10",
-                        r.kind === "withdrawal" && "bg-rose-50/10"
+                        r.kind === "withdrawal" && "bg-rose-50/10",
+                        r.kind === "settlement" && "bg-amber-50/20",
+                        r.kind === "liability" && "bg-slate-50/40",
                       )}
                     >
                       <td className="py-3 px-4 whitespace-nowrap text-slate-500">
@@ -338,7 +509,7 @@ export default function BankStatementPage() {
                       <td className="py-3 px-4">
                         <div className="font-medium text-slate-800">{r.label}</div>
                         {r.utr && <div className="text-[10px] text-slate-400 font-mono mt-0.5">UTR: {r.utr}</div>}
-                        {r.bonusMemo && r.bonusMemo > 0 && (
+                        {r.bonusMemo && r.bonusMemo > 0 && (r.kind === "deposit" || r.kind === "withdrawal") && (
                           <div className="mt-1 text-[10px] text-amber-600 italic bg-amber-50 px-1.5 py-0.5 rounded inline-block">
                             * Memo: {formatAmount(r.bonusMemo)} bonus {r.kind === "deposit" ? "given" : "reversed"} (Not in bank)
                           </div>
