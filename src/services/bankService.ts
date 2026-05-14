@@ -177,7 +177,7 @@ export async function listBanksRaw(page = 1, pageSize = 20) {
 }
 
 export type BankLedgerRow = {
-  kind: "deposit" | "withdrawal" | "expense";
+  kind: "deposit" | "withdrawal" | "expense" | "liability" | "settlement";
   refId: string;
   at: string;
   label: string;
@@ -208,13 +208,58 @@ export type BankLedgerResponse = {
   rows: BankLedgerRow[];
 };
 
+export type BankComputedClosingResponse = {
+  systemClosingBalance: number;
+};
+
+export type BankSettlementRecord = {
+  _id: string;
+  bankId: string;
+  effectiveAt: string;
+  masterReportedBalance: number;
+  signedAmount: number;
+  systemBalanceBefore: number;
+  reason: string;
+  createdBy?: unknown;
+  createdAt?: string;
+};
+
 export async function getBankLedger(
   bankId: string,
-  query?: { fromDate?: string; toDate?: string; entryType?: "all" | "deposit" | "withdrawal" | "expense" },
+  query?: {
+    fromDate?: string;
+    toDate?: string;
+    entryType?: "all" | "deposit" | "withdrawal" | "expense" | "liability" | "settlement";
+  },
 ): Promise<BankLedgerResponse> {
   const res = await apiClient.get<{ success: boolean; data: BankLedgerResponse }>(
     `/bank/${bankId}/ledger`,
     { params: query },
+  );
+  return res.data.data;
+}
+
+export async function getBankComputedClosing(bankId: string): Promise<BankComputedClosingResponse> {
+  const res = await apiClient.get<{ success: boolean; data: BankComputedClosingResponse }>(
+    `/bank/${bankId}/computed-closing`,
+  );
+  return res.data.data;
+}
+
+export async function listBankSettlements(bankId: string): Promise<BankSettlementRecord[]> {
+  const res = await apiClient.get<{ success: boolean; data: BankSettlementRecord[] }>(
+    `/bank/${bankId}/settlements`,
+  );
+  return Array.isArray(res.data.data) ? res.data.data : [];
+}
+
+export async function createBankSettlement(
+  bankId: string,
+  body: { effectiveAt: string; masterReportedBalance: number; reason: string },
+): Promise<BankSettlementRecord> {
+  const res = await apiClient.post<{ success: boolean; data: BankSettlementRecord }>(
+    `/bank/${bankId}/settlements`,
+    body,
   );
   return res.data.data;
 }
