@@ -28,6 +28,7 @@ const STATUS_BADGE_MAP: Record<string, StatusBadgeConfig> = {
   verified: { label: "Verified", variant: "info" },
   finalized: { label: "Finalized", variant: "primary" },
   rejected: { label: "Rejected", variant: "danger" },
+  cancelled: { label: "Cancelled", variant: "outline" },
   requested: { label: "Requested", variant: "info" },
 };
 

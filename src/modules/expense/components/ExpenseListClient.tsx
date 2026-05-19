@@ -1,7 +1,11 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { IconBan } from "@tabler/icons-react";
 import { toast } from "sonner";
+import { ConfirmSensitiveActionDialog } from "@/components/common/ConfirmSensitiveActionDialog";
+import { useAuth } from "@/context/AuthContext";
+import { REASON_TYPES } from "@/lib/constants/reasonTypes";
 import { ListingPageContainer } from "@/components/common/ListingPageContainer";
 import PaginatedTableReference, {
   type PaginatedTableReferenceColumn,
@@ -14,6 +18,7 @@ import { useListingQueryStateReference } from "@/hooks/useListingQueryStateRefer
 import { tableColumnPresets } from "@/lib/tableStylePresets";
 import { getApiErrorMessage } from "@/lib/apiError";
 import {
+  cancelApprovedExpense,
   exportExpenses,
   getExpenseDocumentViewUrl,
   listExpensesNormalized,
@@ -21,6 +26,7 @@ import {
 import type { ExpenseRow } from "@/types/expense";
 import { EXPENSE_FINAL_FILTER_KEYS } from "@/modules/expense/expenseFinalListConstants";
 import { ExpenseFinalListFilterPanel } from "@/modules/expense/components/ExpenseFinalListFilterPanel";
+import { formatExpenseSettlementColumn } from "@/modules/expense/expenseDisplay";
 import { useExport } from "@/hooks/useExport";
 
 function toOptionalFilterValue(value: string): string | undefined {
@@ -48,6 +54,9 @@ function formatFileSize(bytes: number): string {
 }
 
 export function ExpenseListClient() {
+  const { user } = useAuth();
+  const canCancelApproved = user?.role === "superadmin";
+
   const listingState = useListingQueryStateReference({
     defaultLimit: 50,
     filterKeys: [...EXPENSE_FINAL_FILTER_KEYS],
@@ -69,8 +78,13 @@ export function ExpenseListClient() {
   } = listingState;
 
   const [totalCount, setTotalCount] = useState(0);
+  const [tableKey, setTableKey] = useState(0);
   const [selectedExpense, setSelectedExpense] = useState<ExpenseRow | null>(null);
   const [viewingDocIndex, setViewingDocIndex] = useState<number | null>(null);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [cancelReasonId, setCancelReasonId] = useState("");
+  const [cancelRemark, setCancelRemark] = useState("");
 
   const fetcher = useCallback(async (params: Record<string, unknown>) => {
     return listExpensesNormalized(params);
@@ -137,6 +151,30 @@ export function ExpenseListClient() {
     [selectedExpense],
   );
 
+  const onCancelSubmit = useCallback(async () => {
+    if (!selectedExpense || !cancelReasonId.trim()) {
+      toast.error("Select a cancel reason.");
+      return;
+    }
+    setCancelLoading(true);
+    try {
+      await cancelApprovedExpense(selectedExpense.id, {
+        reasonId: cancelReasonId,
+        remark: cancelRemark.trim() || undefined,
+      });
+      toast.success("Expense cancelled and balances reversed.");
+      setCancelOpen(false);
+      setCancelReasonId("");
+      setCancelRemark("");
+      closeSidebar();
+      setTableKey((k) => k + 1);
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Could not cancel expense."));
+    } finally {
+      setCancelLoading(false);
+    }
+  }, [selectedExpense, cancelReasonId, cancelRemark, closeSidebar]);
+
   const columns = useMemo<PaginatedTableReferenceColumn[]>(
     () => [
       {
@@ -169,8 +207,8 @@ export function ExpenseListClient() {
       },
       {
         field: "bankName",
-        label: "Bank",
-        render: (row: ExpenseRow) => row.bankName || "—",
+        label: "Bank / Liable person",
+        render: (row: ExpenseRow) => formatExpenseSettlementColumn(row),
         ...tableColumnPresets.nameCol,
         sortable: true,
       },
@@ -229,6 +267,7 @@ export function ExpenseListClient() {
       <div className="flex min-h-0 flex-1 flex-col gap-2">
         <div className="min-h-0 flex-1 overflow-hidden">
           <PaginatedTableReference
+            key={tableKey}
             columns={columns}
             fetcher={fetcher}
             height="calc(100vh - 300px)"
@@ -282,8 +321,14 @@ export function ExpenseListClient() {
                   <dd className="text-sm text-gray-800">{selectedExpense.expenseDate || "—"}</dd>
                 </div>
                 <div>
-                  <dt className="text-[11px] font-medium uppercase tracking-wide text-gray-400">Bank</dt>
-                  <dd className="text-sm text-gray-800">{selectedExpense.bankName || "—"}</dd>
+                  <dt className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
+                    {selectedExpense.settlementAccountType === "person" ? "Liable person" : "Bank"}
+                  </dt>
+                  <dd className="text-sm text-gray-800">
+                    {selectedExpense.settlementAccountType === "person"
+                      ? selectedExpense.liabilityPersonName || "—"
+                      : selectedExpense.bankName || "—"}
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-[11px] font-medium uppercase tracking-wide text-gray-400">Description</dt>
@@ -297,6 +342,22 @@ export function ExpenseListClient() {
                   <dt className="text-[11px] font-medium uppercase tracking-wide text-gray-400">Approved by</dt>
                   <dd className="text-sm text-gray-800">{selectedExpense.approvedByName || "—"}</dd>
                 </div>
+                {selectedExpense.status === "cancelled" && (
+                  <>
+                    <div>
+                      <dt className="text-[11px] font-medium uppercase tracking-wide text-gray-400">Cancelled by</dt>
+                      <dd className="text-sm text-gray-800">{selectedExpense.cancelledByName || "—"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[11px] font-medium uppercase tracking-wide text-gray-400">Cancelled at</dt>
+                      <dd className="text-sm text-gray-800">{formatDateTime(selectedExpense.cancelledAt)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[11px] font-medium uppercase tracking-wide text-gray-400">Cancel reason</dt>
+                      <dd className="text-sm text-gray-800">{selectedExpense.cancelReason || "—"}</dd>
+                    </div>
+                  </>
+                )}
                 <div>
                   <dt className="text-[11px] font-medium uppercase tracking-wide text-gray-400">Created at</dt>
                   <dd className="text-sm text-gray-800">{formatDateTime(selectedExpense.createdAt)}</dd>
@@ -307,6 +368,25 @@ export function ExpenseListClient() {
                 </div>
               </dl>
             </div>
+
+            {canCancelApproved && selectedExpense.status === "approved" && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                <p className="mb-2 text-xs text-gray-700">
+                  Cancelling will credit the bank balance or remove the liability journal created at approval. This
+                  cannot be undone from the UI.
+                </p>
+                <Button
+                  type="button"
+                  variant="danger"
+                  className="w-full"
+                  startIcon={<IconBan className="size-4" />}
+                  disabled={cancelLoading}
+                  onClick={() => setCancelOpen(true)}
+                >
+                  Cancel approved expense
+                </Button>
+              </div>
+            )}
 
             <div className="rounded-lg border border-[var(--border)] bg-white p-3">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">Documents</p>
@@ -342,6 +422,23 @@ export function ExpenseListClient() {
           </div>
         )}
       </DetailsSidebar>
+
+      <ConfirmSensitiveActionDialog
+        title="Cancel approved expense"
+        open={cancelOpen}
+        reasonType={REASON_TYPES.EXPENSE_CANCEL}
+        selectedReasonId={cancelReasonId}
+        onReasonIdChange={setCancelReasonId}
+        remark={cancelRemark}
+        onRemarkChange={setCancelRemark}
+        onCancel={() => {
+          if (cancelLoading) return;
+          setCancelOpen(false);
+          setCancelReasonId("");
+          setCancelRemark("");
+        }}
+        onConfirm={() => void onCancelSubmit()}
+      />
     </ListingPageContainer>
   );
 }

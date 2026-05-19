@@ -33,7 +33,12 @@ export function normalizeExpense(row: Record<string, unknown>): ExpenseRow {
   const id = String(row._id ?? row.id ?? "");
   const st = row.status;
   const status: ExpenseRow["status"] =
-    st === "approved" || st === "rejected" || st === "pending_audit" ? st : "pending_audit";
+    st === "approved" ||
+    st === "rejected" ||
+    st === "pending_audit" ||
+    st === "cancelled"
+      ? st
+      : "pending_audit";
 
   const createdBy = row.createdBy;
   let createdByName: string | undefined;
@@ -53,6 +58,15 @@ export function normalizeExpense(row: Record<string, unknown>): ExpenseRow {
     approvedByName = fn && un ? `${fn} (${un})` : fn || un || undefined;
   }
 
+  const cancelledBy = row.cancelledBy;
+  let cancelledByName: string | undefined;
+  if (cancelledBy && typeof cancelledBy === "object" && cancelledBy !== null) {
+    const u = cancelledBy as Record<string, unknown>;
+    const fn = String(u.fullName ?? "").trim();
+    const un = String(u.username ?? "").trim();
+    cancelledByName = fn && un ? `${fn} (${un})` : fn || un || undefined;
+  }
+
   let expenseDateStr: string | undefined;
   if (row.expenseDate != null) {
     const d = row.expenseDate instanceof Date ? row.expenseDate : new Date(String(row.expenseDate));
@@ -66,9 +80,12 @@ export function normalizeExpense(row: Record<string, unknown>): ExpenseRow {
   } else if (typeof b === "string") bankId = b;
 
   let liabilityPersonId: string | undefined;
+  let liabilityPersonNameFromPopulate: string | undefined;
   const lp = row.liabilityPersonId;
   if (lp && typeof lp === "object" && lp !== null && "_id" in lp) {
     liabilityPersonId = String((lp as { _id?: unknown })._id);
+    const populatedName = String((lp as { name?: string }).name ?? "").trim();
+    if (populatedName) liabilityPersonNameFromPopulate = populatedName;
   } else if (lp != null) {
     liabilityPersonId = String(lp);
   }
@@ -93,6 +110,13 @@ export function normalizeExpense(row: Record<string, unknown>): ExpenseRow {
       ? String((row.approvedBy as { _id?: unknown })._id)
       : typeof row.approvedBy === "string"
         ? row.approvedBy
+        : undefined;
+
+  const cancelledById =
+    row.cancelledBy && typeof row.cancelledBy === "object" && row.cancelledBy !== null && "_id" in row.cancelledBy
+      ? String((row.cancelledBy as { _id?: unknown })._id)
+      : typeof row.cancelledBy === "string"
+        ? row.cancelledBy
         : undefined;
 
   let expenseTypeId: string | undefined;
@@ -137,17 +161,22 @@ export function normalizeExpense(row: Record<string, unknown>): ExpenseRow {
         ? row.settlementAccountType
         : undefined,
     liabilityPersonId,
-    liabilityPersonName: String(row.liabilityPersonName ?? "").trim() || undefined,
+    liabilityPersonName:
+      String(row.liabilityPersonName ?? "").trim() || liabilityPersonNameFromPopulate || undefined,
     liabilityEntryId,
     status,
     rejectReason: row.rejectReason != null ? String(row.rejectReason) : undefined,
+    cancelReason: row.cancelReason != null ? String(row.cancelReason) : undefined,
     bankBalanceAfter: row.bankBalanceAfter != null ? Number(row.bankBalanceAfter) : undefined,
+    cancelledAt: row.cancelledAt != null ? String(row.cancelledAt) : undefined,
     createdAt: row.createdAt != null ? String(row.createdAt) : undefined,
     updatedAt: row.updatedAt != null ? String(row.updatedAt) : undefined,
     createdByName,
     approvedByName,
+    cancelledByName,
     createdBy: createdById,
     approvedBy: approvedById,
+    cancelledBy: cancelledById,
     documents,
   };
 }
@@ -224,6 +253,17 @@ export async function rejectExpense(
   return res.data?.data;
 }
 
+export async function cancelApprovedExpense(
+  id: string,
+  input: { reasonId: string; remark?: string },
+): Promise<unknown> {
+  const res = await apiClient.post<{ success: boolean; data: unknown }>(`/expense/${id}/cancel`, {
+    reasonId: input.reasonId,
+    remark: input.remark,
+  });
+  return res.data?.data;
+}
+
 export async function exportExpenses(params: Record<string, unknown>): Promise<Blob> {
   const response = await apiClient.get("/expense/export", {
     params,
@@ -232,9 +272,24 @@ export async function exportExpenses(params: Record<string, unknown>): Promise<B
   return response.data;
 }
 
+export type ExpenseAnalysisStatusBreakdown = {
+  status: string;
+  totalAmount: number;
+  count: number;
+};
+
 export type ExpenseAnalysisSummary = {
   grandTotal: number;
   totalCount: number;
+  netApprovedTotal: number;
+  netApprovedCount: number;
+  cancelledTotal: number;
+  cancelledCount: number;
+  pendingTotal: number;
+  pendingCount: number;
+  rejectedTotal: number;
+  rejectedCount: number;
+  byStatus: ExpenseAnalysisStatusBreakdown[];
   byExpenseType: Array<{
     expenseTypeId: string;
     name: string;
@@ -283,7 +338,22 @@ export async function getExpenseAnalysisSummary(
       signal,
     },
   );
-  return res.data.summary ?? { grandTotal: 0, totalCount: 0, byExpenseType: [] };
+  return (
+    res.data.summary ?? {
+      grandTotal: 0,
+      totalCount: 0,
+      netApprovedTotal: 0,
+      netApprovedCount: 0,
+      cancelledTotal: 0,
+      cancelledCount: 0,
+      pendingTotal: 0,
+      pendingCount: 0,
+      rejectedTotal: 0,
+      rejectedCount: 0,
+      byStatus: [],
+      byExpenseType: [],
+    }
+  );
 }
 
 export async function getExpenseAnalysisRecords(
