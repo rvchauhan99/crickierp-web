@@ -9,7 +9,10 @@ import {
   IconClock,
   IconCircleCheck,
   IconX,
+  IconBan,
 } from "@tabler/icons-react";
+import type { ExpenseAnalysisSummary } from "@/services/expenseService";
+import { normalizeExpense } from "@/services/expenseService";
 import { Button } from "@/components/ui/Button";
 import { ListingPageContainer } from "@/components/common/ListingPageContainer";
 import { TableStatusBadge } from "@/components/common/TableStatusBadge";
@@ -96,6 +99,7 @@ const STATUS_TABS = [
   { value: "pending_audit", label: "Pending", icon: IconClock, cls: "text-amber-600 border-amber-200 hover:border-amber-400", activeCls: "bg-amber-50 border-amber-400 text-amber-700" },
   { value: "approved", label: "Approved", icon: IconCircleCheck, cls: "text-emerald-600 border-emerald-200 hover:border-emerald-400", activeCls: "bg-emerald-50 border-emerald-400 text-emerald-700" },
   { value: "rejected", label: "Rejected", icon: IconX, cls: "text-red-500 border-red-200 hover:border-red-400", activeCls: "bg-red-50 border-red-400 text-red-600" },
+  { value: "cancelled", label: "Cancelled", icon: IconBan, cls: "text-slate-600 border-slate-200 hover:border-slate-400", activeCls: "bg-slate-100 border-slate-400 text-slate-800" },
 ];
 
 function toOptionalFilterValue(value: string): string | undefined {
@@ -149,11 +153,7 @@ export default function ExpenseAnalysisPage() {
     setQ,
   } = listingState;
 
-  const [summary, setSummary] = useState<{
-    grandTotal: number;
-    totalCount: number;
-    byExpenseType: Array<{ expenseTypeId: string; name: string; totalAmount: number; count: number }>;
-  } | null>(null);
+  const [summary, setSummary] = useState<ExpenseAnalysisSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const [activePreset, setActivePreset] = useState<string | null>(null);
@@ -197,13 +197,18 @@ export default function ExpenseAnalysisPage() {
       const l = Number(params.limit) || 20;
       const sb = (str(params, "sortBy") || "expenseDate") as "createdAt" | "expenseDate" | "amount";
       const so = str(params, "sortOrder") === "asc" ? "asc" : "desc";
-      return reportService.expenseAnalysisRecords({
+      const result = await reportService.expenseAnalysisRecords({
         ...filterParams,
         page: p,
         pageSize: l,
         sortBy: sb,
         sortOrder: so,
       });
+      const rows = Array.isArray(result?.data) ? result.data : [];
+      return {
+        data: rows.map((row) => normalizeExpense(row as Record<string, unknown>)),
+        meta: result?.meta,
+      };
     },
     [filterParams],
   );
@@ -291,8 +296,13 @@ export default function ExpenseAnalysisPage() {
       },
       {
         field: "bankName",
-        label: "Bank",
-        render: (row: ExpenseRow) => row.bankName || "—",
+        label: "Settlement",
+        render: (row: ExpenseRow) =>
+          row.settlementAccountType === "person"
+            ? row.liabilityPersonName?.trim()
+              ? `LP: ${row.liabilityPersonName.trim()}`
+              : "—"
+            : row.bankName || "—",
         minWidth: 150,
       },
       {
@@ -404,7 +414,9 @@ export default function ExpenseAnalysisPage() {
           </div>
         ) : (
           <>
-            {summary && <ExpenseKpiStrip summary={summary} />}
+            {summary && (
+              <ExpenseKpiStrip summary={summary} statusFilter={filters.status} />
+            )}
             {summary && summary.byExpenseType.length > 0 && (
               <div className="pt-2">
                 <ExpenseAnalysisCharts data={summary.byExpenseType} />

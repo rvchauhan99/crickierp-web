@@ -1,4 +1,4 @@
-export type ExpenseStatus = "pending_audit" | "approved" | "rejected";
+export type ExpenseStatus = "pending_audit" | "approved" | "rejected" | "cancelled";
 
 export type ExpenseTypeOption = {
   _id: string;
@@ -32,13 +32,17 @@ export type ExpenseRow = {
   liabilityEntryId?: string;
   status: ExpenseStatus;
   rejectReason?: string;
+  cancelReason?: string;
   bankBalanceAfter?: number;
+  cancelledAt?: string;
   createdAt?: string;
   updatedAt?: string;
   createdByName?: string;
   approvedByName?: string;
+  cancelledByName?: string;
   createdBy?: string;
   approvedBy?: string;
+  cancelledBy?: string;
   documents?: ExpenseDocumentMeta[];
 };
 
