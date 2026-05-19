@@ -159,7 +159,7 @@ export function LiabilityPersonClient() {
       },
       {
         field: "closingBalance",
-        label: "Closing",
+        label: "Closing (platform)",
         render: (r: LiabilityPersonRow) => (
           <div className="flex flex-col items-end gap-0.5">
             <span className={liabilitySideAmountClass(r.closingBalanceSide)}>
@@ -290,7 +290,7 @@ export function LiabilityPersonClient() {
 
       <ListingPageContainer
         title="Liability Persons"
-        description="Debtor/Creditor master records."
+        description="Debtor/Creditor master records. Closing balance uses platform perspective (same as Liability Ledger → Platform)."
         fullWidth
         secondaryButtonLabel="Reset filters"
         onSecondaryClick={() => clearFilters({ keepQuickSearch: true })}
