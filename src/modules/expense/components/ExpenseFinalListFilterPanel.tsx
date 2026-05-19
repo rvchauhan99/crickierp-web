@@ -56,6 +56,7 @@ const STATUS_OPTIONS = [
   { label: "Pending audit", value: "pending_audit" },
   { label: "Approved", value: "approved" },
   { label: "Rejected", value: "rejected" },
+  { label: "Cancelled", value: "cancelled" },
 ];
 
 const CHIP_LABELS: Partial<Record<ExpenseFinalFilterKey | "q", string>> = {
