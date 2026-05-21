@@ -204,9 +204,11 @@ export default function ExpenseAnalysisPage() {
         sortBy: sb,
         sortOrder: so,
       });
-      const rows = Array.isArray(result?.data) ? result.data : [];
+      const rows: Record<string, unknown>[] = Array.isArray(result?.data)
+        ? (result.data as Record<string, unknown>[])
+        : [];
       return {
-        data: rows.map((row) => normalizeExpense(row as Record<string, unknown>)),
+        data: rows.map((row) => normalizeExpense(row)),
         meta: result?.meta,
       };
     },
