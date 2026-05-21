@@ -63,7 +63,22 @@ export const reportService = {
         signal: signal instanceof AbortSignal ? signal : undefined,
       },
     );
-    return res.data.summary ?? { grandTotal: 0, totalCount: 0, byExpenseType: [] };
+    return (
+      res.data.summary ?? {
+        grandTotal: 0,
+        totalCount: 0,
+        netApprovedTotal: 0,
+        netApprovedCount: 0,
+        cancelledTotal: 0,
+        cancelledCount: 0,
+        pendingTotal: 0,
+        pendingCount: 0,
+        rejectedTotal: 0,
+        rejectedCount: 0,
+        byStatus: [],
+        byExpenseType: [],
+      }
+    );
   },
 
   expenseAnalysisRecords: async (
