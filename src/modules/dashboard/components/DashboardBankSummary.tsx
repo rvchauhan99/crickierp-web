@@ -44,6 +44,25 @@ export function DashboardBankSummary({ banksBreakdown, loading = false }: Props)
     );
   }
 
+  const totals = banksBreakdown.reduce(
+    (acc, bank) => ({
+      openingBalance: acc.openingBalance + Number(bank.openingBalance ?? 0),
+      deposit: acc.deposit + Number(bank.deposit ?? 0),
+      depositCount: acc.depositCount + Number(bank.depositCount ?? 0),
+      withdrawal: acc.withdrawal + Number(bank.withdrawal ?? 0),
+      withdrawalCount: acc.withdrawalCount + Number(bank.withdrawalCount ?? 0),
+      expenses: acc.expenses + Number(bank.expenses ?? 0),
+      expenseCount: acc.expenseCount + Number(bank.expenseCount ?? 0),
+      transferOut: acc.transferOut + Number(bank.transferOut ?? 0),
+      transferOutCount: acc.transferOutCount + Number(bank.transferOutCount ?? 0),
+      transferIn: acc.transferIn + Number(bank.transferIn ?? 0),
+      transferInCount: acc.transferInCount + Number(bank.transferInCount ?? 0),
+      entries: acc.entries + Number(bank.entries ?? 0),
+      closingBalance: acc.closingBalance + Number(bank.closingBalance ?? 0),
+    }),
+    { openingBalance: 0, deposit: 0, depositCount: 0, withdrawal: 0, withdrawalCount: 0, expenses: 0, expenseCount: 0, transferOut: 0, transferOutCount: 0, transferIn: 0, transferInCount: 0, entries: 0, closingBalance: 0 }
+  );
+
   return (
     <div className="mt-8 space-y-4">
       <div className="flex items-center gap-2">
@@ -133,6 +152,55 @@ export function DashboardBankSummary({ banksBreakdown, loading = false }: Props)
                 </tr>
               ))}
             </tbody>
+            <tfoot className="bg-slate-50 border-t-2 border-slate-200">
+              <tr>
+                <td className="px-3 py-2.5 whitespace-nowrap font-bold text-slate-900">TOTAL</td>
+                <td className="px-3 py-2.5 text-right whitespace-nowrap font-semibold text-slate-900">
+                  {formatAmount(totals.openingBalance)}
+                </td>
+                <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                  <AmountWithTxnCount
+                    amount={totals.deposit}
+                    count={totals.depositCount}
+                    amountClass="font-semibold text-emerald-700"
+                  />
+                </td>
+                <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                  <AmountWithTxnCount
+                    amount={totals.withdrawal}
+                    count={totals.withdrawalCount}
+                    amountClass="font-semibold text-rose-700"
+                  />
+                </td>
+                <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                  <AmountWithTxnCount
+                    amount={totals.expenses}
+                    count={totals.expenseCount}
+                    amountClass="font-semibold text-amber-700"
+                  />
+                </td>
+                <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                  <AmountWithTxnCount
+                    amount={totals.transferOut}
+                    count={totals.transferOutCount}
+                    amountClass="font-semibold text-rose-700"
+                  />
+                </td>
+                <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                  <AmountWithTxnCount
+                    amount={totals.transferIn}
+                    count={totals.transferInCount}
+                    amountClass="font-semibold text-emerald-700"
+                  />
+                </td>
+                <td className="px-3 py-2.5 text-right whitespace-nowrap font-semibold text-slate-900">
+                  {formatCount(totals.entries)}
+                </td>
+                <td className="px-3 py-2.5 text-right whitespace-nowrap font-bold text-slate-900">
+                  {formatAmount(totals.closingBalance)}
+                </td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       </div>
