@@ -35,6 +35,7 @@ import type { DepositCreateInput, DepositRow } from "@/types/deposit";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { formatWholeRupee } from "@/lib/formatWholeRupee";
 import { useApprovalQueueAutoRefresh } from "@/hooks/useApprovalQueueAutoRefresh";
+import { DepositImportDialog } from "./DepositImportDialog";
 
 const COLUMN_FILTER_KEYS = [
   "utr",
@@ -120,6 +121,8 @@ export function DepositBankerClient() {
     utr?: string;
     amount?: string;
   }>({});
+
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   useApprovalQueueAutoRefresh({
     module: "deposit",
@@ -552,6 +555,8 @@ export function DepositBankerClient() {
         exportButtonLabel="Export"
         onExportClick={onExportClick}
         exportDisabled={exporting}
+        importButtonLabel="Import"
+        onImportClick={() => setImportDialogOpen(true)}
       >
         <PaginatedTableReference
           key={tableKey}
@@ -688,6 +693,12 @@ export function DepositBankerClient() {
           </div>
         </div>
       )}
+
+      <DepositImportDialog
+        open={importDialogOpen}
+        onClose={() => setImportDialogOpen(false)}
+        onSuccess={() => setTableKey((k) => k + 1)}
+      />
     </div>
   );
 }
