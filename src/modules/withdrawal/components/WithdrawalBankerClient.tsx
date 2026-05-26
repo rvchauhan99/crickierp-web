@@ -227,6 +227,7 @@ export function WithdrawalBankerClient() {
 
   const [totalCount, setTotalCount] = useState(0);
   const [tableKey, setTableKey] = useState(0);
+  const [autoRefresh, setAutoRefresh] = useState(true);
   const [selectedWithdrawal, setSelectedWithdrawal] = useState<WithdrawalRow | null>(null);
 
   useApprovalQueueAutoRefresh({
@@ -234,6 +235,14 @@ export function WithdrawalBankerClient() {
     view: "banker",
     onRefresh: () => setTableKey((k) => k + 1),
   });
+
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = setInterval(() => {
+      setTableKey((k) => k + 1);
+    }, 10_000);
+    return () => clearInterval(interval);
+  }, [autoRefresh]);
 
   const [payoutSettlementType, setPayoutSettlementType] = useState<"bank" | "person">("bank");
   const [bankId, setBankId] = useState("");
@@ -530,6 +539,20 @@ export function WithdrawalBankerClient() {
         exportDisabled={exporting}
       >
         <div className="flex min-h-0 flex-1 flex-col">
+          {/* Auto-refresh toggle */}
+          <div className="mb-3 flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setAutoRefresh(!autoRefresh)}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${autoRefresh ? "bg-green-500" : "bg-gray-300"}`}
+            >
+              <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${autoRefresh ? "translate-x-[18px]" : "translate-x-[3px]"}`} />
+            </button>
+            <span className="text-xs font-medium text-gray-600">
+              Auto Refresh {autoRefresh ? <span className="text-green-600">(every 10s)</span> : "(off)"}
+            </span>
+          </div>
+
           {!selectedWithdrawal && (
             <div className="mb-3 flex shrink-0 items-center gap-2.5 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-700">
               <IconUser className="size-4 shrink-0" />

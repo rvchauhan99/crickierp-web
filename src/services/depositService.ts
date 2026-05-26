@@ -362,3 +362,70 @@ export async function deleteDeposit(depositId: string): Promise<unknown> {
   const response = await apiClient.delete<{ success: boolean; data: unknown }>(`/deposit/${depositId}`);
   return response.data?.data;
 }
+
+// ---------------------------------------------------------------------------
+// CSV Import
+// ---------------------------------------------------------------------------
+
+export type DepositImportValidRow = {
+  row: number;
+  utr: string;
+  amount: number;
+  entryAt?: string;
+  settlementAccountType: "bank" | "person";
+  bankId?: string;
+  bankAccountNumber?: string;
+  bankDisplayLabel?: string;
+  liabilityPersonId?: string;
+  liabilityPersonName?: string;
+};
+
+export type DepositImportInvalidRow = {
+  row: number;
+  dateTime: string;
+  settlementType: string;
+  bankAccountNumber: string;
+  liablePersonName: string;
+  utr: string;
+  amount: string;
+  errors: string[];
+};
+
+export type DepositImportValidationResult = {
+  summary: { total: number; valid: number; invalid: number; skipped: number };
+  validRows: DepositImportValidRow[];
+  invalidRows: DepositImportInvalidRow[];
+};
+
+export async function downloadDepositImportSample(): Promise<Blob> {
+  const response = await apiClient.get("/deposit/import/sample", { responseType: "blob" });
+  return response.data as Blob;
+}
+
+export async function validateDepositImport(file: File): Promise<DepositImportValidationResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await apiClient.post<{ success: boolean; data: DepositImportValidationResult }>(
+    "/deposit/import/validate",
+    formData,
+    { headers: { "Content-Type": "multipart/form-data" } },
+  );
+  return response.data.data;
+}
+
+export async function commitDepositImport(
+  rows: Array<{
+    utr: string;
+    amount: number;
+    entryAt?: string;
+    settlementAccountType: "bank" | "person";
+    bankId?: string;
+    liabilityPersonId?: string;
+  }>,
+): Promise<{ created: number; errors: Array<{ row: number; utr: string; error: string }> }> {
+  const response = await apiClient.post<{
+    success: boolean;
+    data: { created: number; errors: Array<{ row: number; utr: string; error: string }> };
+  }>("/deposit/import/commit", { rows });
+  return response.data.data;
+}
