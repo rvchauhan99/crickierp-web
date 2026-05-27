@@ -88,3 +88,22 @@ export type DepositAmendInput = {
   reasonId: string;
   remark?: string;
 };
+
+export type DepositImportJobSummary = {
+  id: string;
+  status: "queued" | "processing" | "completed" | "failed" | "cancelled";
+  createdBy: string;
+  createdAt: string;
+  startedAt?: string;
+  finishedAt?: string;
+  failureReason?: string;
+  progress: {
+    totalRows: number;
+    processedRows: number;
+    successRows: number;
+    failedRows: number;
+    skippedRows: number;
+  };
+  errorSample: Array<{ row: number; utr: string; error: string }>;
+  errorCsvAvailable: boolean;
+};
