@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { FieldLabel } from "@/components/common/FieldLabel";
 import {
@@ -12,13 +12,16 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import {
-  commitDepositImport,
+  createDepositImportJob,
+  downloadDepositImportJobErrorCsv,
   downloadDepositImportSample,
+  getDepositImportJob,
+  streamDepositImportJobEvents,
   validateDepositImport,
   type DepositImportInvalidRow,
   type DepositImportValidationResult,
-  type DepositImportValidRow,
 } from "@/services/depositService";
+import type { DepositImportJobSummary } from "@/types/deposit";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { toast } from "sonner";
 
@@ -37,8 +40,19 @@ export function DepositImportDialog({ open, onClose, onSuccess }: Props) {
   const [committing, setCommitting] = useState(false);
   const [validationResult, setValidationResult] = useState<DepositImportValidationResult | null>(null);
   const [commitResult, setCommitResult] = useState<{ created: number; errors: Array<{ row: number; utr: string; error: string }> } | null>(null);
+  const [importJob, setImportJob] = useState<DepositImportJobSummary | null>(null);
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const streamCleanupRef = useRef<(() => void) | null>(null);
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const downloadedErrorCsvJobsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    return () => {
+      if (streamCleanupRef.current) streamCleanupRef.current();
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    };
+  }, []);
 
   if (!open) return null;
 
@@ -49,7 +63,12 @@ export function DepositImportDialog({ open, onClose, onSuccess }: Props) {
     setCommitting(false);
     setValidationResult(null);
     setCommitResult(null);
+    setImportJob(null);
     setError("");
+    if (streamCleanupRef.current) streamCleanupRef.current();
+    if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    streamCleanupRef.current = null;
+    pollTimerRef.current = null;
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
@@ -93,6 +112,22 @@ export function DepositImportDialog({ open, onClose, onSuccess }: Props) {
     if (!validationResult || validationResult.validRows.length === 0) return;
     setCommitting(true);
     setError("");
+    const stopAllTracking = () => {
+      if (streamCleanupRef.current) streamCleanupRef.current();
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+      streamCleanupRef.current = null;
+      pollTimerRef.current = null;
+    };
+    const triggerCsvDownload = (blob: Blob, fileName: string) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    };
     try {
       const rows = validationResult.validRows.map((r) => ({
         utr: r.utr,
@@ -102,12 +137,62 @@ export function DepositImportDialog({ open, onClose, onSuccess }: Props) {
         bankId: r.bankId,
         liabilityPersonId: r.liabilityPersonId,
       }));
-      const result = await commitDepositImport(rows);
-      setCommitResult(result);
+      const queued = await createDepositImportJob(rows);
+      const initial = await getDepositImportJob(queued.jobId);
+      setImportJob(initial);
       setStep("result");
-      if (result.created > 0) {
-        onSuccess();
-      }
+
+      const refreshStatus = async () => {
+        try {
+          const next = await getDepositImportJob(queued.jobId);
+          setImportJob(next);
+          if (next.status === "completed") {
+            stopAllTracking();
+            const result = {
+              created: next.progress.successRows,
+              errors: next.errorSample,
+            };
+            setCommitResult(result);
+            if (next.progress.successRows > 0) onSuccess();
+          } else if (next.status === "failed") {
+            stopAllTracking();
+            const result = {
+              created: next.progress.successRows,
+              errors: next.errorSample,
+            };
+            setCommitResult(result);
+            if (next.errorCsvAvailable && !downloadedErrorCsvJobsRef.current.has(next.id)) {
+              downloadedErrorCsvJobsRef.current.add(next.id);
+              try {
+                const { blob, fileName } = await downloadDepositImportJobErrorCsv(next.id);
+                triggerCsvDownload(blob, fileName);
+              } catch {
+                // Ignore download failure.
+              }
+            }
+          }
+        } catch {
+          // Keep polling retries silent.
+        }
+      };
+
+      const cleanupStream = await streamDepositImportJobEvents(queued.jobId, (streamed) => {
+        setImportJob((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            status: streamed.status,
+            failureReason: streamed.failureReason,
+            progress: streamed.progress,
+          };
+        });
+      });
+      streamCleanupRef.current = cleanupStream;
+      pollTimerRef.current = setInterval(() => {
+        void refreshStatus();
+      }, 7000);
+
+      void refreshStatus();
     } catch (err: unknown) {
       setError(getApiErrorMessage(err, "Import failed"));
     } finally {
@@ -184,7 +269,7 @@ export function DepositImportDialog({ open, onClose, onSuccess }: Props) {
             onDownloadErrors={handleDownloadErrors}
           />}
 
-          {step === "result" && commitResult && <ResultStep result={commitResult} />}
+          {step === "result" && <ResultStep result={commitResult} importJob={importJob} />}
         </div>
 
         {/* Footer */}
@@ -408,7 +493,39 @@ function ReviewStep({
   );
 }
 
-function ResultStep({ result }: { result: { created: number; errors: Array<{ row: number; utr: string; error: string }> } }) {
+function ResultStep({
+  result,
+  importJob,
+}: {
+  result: { created: number; errors: Array<{ row: number; utr: string; error: string }> } | null;
+  importJob: DepositImportJobSummary | null;
+}) {
+  return (
+    <div className="space-y-4">
+      {importJob && (
+        <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+          <p className="font-medium capitalize">Status: {importJob.status}</p>
+          <p className="mt-1">
+            Processed {importJob.progress.processedRows}/{importJob.progress.totalRows} rows
+          </p>
+          <p className="mt-1">
+            Success: {importJob.progress.successRows} | Failed: {importJob.progress.failedRows}
+          </p>
+          {importJob.failureReason ? <p className="mt-1 text-red-600">{importJob.failureReason}</p> : null}
+        </div>
+      )}
+      {!result && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-4">
+          <p className="font-medium text-blue-800">Import is being processed in background</p>
+          <p className="mt-1 text-sm text-blue-600">Please keep this dialog open to see live progress.</p>
+        </div>
+      )}
+      {result ? <ResultContent result={result} /> : null}
+    </div>
+  );
+}
+
+function ResultContent({ result }: { result: { created: number; errors: Array<{ row: number; utr: string; error: string }> } }) {
   return (
     <div className="space-y-4">
       {result.created > 0 && (
