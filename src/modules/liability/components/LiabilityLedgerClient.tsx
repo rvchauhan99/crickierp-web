@@ -36,7 +36,7 @@ import {
 import { DATE_PRESETS } from "@/modules/dashboard/components/DashboardFilterBar";
 import { cn } from "@/lib/cn";
 import { BRANDING } from "@/lib/constants/branding";
-import { formatYyyyMmDdInTimeZone, resolveUserTimeZone } from "@/lib/userTimezone";
+import { formatDateTimeForUser, formatYyyyMmDdInTimeZone, resolveUserTimeZone } from "@/lib/userTimezone";
 
 function todayYmdInUserTz(): string {
   return formatYyyyMmDdInTimeZone(new Date(), resolveUserTimeZone());
@@ -467,10 +467,7 @@ export function LiabilityLedgerClient() {
                       className="hover:bg-slate-50/50 transition-colors group"
                     >
                       <td className="py-3 px-4 whitespace-nowrap text-slate-500">
-                        {new Date(r.at).toLocaleString('en-IN', {
-                          day: '2-digit', month: 'short', year: 'numeric',
-                          hour: '2-digit', minute: '2-digit', hour12: true
-                        })}
+                        {formatDateTimeForUser(r.at)}
                       </td>
                       <td className="py-3 px-4">
                         <div className="font-medium text-slate-800 capitalize">{r.entryType}</div>

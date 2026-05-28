@@ -25,23 +25,27 @@ import { ConfirmSensitiveActionDialog } from "@/components/common/ConfirmSensiti
 import { useListingQueryStateReference } from "@/hooks/useListingQueryStateReference";
 import { tableColumnPresets } from "@/lib/tableStylePresets";
 import {
+  bulkExchangeApprove,
   exchangeActionApprove,
   exchangeActionMarkNotSettled,
   exchangeActionReject,
   exportDeposits,
   listDepositsNormalized,
 } from "@/services/depositService";
+import { isImportReadyDeposit } from "@/modules/deposit/depositImportReady";
 import { useExport } from "@/hooks/useExport";
 import { depositStatusApiParam, depositStatusColumnSelectValue } from "@/modules/deposit/depositListingStatusFilter";
 import { getPlayerBonusProfile, listPlayerLookupOptions } from "@/services/lookupService";
 import type { DepositRow } from "@/types/deposit";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { userService } from "@/services/userService";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { REASON_TYPES } from "@/lib/constants/reasonTypes";
 import { formatWholeRupee } from "@/lib/formatWholeRupee";
 import { useApprovalQueueAutoRefresh } from "@/hooks/useApprovalQueueAutoRefresh";
+import { formatDateTimeForUser } from "@/lib/userTimezone";
 
 const COLUMN_FILTER_KEYS = [
   "utr",
@@ -79,13 +83,6 @@ function formatRelative(iso?: string): string {
   if (h < 48) return `${h} h ago`;
   const days = Math.floor(h / 24);
   return `${days} day${days === 1 ? "" : "s"} ago`;
-}
-
-function formatDate(iso?: string): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString();
 }
 
 function bonusAmountFromPercent(depositAmount: number, percent: number): string {
@@ -146,7 +143,7 @@ function DepositDetailCard({ deposit }: { deposit: DepositRow }) {
     {
       icon: <IconClock className="size-4 shrink-0 text-gray-400" />,
       label: "Transaction at",
-      value: formatDate(deposit.entryAt ?? deposit.createdAt),
+      value: formatDateTimeForUser(deposit.entryAt ?? deposit.createdAt),
     },
   ];
 
@@ -210,6 +207,10 @@ export function DepositExchangeClient() {
   const [rejectRemark, setRejectRemark] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [cachedUsers, setCachedUsers] = useState<Record<string, string>>({});
+  const [visibleRows, setVisibleRows] = useState<DepositRow[]>([]);
+  const [bulkSelection, setBulkSelection] = useState<Record<string, DepositRow>>({});
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const [bulkApproving, setBulkApproving] = useState(false);
 
   useApprovalQueueAutoRefresh({
     module: "deposit",
@@ -445,13 +446,123 @@ export function DepositExchangeClient() {
 
   const handleRowClick = useCallback((row: unknown) => {
     const r = row as DepositRow;
-    bonusManuallyAdjustedRef.current = false;
     setSelectedDeposit(r);
-    setPlayerId("");
-    setBonus("0");
-    setPlayerBonusPercent(null);
-    setBonusPercentSource(null);
+    if (isImportReadyDeposit(r)) {
+      bonusManuallyAdjustedRef.current = true;
+      setPlayerId(r.playerMongoId!.trim());
+      setBonus(String(Math.round(r.bonusAmount!)));
+      setPlayerBonusPercent(null);
+      setBonusPercentSource(null);
+    } else {
+      bonusManuallyAdjustedRef.current = false;
+      setPlayerId("");
+      setBonus("0");
+      setPlayerBonusPercent(null);
+      setBonusPercentSource(null);
+    }
   }, []);
+
+  const handleVisibleRowsChange = useCallback((rows: unknown[]) => {
+    setVisibleRows(rows as DepositRow[]);
+  }, []);
+
+  const importReadyOnPage = useMemo(
+    () => visibleRows.filter(isImportReadyDeposit),
+    [visibleRows],
+  );
+
+  const bulkSelectedIds = useMemo(() => Object.keys(bulkSelection), [bulkSelection]);
+
+  const bulkSelectedRows = useMemo(() => Object.values(bulkSelection), [bulkSelection]);
+
+  const bulkSummary = useMemo(() => {
+    const amountTotal = bulkSelectedRows.reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
+    const bonusTotal = bulkSelectedRows.reduce((sum, row) => sum + Number(row.bonusAmount ?? 0), 0);
+    return {
+      count: bulkSelectedRows.length,
+      amountTotal,
+      bonusTotal,
+      grandTotal: amountTotal + bonusTotal,
+      utrs: bulkSelectedRows.map((row) => row.utr).filter(Boolean),
+    };
+  }, [bulkSelectedRows]);
+
+  const showBulkToolbar =
+    filters.status === "pending" || filters.status === "all" || filters.status === "";
+
+  const toggleBulkSelection = useCallback((row: DepositRow, checked: boolean) => {
+    setBulkSelection((prev) => {
+      const next = { ...prev };
+      if (checked) next[row.id] = row;
+      else delete next[row.id];
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAllImportReadyOnPage = useCallback((checked: boolean) => {
+    if (!checked) {
+      setBulkSelection((prev) => {
+        const next = { ...prev };
+        for (const row of importReadyOnPage) delete next[row.id];
+        return next;
+      });
+      return;
+    }
+    setBulkSelection((prev) => {
+      const next = { ...prev };
+      for (const row of importReadyOnPage) next[row.id] = row;
+      return next;
+    });
+  }, [importReadyOnPage]);
+
+  const allImportReadyOnPageSelected =
+    importReadyOnPage.length > 0 && importReadyOnPage.every((row) => Boolean(bulkSelection[row.id]));
+
+  const confirmBulkApprove = useCallback(async () => {
+    if (bulkSelectedIds.length === 0) return;
+    setBulkApproving(true);
+    try {
+      const result = await bulkExchangeApprove(bulkSelectedIds);
+      if (result.approved > 0) {
+        toast.success(
+          `Settled ${result.approved} deposit${result.approved === 1 ? "" : "s"}${
+            result.failed.length > 0 ? `; ${result.failed.length} failed` : ""
+          }.`,
+        );
+      }
+      if (result.failed.length > 0 && result.approved === 0) {
+        toast.error(result.failed[0]?.error ?? "Bulk approve failed.");
+      } else if (result.failed.length > 0) {
+        const sample = result.failed
+          .slice(0, 3)
+          .map((f) => f.error)
+          .join("; ");
+        toast.error(`${result.failed.length} failed: ${sample}`);
+      }
+      setBulkConfirmOpen(false);
+      setBulkSelection({});
+      setTableKey((k) => k + 1);
+      if (selectedDeposit && bulkSelectedIds.includes(selectedDeposit.id)) {
+        clearActionForm();
+      }
+    } catch (e: unknown) {
+      toast.error(getApiErrorMessage(e, "Bulk approve failed."));
+    } finally {
+      setBulkApproving(false);
+    }
+  }, [bulkSelectedIds, selectedDeposit, clearActionForm]);
+
+  const getRowClassName = useCallback((row: unknown) => {
+    return isImportReadyDeposit(row as DepositRow) ? "bg-green-50/90" : undefined;
+  }, []);
+
+  const playerDefaultOption = useMemo((): AutocompleteOption | null => {
+    if (!playerId.trim() || !selectedDeposit?.playerMongoId) return null;
+    if (selectedDeposit.playerMongoId !== playerId.trim()) return null;
+    const label = selectedDeposit.playerIdLabel?.trim();
+    if (!label) return null;
+    return { value: playerId.trim(), label };
+  }, [playerId, selectedDeposit]);
 
   useEffect(() => {
     let cancelled = false;
@@ -516,6 +627,24 @@ export function DepositExchangeClient() {
 
   const columns = useMemo<PaginatedTableReferenceColumn[]>(
     () => [
+      {
+        field: "_bulkSelect",
+        label: "",
+        sortable: false,
+        minWidth: 44,
+        render: (row: DepositRow) => {
+          if (!isImportReadyDeposit(row)) return null;
+          return (
+            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+              <Checkbox
+                checked={Boolean(bulkSelection[row.id])}
+                onChange={(e) => toggleBulkSelection(row, e.target.checked)}
+                aria-label={`Select UTR ${row.utr}`}
+              />
+            </div>
+          );
+        },
+      },
       {
         field: "bankName",
         label: "Bank holder",
@@ -606,7 +735,7 @@ export function DepositExchangeClient() {
         operatorKey: "createdAt_op",
         ...tableColumnPresets.dateCol,
         render: (row: DepositRow) =>
-          row.entryAt || row.createdAt ? new Date(row.entryAt ?? row.createdAt!).toLocaleString() : "—",
+          formatDateTimeForUser(row.entryAt ?? row.createdAt),
       },
       {
         field: "actions",
@@ -633,7 +762,7 @@ export function DepositExchangeClient() {
         },
       },
     ],
-    [cachedUsers, loadCreatedByOptions, selectedId],
+    [bulkSelection, cachedUsers, loadCreatedByOptions, selectedId, toggleBulkSelection],
   );
 
   return (
@@ -703,6 +832,31 @@ export function DepositExchangeClient() {
             </Button>
           </div>
 
+          {showBulkToolbar && (
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-green-200 bg-green-50/60 px-3 py-2">
+              <Checkbox
+                label="Select all import-ready on this page"
+                checked={allImportReadyOnPageSelected}
+                onChange={(e) => toggleSelectAllImportReadyOnPage(e.target.checked)}
+                disabled={importReadyOnPage.length === 0}
+              />
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-gray-600">
+                  {importReadyOnPage.length} import-ready on page · {bulkSelectedIds.length} selected
+                </span>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="success"
+                  disabled={bulkSelectedIds.length === 0 || bulkApproving}
+                  onClick={() => setBulkConfirmOpen(true)}
+                >
+                  Approve selected ({bulkSelectedIds.length})
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Table */}
           <PaginatedTableReference
             key={tableKey}
@@ -740,8 +894,10 @@ export function DepositExchangeClient() {
             onRowsPerPageChange={setLimit}
             onSortChange={(field, order) => setSort(field, order)}
             onRowClick={handleRowClick}
+            onRowsChange={handleVisibleRowsChange}
             getRowKey={(row) => String((row as DepositRow).id)}
             selectedRowKey={selectedId}
+            getRowClassName={getRowClassName}
           />
           <PaginationControlsReference
             page={page - 1}
@@ -784,7 +940,8 @@ export function DepositExchangeClient() {
                   value={playerId}
                   onChange={handlePlayerIdChange}
                   loadOptions={loadPlayerOptions}
-              autoSelectSingleOption
+                  defaultOption={playerDefaultOption}
+                  autoSelectSingleOption
                   placeholder="Search player…"
                   disabled={!canApproveOnSelection}
                 />
@@ -883,6 +1040,53 @@ export function DepositExchangeClient() {
           </div>
         )}
       </DetailsSidebar>
+
+      {bulkConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 p-4">
+          <div className="card w-full max-w-lg space-y-4 p-4">
+            <h3 className="text-lg font-semibold">Approve import-ready deposits</h3>
+            <p className="text-sm text-gray-600">
+              You are about to settle <strong>{bulkSummary.count}</strong> pending deposit
+              {bulkSummary.count === 1 ? "" : "s"} using the player and bonus already stored from import.
+            </p>
+            <dl className="grid grid-cols-2 gap-2 text-sm">
+              <dt className="text-gray-500">Deposit amount</dt>
+              <dd className="text-right font-medium tabular-nums">₹{formatWholeRupee(bulkSummary.amountTotal)}</dd>
+              <dt className="text-gray-500">Bonus total</dt>
+              <dd className="text-right font-medium tabular-nums">₹{formatWholeRupee(bulkSummary.bonusTotal)}</dd>
+              <dt className="text-gray-500">Grand total</dt>
+              <dd className="text-right font-semibold tabular-nums">₹{formatWholeRupee(bulkSummary.grandTotal)}</dd>
+            </dl>
+            {bulkSummary.utrs.length > 0 && (
+              <div className="rounded-md border border-[var(--border)] bg-slate-50 px-3 py-2 text-xs text-gray-700">
+                <p className="mb-1 font-medium">UTRs</p>
+                <p className="font-mono break-all">
+                  {bulkSummary.utrs.slice(0, 5).join(", ")}
+                  {bulkSummary.utrs.length > 5 ? ` … and ${bulkSummary.utrs.length - 5} more` : ""}
+                </p>
+              </div>
+            )}
+            <div className="flex justify-end gap-2 pt-1">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={bulkApproving}
+                onClick={() => setBulkConfirmOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="success"
+                loading={bulkApproving}
+                onClick={() => void confirmBulkApprove()}
+              >
+                Confirm and settle all
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── Reject confirmation dialog ──────────────────────────────────── */}
       <ConfirmSensitiveActionDialog

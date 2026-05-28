@@ -39,24 +39,15 @@ import type { WithdrawalRow } from "@/types/withdrawal";
 import { withdrawalStatusApiParam } from "@/modules/withdrawal/withdrawalListingStatusFilter";
 import { WITHDRAWAL_FINAL_FILTER_KEYS } from "@/modules/withdrawal/withdrawalFinalListConstants";
 import { WithdrawalFinalListFilterPanel } from "@/modules/withdrawal/components/WithdrawalFinalListFilterPanel";
+import {
+  currentDateTimeLocalValue,
+  formatDateTimeForUser,
+  utcIsoToDateTimeLocalValue,
+} from "@/lib/userTimezone";
 
 function toOptionalFilterValue(value: string): string | undefined {
   const trimmed = value.trim();
   return trimmed === "" ? undefined : trimmed;
-}
-
-function getCurrentDateTimeLocal(): string {
-  const now = new Date();
-  const tzOffsetMs = now.getTimezoneOffset() * 60 * 1000;
-  return new Date(now.getTime() - tzOffsetMs).toISOString().slice(0, 16);
-}
-
-function toDateTimeLocalInput(iso?: string): string {
-  if (!iso) return getCurrentDateTimeLocal();
-  const value = new Date(iso);
-  if (Number.isNaN(value.getTime())) return getCurrentDateTimeLocal();
-  const tzOffsetMs = value.getTimezoneOffset() * 60 * 1000;
-  return new Date(value.getTime() - tzOffsetMs).toISOString().slice(0, 16);
 }
 
 export function WithdrawalFinalListClient() {
@@ -88,7 +79,7 @@ export function WithdrawalFinalListClient() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [amendAmount, setAmendAmount] = useState("");
   const [amendReverseBonus, setAmendReverseBonus] = useState("");
-  const [amendRequestedAt, setAmendRequestedAt] = useState(getCurrentDateTimeLocal());
+  const [amendRequestedAt, setAmendRequestedAt] = useState(currentDateTimeLocalValue());
   const [amendPayoutBankId, setAmendPayoutBankId] = useState("");
   const [amendPayoutBankDefault, setAmendPayoutBankDefault] = useState<AutocompleteOption | null>(null);
   const [amendUtr, setAmendUtr] = useState("");
@@ -203,7 +194,7 @@ export function WithdrawalFinalListClient() {
     setAmendIsPersonPayout(isLp);
     setAmendAmount(String(row.amount));
     setAmendReverseBonus(String(row.reverseBonus ?? 0));
-    setAmendRequestedAt(toDateTimeLocalInput(row.requestedAt));
+    setAmendRequestedAt(utcIsoToDateTimeLocalValue(row.requestedAt));
     setAmendPayoutBankId(isLp ? "" : row.payoutBankId?.trim() || "");
     setAmendPayoutBankDefault(
       !isLp && row.payoutBankId && row.payoutBankName
@@ -229,8 +220,8 @@ export function WithdrawalFinalListClient() {
     const next: typeof amendErrors = {};
     const amountNum = Number(amendAmount);
     const reverseBonusNum = Number(amendReverseBonus);
-    if (!Number.isFinite(amountNum) || amountNum < 1) {
-      next.amount = "Enter a valid amount (min 1).";
+    if (!Number.isFinite(amountNum) || amountNum < 0) {
+      next.amount = "Amount must be a whole number ≥ 0.";
     } else if (!Number.isInteger(amountNum)) {
       next.amount = "Amount must be a whole number (no decimals).";
     }
@@ -389,7 +380,7 @@ export function WithdrawalFinalListClient() {
         sortable: true,
         ...tableColumnPresets.dateCol,
         render: (row: WithdrawalRow) =>
-          row.requestedAt || row.createdAt ? new Date(row.requestedAt ?? row.createdAt!).toLocaleString() : "—",
+          formatDateTimeForUser(row.requestedAt ?? row.createdAt),
       },
     ],
     [],
@@ -504,7 +495,7 @@ export function WithdrawalFinalListClient() {
                   <div className="flex justify-between gap-2">
                     <dt className="text-gray-500">Last amended</dt>
                     <dd className="text-right text-xs">
-                      {new Date(selectedWithdrawal.lastAmendedAt).toLocaleString()}
+                      {formatDateTimeForUser(selectedWithdrawal.lastAmendedAt)}
                       {selectedWithdrawal.lastAmendedByName ? ` · ${selectedWithdrawal.lastAmendedByName}` : ""}
                     </dd>
                   </div>
@@ -557,7 +548,7 @@ export function WithdrawalFinalListClient() {
                       {historyRows.map((h, i) => (
                         <tr key={`${h.at}-${i}`} className="border-b border-gray-100 align-top">
                           <td className="py-2 pr-2 whitespace-nowrap text-gray-600">
-                            {h.at ? new Date(h.at).toLocaleString() : "—"}
+                            {formatDateTimeForUser(h.at)}
                           </td>
                           <td className="py-2 text-gray-800">
                             <span className="line-clamp-3">{h.reason}</span>
@@ -589,11 +580,12 @@ export function WithdrawalFinalListClient() {
             <Input
               className="h-9"
               type="number"
-              min={1}
+              min={0}
               step="1"
               value={amendAmount}
               onChange={(e) => setAmendAmount(e.target.value)}
             />
+            <p className="mt-1 text-xs text-gray-500">Use 0 when the bank transaction was fully refunded.</p>
             <FieldError message={amendErrors.amount} />
           </div>
           <div>

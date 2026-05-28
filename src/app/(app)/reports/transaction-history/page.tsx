@@ -15,6 +15,7 @@ import { reportService } from "@/services/reportService";
 import { userService } from "@/services/userService";
 import { useExport } from "@/hooks/useExport";
 import type { AuditRow } from "@/types/financial";
+import { formatDateTimeForUser } from "@/lib/userTimezone";
 
 export default function TransactionHistoryPage() {
   const [search, setSearch] = useState("");
@@ -126,7 +127,7 @@ export default function TransactionHistoryPage() {
         field: "createdAt",
         label: "Created at",
         render: (row: AuditRow) =>
-          row.createdAt ? new Date(row.createdAt).toLocaleString() : "—",
+          formatDateTimeForUser(row.createdAt),
         ...tableColumnPresets.dateCol,
         minWidth: 160,
       },

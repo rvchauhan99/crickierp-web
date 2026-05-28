@@ -11,6 +11,7 @@ import { tableColumnPresets } from "@/lib/tableStylePresets";
 import { exportPlayers, listPlayersNormalized } from "@/services/playerService";
 import { userService } from "@/services/userService";
 import type { PlayerRow } from "@/types/player";
+import { formatDateTimeForUser } from "@/lib/userTimezone";
 import type { AutocompleteOption } from "@/components/common/AutocompleteField";
 import { useExport } from "@/hooks/useExport";
 
@@ -263,7 +264,7 @@ export function PlayerListClient() {
         filterKeyTo: "createdAt_to",
         operatorKey: "createdAt_op",
         ...tableColumnPresets.dateCol,
-        render: (row: PlayerRow) => (row.createdAt ? new Date(row.createdAt).toLocaleString() : "—"),
+        render: (row: PlayerRow) => formatDateTimeForUser(row.createdAt),
       },
     ],
     [creatorNameById, loadCreatedByOptions],

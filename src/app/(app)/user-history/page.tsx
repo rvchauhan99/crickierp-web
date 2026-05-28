@@ -13,6 +13,7 @@ import { tableColumnPresets } from "@/lib/tableStylePresets";
 import { reportService } from "@/services/reportService";
 import { userService } from "@/services/userService";
 import type { AuditRow } from "@/types/financial";
+import { formatDateTimeForUser } from "@/lib/userTimezone";
 
 export default function UserHistoryPage() {
   const [search, setSearch] = useState("");
@@ -107,7 +108,7 @@ export default function UserHistoryPage() {
         field: "createdAt",
         label: "Created at",
         render: (row: AuditRow) =>
-          row.createdAt ? new Date(row.createdAt).toLocaleString() : "—",
+          formatDateTimeForUser(row.createdAt),
         ...tableColumnPresets.dateCol,
         minWidth: 160,
       },
