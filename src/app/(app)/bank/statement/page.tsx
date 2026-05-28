@@ -26,6 +26,11 @@ import { DATE_PRESETS } from "@/modules/dashboard/components/DashboardFilterBar"
 import { BRANDING } from "@/lib/constants/branding";
 import { useAuth } from "@/context/AuthContext";
 import { formControlFocus } from "@/lib/formControlClasses";
+import {
+  currentDateTimeLocalValue,
+  dateTimeLocalValueToUtcIso,
+  formatDateTimeForUser,
+} from "@/lib/userTimezone";
 
 function formatAmount(value: number) {
   const abs = Math.abs(value);
@@ -34,11 +39,6 @@ function formatAmount(value: number) {
   else if (abs >= 10_00_000) formatted = `₹${(abs / 10_00_000).toFixed(2)}L`;
   else formatted = `₹${abs.toLocaleString("en-IN")}`;
   return value < 0 ? `−${formatted}` : formatted;
-}
-
-function toDatetimeLocalValue(d: Date) {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 const ENTRY_TYPES = ["all", "deposit", "withdrawal", "expense", "liability", "settlement"] as const;
@@ -57,7 +57,7 @@ export default function BankStatementPage() {
   const [systemClosingLoading, setSystemClosingLoading] = useState(false);
   const [masterReportedBalance, setMasterReportedBalance] = useState("");
   const [settlementReason, setSettlementReason] = useState("");
-  const [settlementEffectiveAt, setSettlementEffectiveAt] = useState(() => toDatetimeLocalValue(new Date()));
+  const [settlementEffectiveAt, setSettlementEffectiveAt] = useState(() => currentDateTimeLocalValue());
   const [settlementSubmitting, setSettlementSubmitting] = useState(false);
   const [settlementError, setSettlementError] = useState<string | null>(null);
 
@@ -138,8 +138,8 @@ export default function BankStatementPage() {
       setSettlementError("Reason must be at least 3 characters.");
       return;
     }
-    const effective = new Date(settlementEffectiveAt);
-    if (Number.isNaN(effective.getTime())) {
+    const effectiveIso = dateTimeLocalValueToUtcIso(settlementEffectiveAt);
+    if (!effectiveIso) {
       setSettlementError("Invalid effective date/time.");
       return;
     }
@@ -147,7 +147,7 @@ export default function BankStatementPage() {
     setSettlementError(null);
     try {
       await createBankSettlement(bankId.trim(), {
-        effectiveAt: effective.toISOString(),
+        effectiveAt: effectiveIso,
         masterReportedBalance: master,
         reason,
       });
@@ -240,7 +240,7 @@ export default function BankStatementPage() {
                   setLedger(null);
                   setMasterReportedBalance("");
                   setSettlementReason("");
-                  setSettlementEffectiveAt(toDatetimeLocalValue(new Date()));
+                  setSettlementEffectiveAt(currentDateTimeLocalValue());
                 }}
                 loadOptions={loadBankOptions}
                 placeholder="Search bank..."
@@ -501,10 +501,7 @@ export default function BankStatementPage() {
                       )}
                     >
                       <td className="py-3 px-4 whitespace-nowrap text-slate-500">
-                        {new Date(r.at).toLocaleString('en-IN', {
-                          day: '2-digit', month: 'short', year: 'numeric',
-                          hour: '2-digit', minute: '2-digit', hour12: true
-                        })}
+                        {formatDateTimeForUser(r.at)}
                       </td>
                       <td className="py-3 px-4">
                         <div className="font-medium text-slate-800">{r.label}</div>

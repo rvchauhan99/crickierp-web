@@ -1,3 +1,4 @@
+import { normalizeDateTimeInputForApi } from "@/lib/userTimezone";
 import { apiClient } from "./apiClient";
 import type {
   SavedWithdrawalAccount,
@@ -154,12 +155,7 @@ function str(params: Record<string, unknown>, key: string): string {
 }
 
 function normalizeDateTimeInput(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  const trimmed = value.trim();
-  if (!trimmed) return undefined;
-  const parsed = new Date(trimmed);
-  if (Number.isNaN(parsed.getTime())) return undefined;
-  return parsed.toISOString();
+  return normalizeDateTimeInputForApi(value);
 }
 
 export async function createWithdrawal(input: WithdrawalCreateInput): Promise<unknown> {

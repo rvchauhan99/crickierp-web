@@ -27,6 +27,7 @@ import type { ExpenseRow } from "@/types/expense";
 import { EXPENSE_FINAL_FILTER_KEYS } from "@/modules/expense/expenseFinalListConstants";
 import { ExpenseFinalListFilterPanel } from "@/modules/expense/components/ExpenseFinalListFilterPanel";
 import { formatExpenseSettlementColumn } from "@/modules/expense/expenseDisplay";
+import { formatDateTimeForUser } from "@/lib/userTimezone";
 import { useExport } from "@/hooks/useExport";
 
 function toOptionalFilterValue(value: string): string | undefined {
@@ -34,12 +35,6 @@ function toOptionalFilterValue(value: string): string | undefined {
   return trimmed === "" ? undefined : trimmed;
 }
 
-function formatDateTime(value?: string): string {
-  if (!value) return "—";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString();
-}
 
 function formatFileSize(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
@@ -238,7 +233,7 @@ export function ExpenseListClient() {
         label: "Audit Created",
         sortable: true,
         ...tableColumnPresets.dateCol,
-        render: (row: ExpenseRow) => (row.createdAt ? new Date(row.createdAt).toLocaleString() : "—"),
+        render: (row: ExpenseRow) => formatDateTimeForUser(row.createdAt),
       },
     ],
     [],
@@ -350,7 +345,7 @@ export function ExpenseListClient() {
                     </div>
                     <div>
                       <dt className="text-[11px] font-medium uppercase tracking-wide text-gray-400">Cancelled at</dt>
-                      <dd className="text-sm text-gray-800">{formatDateTime(selectedExpense.cancelledAt)}</dd>
+                      <dd className="text-sm text-gray-800">{formatDateTimeForUser(selectedExpense.cancelledAt)}</dd>
                     </div>
                     <div>
                       <dt className="text-[11px] font-medium uppercase tracking-wide text-gray-400">Cancel reason</dt>
@@ -360,11 +355,11 @@ export function ExpenseListClient() {
                 )}
                 <div>
                   <dt className="text-[11px] font-medium uppercase tracking-wide text-gray-400">Created at</dt>
-                  <dd className="text-sm text-gray-800">{formatDateTime(selectedExpense.createdAt)}</dd>
+                  <dd className="text-sm text-gray-800">{formatDateTimeForUser(selectedExpense.createdAt)}</dd>
                 </div>
                 <div>
                   <dt className="text-[11px] font-medium uppercase tracking-wide text-gray-400">Updated at</dt>
-                  <dd className="text-sm text-gray-800">{formatDateTime(selectedExpense.updatedAt)}</dd>
+                  <dd className="text-sm text-gray-800">{formatDateTimeForUser(selectedExpense.updatedAt)}</dd>
                 </div>
               </dl>
             </div>
@@ -400,7 +395,7 @@ export function ExpenseListClient() {
                       <div className="min-w-0">
                         <p className="truncate text-xs font-medium text-gray-800">{doc.filename}</p>
                         <p className="text-[11px] text-gray-500">
-                          {formatFileSize(doc.size)} • {doc.mime_type || "file"} • {formatDateTime(doc.uploaded_at)}
+                          {formatFileSize(doc.size)} • {doc.mime_type || "file"} • {formatDateTimeForUser(doc.uploaded_at)}
                         </p>
                       </div>
                       <Button

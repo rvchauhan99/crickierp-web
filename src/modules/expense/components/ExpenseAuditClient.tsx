@@ -40,6 +40,7 @@ import { userService } from "@/services/userService";
 import type { ExpenseRow } from "@/types/expense";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { REASON_TYPES } from "@/lib/constants/reasonTypes";
+import { formatDateTimeForUser } from "@/lib/userTimezone";
 
 const COLUMN_FILTER_KEYS = [
   "q",
@@ -60,12 +61,6 @@ function toOptionalFilterValue(value: string): string | undefined {
   return trimmed === "" ? undefined : trimmed;
 }
 
-function formatDate(iso?: string): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString();
-}
 
 function formatFileSize(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
@@ -128,7 +123,7 @@ function ExpenseDetailCard({
     {
       icon: <IconClock className="size-4 shrink-0 text-gray-400" />,
       label: "Audit created",
-      value: formatDate(expense.createdAt),
+      value: formatDateTimeForUser(expense.createdAt),
     },
     {
       icon: <IconFileText className="size-4 shrink-0 text-gray-400" />,
@@ -184,7 +179,7 @@ function ExpenseDetailCard({
                 <div className="min-w-0">
                   <p className="truncate text-xs font-medium text-gray-800">{doc.filename}</p>
                   <p className="text-[11px] text-gray-500">
-                    {formatFileSize(doc.size)} • {doc.mime_type || "file"} • {formatDate(doc.uploaded_at)}
+                    {formatFileSize(doc.size)} • {doc.mime_type || "file"} • {formatDateTimeForUser(doc.uploaded_at)}
                   </p>
                 </div>
                 <Button

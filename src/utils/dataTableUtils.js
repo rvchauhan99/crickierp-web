@@ -3,47 +3,17 @@
  * Aligns with karebo reference: formatDate, formatCurrency (INR), TABLE_REFERENCE_STYLES.
  */
 
+import { formatDateTimeForUser } from "@/lib/userTimezone";
+
 /**
- * Format date for display. Supports backend date strings (ISO, dd-mm-yyyy HH:mm, etc.).
+ * Format date/datetime for display in the user's profile timezone (en-GB).
  * @param {string} dateString
- * @returns {string} Locale date (en-IN: day short month year; optional time)
+ * @returns {string}
  */
 export function formatDate(dateString) {
   if (!dateString) return "-";
-  try {
-    if (typeof dateString === "string" && dateString.match(/^\d{2}-\d{2}-\d{4} \d{2}:\d{2}$/)) {
-      const [datePart, timePart] = dateString.split(" ");
-      const [day, month, year] = datePart.split("-");
-      const [hours, minutes] = timePart.split(":");
-      const date = new Date(
-        parseInt(year, 10),
-        parseInt(month, 10) - 1,
-        parseInt(day, 10),
-        parseInt(hours, 10),
-        parseInt(minutes, 10)
-      );
-      if (!Number.isNaN(date.getTime())) {
-        return date.toLocaleDateString("en-IN", {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-      }
-    }
-    const date = new Date(dateString);
-    if (!Number.isNaN(date.getTime())) {
-      return date.toLocaleDateString("en-IN", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      });
-    }
-    return String(dateString);
-  } catch {
-    return String(dateString);
-  }
+  const formatted = formatDateTimeForUser(dateString);
+  return formatted === "—" ? String(dateString) : formatted;
 }
 
 /**

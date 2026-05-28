@@ -1,3 +1,4 @@
+import { normalizeDateTimeInputForApi } from "@/lib/userTimezone";
 import { apiClient } from "./apiClient";
 import type {
   DepositAmendInput,
@@ -41,9 +42,12 @@ export function normalizeDeposit(row: Record<string, unknown>): DepositRow {
   const playerIdLabel =
     player && player.playerId != null ? String(player.playerId) : undefined;
   const playerMongoId = (() => {
-    if (!player) return undefined;
-    const raw = player._id ?? player.id;
-    return raw != null ? String(raw) : undefined;
+    if (player && typeof player === "object") {
+      const raw = player._id ?? player.id;
+      return raw != null ? String(raw) : undefined;
+    }
+    if (typeof row.player === "string" && row.player.trim()) return row.player.trim();
+    return undefined;
   })();
 
   const bankPop = row.bankId as Record<string, unknown> | undefined;
@@ -192,12 +196,7 @@ function coerceDepositListSortBy(raw: unknown): DepositListSortBy {
 }
 
 function normalizeDateTimeInput(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  const trimmed = value.trim();
-  if (!trimmed) return undefined;
-  const parsed = new Date(trimmed);
-  if (Number.isNaN(parsed.getTime())) return undefined;
-  return parsed.toISOString();
+  return normalizeDateTimeInputForApi(value);
 }
 
 export async function createDeposit(input: DepositCreateInput): Promise<unknown> {
@@ -209,7 +208,10 @@ export async function createDeposit(input: DepositCreateInput): Promise<unknown>
 }
 
 export async function updateDeposit(id: string, input: DepositCreateInput): Promise<unknown> {
-  const response = await apiClient.put<{ success: boolean; data: unknown }>(`/deposit/${id}`, input);
+  const response = await apiClient.put<{ success: boolean; data: unknown }>(`/deposit/${id}`, {
+    ...input,
+    entryAt: normalizeDateTimeInput(input.entryAt),
+  });
   return response.data?.data;
 }
 
@@ -320,6 +322,24 @@ export async function exportDeposits(view: DepositView, params: Record<string, u
     responseType: "blob",
   });
   return response.data as Blob;
+}
+
+export type BulkExchangeApproveResult = {
+  approved: number;
+  failed: Array<{ depositId: string; error: string }>;
+};
+
+export async function bulkExchangeApprove(depositIds: string[]): Promise<BulkExchangeApproveResult> {
+  const response = await apiClient.post<{ success: boolean; data: BulkExchangeApproveResult }>(
+    "/deposit/bulk-exchange-approve",
+    { depositIds },
+  );
+  return (
+    response.data?.data ?? {
+      approved: 0,
+      failed: [],
+    }
+  );
 }
 
 export async function exchangeActionApprove(depositId: string, playerId: string, bonusAmount: number) {

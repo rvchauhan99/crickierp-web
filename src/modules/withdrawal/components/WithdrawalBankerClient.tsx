@@ -42,6 +42,7 @@ import { listBankLookupOptions } from "@/services/lookupService";
 import { listLiabilityPersonsNormalized } from "@/services/liabilityService";
 import { userService } from "@/services/userService";
 import type { WithdrawalBankerPayoutInput, WithdrawalRow } from "@/types/withdrawal";
+import { formatDateTimeForUser } from "@/lib/userTimezone";
 import { useApprovalQueueAutoRefresh } from "@/hooks/useApprovalQueueAutoRefresh";
 
 const COLUMN_FILTER_KEYS = [
@@ -121,7 +122,7 @@ function WithdrawalDetailCard({ withdrawal }: { withdrawal: WithdrawalRow }) {
     {
       icon: <IconClock className="size-4 shrink-0 text-gray-400" />,
       label: "Requested at",
-      value: withdrawal.createdAt ? new Date(withdrawal.createdAt).toLocaleString() : "—",
+      value: formatDateTimeForUser(withdrawal.requestedAt ?? withdrawal.createdAt),
     },
     {
       icon: <IconBuildingBank className="size-4 shrink-0 text-[var(--brand-primary)]" />,
@@ -497,7 +498,7 @@ export function WithdrawalBankerClient() {
         operatorKey: "createdAt_op",
         ...tableColumnPresets.dateCol,
         render: (row: WithdrawalRow) =>
-          row.requestedAt || row.createdAt ? new Date(row.requestedAt ?? row.createdAt!).toLocaleString() : "—",
+          formatDateTimeForUser(row.requestedAt ?? row.createdAt),
       },
       {
         field: "actions",

@@ -19,6 +19,7 @@ import { cn } from "@/lib/cn";
 import { createExchangeTopup, listExchanges, listExchangeTopups, exportExchangeTopups } from "@/services/exchangeService";
 import { useExport } from "@/hooks/useExport";
 import type { ExchangeTopupRow } from "@/types/exchange";
+import { formatDateTimeForUser } from "@/lib/userTimezone";
 
 function formatAmount(value: number) {
   return `₹${Number(value || 0).toLocaleString("en-IN")}`;
@@ -226,13 +227,7 @@ export function ExchangeTopUpClient() {
                 rows.map((row) => (
                   <tr key={row._id} className="border-t border-slate-100">
                     <td className="px-4 py-3 text-slate-600">
-                      {new Date(row.createdAt).toLocaleString("en-IN", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                      {formatDateTimeForUser(row.createdAt)}
                     </td>
                     <td className="px-4 py-3 text-slate-700">
                       {row.exchangeId?.name} ({row.exchangeId?.provider})

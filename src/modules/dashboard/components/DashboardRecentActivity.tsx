@@ -4,6 +4,7 @@ import React from "react";
 import { IconArrowUpRight, IconArrowDownRight, IconClock } from "@tabler/icons-react";
 import { cn } from "@/lib/cn";
 import { formatDashboardCurrency } from "../utils/formatCurrency";
+import { formatDateTimeForUser } from "@/lib/userTimezone";
 
 export type RecentActivityItem = {
   _id: string;
@@ -23,16 +24,7 @@ interface Props {
 }
 
 function formatTime(createdAt: unknown): string {
-  if (!createdAt) return "—";
-  const d = new Date(createdAt as string);
-  if (isNaN(d.getTime())) return "—";
-  return d.toLocaleString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  });
+  return formatDateTimeForUser(createdAt as string | undefined);
 }
 
 const DEPOSIT_STATUS_STYLE: Record<string, string> = {
