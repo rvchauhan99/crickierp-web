@@ -39,6 +39,11 @@ import type { DepositRow } from "@/types/deposit";
 import { userService } from "@/services/userService";
 import { DEPOSIT_FINAL_FILTER_KEYS } from "@/modules/deposit/depositFinalListConstants";
 import { DepositFinalListFilterPanel } from "@/modules/deposit/components/DepositFinalListFilterPanel";
+import {
+  currentDateTimeLocalValue,
+  formatDateTimeForUser,
+  utcIsoToDateTimeLocalValue,
+} from "@/lib/userTimezone";
 
 function toOptionalFilterValue(value: string): string | undefined {
   const trimmed = value.trim();
@@ -61,27 +66,6 @@ function buildUserLabel(row: ExchangeUserRow): string {
   if (fullName) return fullName;
   if (username) return username;
   return name || "";
-}
-
-function formatDateTime(iso?: string): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString();
-}
-
-function getCurrentDateTimeLocal(): string {
-  const now = new Date();
-  const tzOffsetMs = now.getTimezoneOffset() * 60 * 1000;
-  return new Date(now.getTime() - tzOffsetMs).toISOString().slice(0, 16);
-}
-
-function toDateTimeLocalInput(iso?: string): string {
-  if (!iso) return getCurrentDateTimeLocal();
-  const value = new Date(iso);
-  if (Number.isNaN(value.getTime())) return getCurrentDateTimeLocal();
-  const tzOffsetMs = value.getTimezoneOffset() * 60 * 1000;
-  return new Date(value.getTime() - tzOffsetMs).toISOString().slice(0, 16);
 }
 
 export function DepositFinalListClient() {
@@ -116,7 +100,7 @@ export function DepositFinalListClient() {
   const [amendBankDefault, setAmendBankDefault] = useState<AutocompleteOption | null>(null);
   const [amendUtr, setAmendUtr] = useState("");
   const [amendAmount, setAmendAmount] = useState("");
-  const [amendEntryAt, setAmendEntryAt] = useState(getCurrentDateTimeLocal());
+  const [amendEntryAt, setAmendEntryAt] = useState(currentDateTimeLocalValue());
   const [amendPlayerId, setAmendPlayerId] = useState("");
   const [amendPlayerDefault, setAmendPlayerDefault] = useState<AutocompleteOption | null>(null);
   const [amendBonus, setAmendBonus] = useState("");
@@ -279,7 +263,7 @@ export function DepositFinalListClient() {
     }
     setAmendUtr(row.utr);
     setAmendAmount(String(row.amount));
-    setAmendEntryAt(toDateTimeLocalInput(row.entryAt));
+    setAmendEntryAt(utcIsoToDateTimeLocalValue(row.entryAt));
     setAmendPlayerId(pid);
     setAmendPlayerDefault(
       pid && row.playerIdLabel
@@ -308,8 +292,8 @@ export function DepositFinalListClient() {
     if (!amendIsPersonSettlement && !amendBankId.trim()) next.bankId = "Bank is required.";
     if (!amendUtr.trim()) next.utr = "UTR is required.";
     const amt = Number(amendAmount);
-    if (!Number.isFinite(amt) || amt < 1) {
-      next.amount = "Enter a valid amount (min 1).";
+    if (!Number.isFinite(amt) || amt < 0) {
+      next.amount = "Amount must be a whole number ≥ 0.";
     } else if (!Number.isInteger(amt)) {
       next.amount = "Amount must be a whole number (no decimals).";
     }
@@ -456,7 +440,7 @@ export function DepositFinalListClient() {
       {
         field: "settledAt",
         label: "Settled at",
-        render: (row: DepositRow) => (row.settledAt ? new Date(row.settledAt).toLocaleString() : "—"),
+        render: (row: DepositRow) => formatDateTimeForUser(row.settledAt),
         sortable: true,
         minWidth: 170,
       },
@@ -478,7 +462,7 @@ export function DepositFinalListClient() {
         sortable: true,
         ...tableColumnPresets.dateCol,
         render: (row: DepositRow) =>
-          row.entryAt || row.createdAt ? new Date(row.entryAt ?? row.createdAt!).toLocaleString() : "—",
+          formatDateTimeForUser(row.entryAt ?? row.createdAt),
       },
     ],
     [cachedUsers],
@@ -597,7 +581,7 @@ export function DepositFinalListClient() {
                   <div className="flex justify-between gap-2">
                     <dt className="text-gray-500">Last amended</dt>
                     <dd className="text-right text-xs">
-                      {formatDateTime(selectedDeposit.lastAmendedAt)}
+                      {formatDateTimeForUser(selectedDeposit.lastAmendedAt)}
                       {selectedDeposit.lastAmendedByName ? ` · ${selectedDeposit.lastAmendedByName}` : ""}
                     </dd>
                   </div>
@@ -650,7 +634,7 @@ export function DepositFinalListClient() {
                       {historyRows.map((h, i) => (
                         <tr key={`${h.at}-${i}`} className="border-b border-gray-100 align-top">
                           <td className="py-2 pr-2 whitespace-nowrap text-gray-600">
-                            {formatDateTime(h.at)}
+                            {formatDateTimeForUser(h.at)}
                           </td>
                           <td className="py-2 text-gray-800">
                             <span className="line-clamp-3">{h.reason}</span>
@@ -716,11 +700,12 @@ export function DepositFinalListClient() {
             <Input
               className="h-9"
               type="number"
-              min={1}
+              min={0}
               step="1"
               value={amendAmount}
               onChange={(e) => setAmendAmount(e.target.value)}
             />
+            <p className="mt-1 text-xs text-gray-500">Use 0 when the bank transaction was fully refunded.</p>
             <FieldError message={amendErrors.amount} />
           </div>
           <div>

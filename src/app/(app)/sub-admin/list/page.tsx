@@ -11,6 +11,7 @@ import { TableStatusBadge } from "@/components/common/TableStatusBadge";
 import { userService } from "@/services/userService";
 import { tableColumnPresets } from "@/lib/tableStylePresets";
 import { useListingQueryStateReference } from "@/hooks/useListingQueryStateReference";
+import { formatDateTimeForUser } from "@/lib/userTimezone";
 
 const FILTER_KEYS = ["fullName", "fullName_op", "username", "username_op", "email", "email_op", "role", "status"];
 
@@ -214,8 +215,8 @@ export default function SubAdminListPage() {
             <p className="text-sm">Role: {selectedRecord.role}</p>
             <hr className="border-border" />
             <p className="text-sm">Status: {selectedRecord.status}</p>
-            <p className="text-sm">Created At: {new Date(selectedRecord.createdAt).toLocaleString()}</p>
-            <p className="text-sm">Last Login: {selectedRecord.lastLoginAt ? new Date(selectedRecord.lastLoginAt).toLocaleString() : "Never"}</p>
+            <p className="text-sm">Created At: {formatDateTimeForUser(selectedRecord.createdAt)}</p>
+            <p className="text-sm">Last Login: {selectedRecord.lastLoginAt ? formatDateTimeForUser(selectedRecord.lastLoginAt) : "Never"}</p>
           </div>
         )}
       </DetailsSidebar>

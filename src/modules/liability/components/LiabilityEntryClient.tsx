@@ -20,12 +20,10 @@ import { useExport } from "@/hooks/useExport";
 import { listBankLookupOptions } from "@/services/lookupService";
 import { getApiErrorMessage } from "@/lib/apiError";
 import type { LiabilityAccountType, LiabilityEntryRow, LiabilityEntryType } from "@/types/liability";
+import { todayYmdInUserTz } from "@/lib/userTimezone";
 
 const FILTER_KEYS = ["entryType", "accountType", "accountId", "entryDate_from", "entryDate_to"];
 
-function todayYmd(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function toOptionalFilterValue(value: string): string | undefined {
   const trimmed = value.trim();
@@ -39,7 +37,7 @@ export function LiabilityEntryClient() {
   });
   const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setSort, clearFilters } = listingState;
 
-  const [entryDate, setEntryDate] = useState(todayYmd);
+  const [entryDate, setEntryDate] = useState(() => todayYmdInUserTz());
   const [entryType, setEntryType] = useState<LiabilityEntryType>("journal");
   const [amount, setAmount] = useState("");
   const [fromAccountType, setFromAccountType] = useState<LiabilityAccountType>("person");
@@ -103,7 +101,7 @@ export function LiabilityEntryClient() {
   }, [handleExport, filterParams, sortBy, sortOrder]);
 
   const resetForm = useCallback(() => {
-    setEntryDate(todayYmd());
+    setEntryDate(todayYmdInUserTz());
     setEntryType("journal");
     setAmount("");
     setFromAccountType("person");

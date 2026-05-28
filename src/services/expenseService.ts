@@ -1,3 +1,4 @@
+import { formatYyyyMmDdInTimeZone, resolveUserTimeZone } from "@/lib/userTimezone";
 import { apiClient } from "./apiClient";
 import type {
   ExpenseApproveInput,
@@ -70,7 +71,9 @@ export function normalizeExpense(row: Record<string, unknown>): ExpenseRow {
   let expenseDateStr: string | undefined;
   if (row.expenseDate != null) {
     const d = row.expenseDate instanceof Date ? row.expenseDate : new Date(String(row.expenseDate));
-    if (!Number.isNaN(d.getTime())) expenseDateStr = d.toISOString().slice(0, 10);
+    if (!Number.isNaN(d.getTime())) {
+      expenseDateStr = formatYyyyMmDdInTimeZone(d, resolveUserTimeZone());
+    }
   }
 
   let bankId: string | undefined;

@@ -38,6 +38,7 @@ import {
   withdrawalStatusColumnSelectValue,
 } from "@/modules/withdrawal/withdrawalListingStatusFilter";
 import { useApprovalQueueAutoRefresh } from "@/hooks/useApprovalQueueAutoRefresh";
+import { currentDateTimeLocalValue, formatDateTimeForUser } from "@/lib/userTimezone";
 
 const COLUMN_FILTER_KEYS = [
   "utr",
@@ -98,12 +99,6 @@ function formatRelative(iso?: string): string {
   return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
-function getCurrentDateTimeLocal(): string {
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
-}
-
 export function WithdrawalExchangeClient() {
   const listingState = useListingQueryStateReference({
     defaultLimit: 20,
@@ -119,7 +114,7 @@ export function WithdrawalExchangeClient() {
   const [ifsc, setIfsc] = useState("");
   const [amount, setAmount] = useState("");
   const [reverseBonus, setReverseBonus] = useState("0");
-  const [requestedAt, setRequestedAt] = useState(getCurrentDateTimeLocal());
+  const [requestedAt, setRequestedAt] = useState(currentDateTimeLocalValue());
   const [savedPreset, setSavedPreset] = useState("");
   const [savedRows, setSavedRows] = useState<SavedWithdrawalAccount[]>([]);
   const [loading, setLoading] = useState(false);
@@ -259,7 +254,7 @@ export function WithdrawalExchangeClient() {
       setIfsc("");
       setAmount("");
       setReverseBonus("0");
-      setRequestedAt(getCurrentDateTimeLocal());
+      setRequestedAt(currentDateTimeLocalValue());
       setSavedPreset("");
       setErrors({});
       setTableKey((k) => k + 1);
@@ -294,7 +289,7 @@ export function WithdrawalExchangeClient() {
     setIfsc("");
     setAmount("");
     setReverseBonus("0");
-    setRequestedAt(getCurrentDateTimeLocal());
+    setRequestedAt(currentDateTimeLocalValue());
     setSavedPreset("");
     setEditingId(null);
     setErrors({});
@@ -480,7 +475,7 @@ export function WithdrawalExchangeClient() {
         operatorKey: "createdAt_op",
         ...tableColumnPresets.dateCol,
         render: (row: WithdrawalRow) =>
-          row.requestedAt || row.createdAt ? new Date(row.requestedAt ?? row.createdAt!).toLocaleString() : "—",
+          formatDateTimeForUser(row.requestedAt ?? row.createdAt),
       },
       {
         field: "actions",

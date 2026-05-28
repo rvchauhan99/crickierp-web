@@ -19,6 +19,7 @@ import { DATE_PRESETS } from "@/modules/dashboard/components/DashboardFilterBar"
 import { getExchangeStatement } from "@/services/exchangeService";
 import { listExchangeLookupOptions, listPlayerLookupOptions } from "@/services/lookupService";
 import type { ExchangeStatementEntryType, ExchangeStatementResponse } from "@/types/exchange";
+import { formatDateTimeForUser } from "@/lib/userTimezone";
 
 function formatAmount(value: number) {
   const abs = Math.abs(value);
@@ -367,14 +368,7 @@ export function ExchangeStatementClient() {
                   statement.rows.map((row, index) => (
                     <tr key={`${row.kind}-${row.refId}-${index}`} className="hover:bg-slate-50/50 transition-colors">
                       <td className="py-3 px-4 whitespace-nowrap text-slate-500">
-                        {new Date(row.at).toLocaleString("en-IN", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          hour12: true,
-                        })}
+                        {formatDateTimeForUser(row.at)}
                       </td>
                       <td className="py-3 px-4">
                         <div className="font-medium text-slate-800">{row.label}</div>

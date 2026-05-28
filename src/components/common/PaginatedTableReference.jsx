@@ -75,6 +75,7 @@ const getConfiguredColumnWidth = (column, fallbackWidth) => {
  * - filterParams: object merged into fetcher params (when parent uses URL state)
  * - onRowClick(row): when provided, rows are clickable; skip when target is button/link
  * - selectedRowKey: when set, row whose getRowKey(row) matches gets extra highlight (e.g. selection)
+ * - getRowClassName(row): optional extra class names per row (e.g. import-ready highlight)
  * - Controlled mode: pass page (1-based), limit, q, sortBy, sortOrder + onPageChange(0-based), onRowsPerPageChange, onQChange, onSortChange
  */
 export default function PaginatedTable({
@@ -93,6 +94,7 @@ export default function PaginatedTable({
   filterParams = {},
   onRowClick = null,
   selectedRowKey = null,
+  getRowClassName = null,
   // Controlled mode (from useListingQueryState)
   page: controlledPage,
   limit: controlledLimit,
@@ -851,6 +853,7 @@ export default function PaginatedTable({
                         onRowClick ? "cursor-pointer" : "",
                         isSelected &&
                           "bg-emerald-50/90 ring-1 ring-inset ring-emerald-200/80 dark:bg-muted/50 dark:ring-border",
+                        typeof getRowClassName === "function" ? getRowClassName(row) : "",
                         "group hover:bg-[#00823b]/5 transition-colors border-b border-border last:border-b-0"
                       )}
                     >

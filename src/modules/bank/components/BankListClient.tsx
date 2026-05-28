@@ -14,6 +14,7 @@ import { exportBanks, listBanksNormalized } from "@/services/bankService";
 import { userService } from "@/services/userService";
 import type { BankRow } from "@/types/bank";
 import type { AutocompleteOption } from "@/components/common/AutocompleteField";
+import { formatDateTimeForUser } from "@/lib/userTimezone";
 
 const COLUMN_FILTER_KEYS = [
   "holderName",
@@ -287,7 +288,7 @@ export function BankListClient() {
         filterKeyTo: "createdAt_to",
         operatorKey: "createdAt_op",
         ...tableColumnPresets.dateCol,
-        render: (row: BankRow) => (row.createdAt ? new Date(row.createdAt).toLocaleString() : "—"),
+        render: (row: BankRow) => formatDateTimeForUser(row.createdAt),
       },
     ],
     [creatorNameById, loadCreatedByOptions],

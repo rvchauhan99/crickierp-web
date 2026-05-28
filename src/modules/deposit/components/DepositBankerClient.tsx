@@ -36,6 +36,7 @@ import { getApiErrorMessage } from "@/lib/apiError";
 import { formatWholeRupee } from "@/lib/formatWholeRupee";
 import { useApprovalQueueAutoRefresh } from "@/hooks/useApprovalQueueAutoRefresh";
 import { DepositImportDialog } from "./DepositImportDialog";
+import { currentDateTimeLocalValue, formatDateTimeForUser } from "@/lib/userTimezone";
 
 const COLUMN_FILTER_KEYS = [
   "utr",
@@ -70,11 +71,6 @@ function formatRelative(iso?: string): string {
   return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
-function getCurrentDateTimeLocal(): string {
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
-}
 
 export function DepositBankerClient() {
   const listingState = useListingQueryStateReference({
@@ -97,7 +93,7 @@ export function DepositBankerClient() {
   }, [bankId]);
   const [utr, setUtr] = useState("");
   const [amount, setAmount] = useState("");
-  const [entryAt, setEntryAt] = useState(getCurrentDateTimeLocal());
+  const [entryAt, setEntryAt] = useState(currentDateTimeLocalValue());
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{
     bankId?: string;
@@ -197,7 +193,7 @@ export function DepositBankerClient() {
       toast.success("Deposit recorded successfully.");
       setUtr("");
       setAmount("");
-      setEntryAt(getCurrentDateTimeLocal());
+      setEntryAt(currentDateTimeLocalValue());
       setErrors({});
       setTableKey((k) => k + 1);
     } catch (error: unknown) {
@@ -215,7 +211,7 @@ export function DepositBankerClient() {
     setPersonAutocompleteDefault(null);
     setUtr("");
     setAmount("");
-    setEntryAt(getCurrentDateTimeLocal());
+    setEntryAt(currentDateTimeLocalValue());
     setErrors({});
   };
 
@@ -404,7 +400,7 @@ export function DepositBankerClient() {
         operatorKey: "createdAt_op",
         ...tableColumnPresets.dateCol,
         render: (row: DepositRow) =>
-          row.entryAt || row.createdAt ? new Date(row.entryAt ?? row.createdAt!).toLocaleString() : "—",
+          formatDateTimeForUser(row.entryAt ?? row.createdAt),
       },
       {
         field: "actions",

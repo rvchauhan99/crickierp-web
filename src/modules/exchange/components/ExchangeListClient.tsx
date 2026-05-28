@@ -14,6 +14,7 @@ import { userService } from "@/services/userService";
 import type { Exchange } from "@/types/exchange";
 import type { AutocompleteOption } from "@/components/common/AutocompleteField";
 import { useExport } from "@/hooks/useExport";
+import { formatDateTimeForUser } from "@/lib/userTimezone";
 
 const COLUMN_FILTER_KEYS = [
   "name",
@@ -279,7 +280,7 @@ export function ExchangeListClient() {
         filterKeyTo: "createdAt_to",
         operatorKey: "createdAt_op",
         ...tableColumnPresets.dateCol,
-        render: (row: Exchange) => (row.createdAt ? new Date(row.createdAt).toLocaleString() : "-"),
+        render: (row: Exchange) => formatDateTimeForUser(row.createdAt),
       },
       {
         field: "status",

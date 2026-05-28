@@ -29,6 +29,7 @@ import { listLiabilityPersonsNormalized } from "@/services/liabilityService";
 import { userService } from "@/services/userService";
 import { getApiErrorMessage } from "@/lib/apiError";
 import type { ExpenseRow } from "@/types/expense";
+import { todayYmdInUserTz } from "@/lib/userTimezone";
 
 const COLUMN_FILTER_KEYS = [
   "expenseTypeId",
@@ -42,14 +43,6 @@ const COLUMN_FILTER_KEYS = [
   "expenseDate_to",
   "expenseDate_op",
 ];
-
-function todayYmd(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
 
 function toOptionalFilterValue(value: string): string | undefined {
   const trimmed = value.trim();
@@ -147,7 +140,7 @@ export function ExpenseAddClient() {
   const [expenseTypeMetaStatus, setExpenseTypeMetaStatus] = useState<ExpenseTypeMetaStatus>("idle");
   const [typeRequiresAudit, setTypeRequiresAudit] = useState(true);
   const [amount, setAmount] = useState("");
-  const [expenseDate, setExpenseDate] = useState(todayYmd);
+  const [expenseDate, setExpenseDate] = useState(() => todayYmdInUserTz());
   const [description, setDescription] = useState("");
   const [bankId, setBankId] = useState("");
   const [settlementAccountType, setSettlementAccountType] = useState<"bank" | "person">("bank");
@@ -285,7 +278,7 @@ export function ExpenseAddClient() {
     setExpenseTypeMetaStatus("idle");
     setTypeRequiresAudit(true);
     setAmount("");
-    setExpenseDate(todayYmd());
+    setExpenseDate(todayYmdInUserTz());
     setDescription("");
     setBankId("");
     setSettlementAccountType("bank");
@@ -416,7 +409,7 @@ export function ExpenseAddClient() {
     setSettlementAccountType("bank");
     setLiabilityPersonId("");
     setAmount(String(row.amount));
-    setExpenseDate(row.expenseDate || todayYmd());
+    setExpenseDate(row.expenseDate || todayYmdInUserTz());
     setDescription(row.description || "");
     setBankId(row.bankId || "");
     setErrors({});

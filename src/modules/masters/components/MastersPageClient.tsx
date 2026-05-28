@@ -34,6 +34,7 @@ import type { MasterField, MasterRegistryEntry } from "@/types/masters";
 import { MasterForm } from "./MasterForm";
 import { cn } from "@/lib/cn";
 import type { MasterModelKey } from "@/lib/mastersSchemas";
+import { formatDateTimeForUser } from "@/lib/userTimezone";
 
 const FILTER_KEYS = ["visibility"];
 
@@ -46,7 +47,7 @@ function formatCell(field: MasterField, value: unknown): string {
   if (field.type === "BOOLEAN") return value ? "Yes" : "No";
   if (field.type === "DATE") {
     try {
-      return new Date(String(value)).toLocaleString();
+      return formatDateTimeForUser(String(value));
     } catch {
       return String(value);
     }
