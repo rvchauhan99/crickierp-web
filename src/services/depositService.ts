@@ -380,6 +380,10 @@ export type DepositImportValidRow = {
   bankDisplayLabel?: string;
   liabilityPersonId?: string;
   liabilityPersonName?: string;
+  playerMongoId?: string;
+  playerIdLabel?: string;
+  bonusAmount?: number;
+  totalAmount?: number;
 };
 
 export type DepositImportInvalidRow = {
@@ -388,6 +392,8 @@ export type DepositImportInvalidRow = {
   settlementType: string;
   bankAccountNumber: string;
   liablePersonName: string;
+  playerId: string;
+  bonusAmount: string;
   utr: string;
   amount: string;
   errors: string[];
@@ -428,6 +434,9 @@ export async function commitDepositImport(
     settlementAccountType: "bank" | "person";
     bankId?: string;
     liabilityPersonId?: string;
+    playerMongoId?: string;
+    bonusAmount?: number;
+    totalAmount?: number;
   }>,
 ): Promise<{ created: number; errors: Array<{ row: number; utr: string; error: string }> }> {
   const response = await apiClient.post<{
@@ -445,6 +454,9 @@ export async function createDepositImportJob(
     settlementAccountType: "bank" | "person";
     bankId?: string;
     liabilityPersonId?: string;
+    playerMongoId?: string;
+    bonusAmount?: number;
+    totalAmount?: number;
   }>,
 ): Promise<{ jobId: string; status: string }> {
   const response = await apiClient.post<{ success: boolean; data: { jobId: string; status: string } }>(

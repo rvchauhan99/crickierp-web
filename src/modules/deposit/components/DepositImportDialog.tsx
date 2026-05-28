@@ -140,6 +140,9 @@ export function DepositImportDialog({ open, onClose, onSuccess }: Props) {
         settlementAccountType: r.settlementAccountType,
         bankId: r.bankId,
         liabilityPersonId: r.liabilityPersonId,
+        playerMongoId: r.playerMongoId,
+        bonusAmount: r.bonusAmount,
+        totalAmount: r.totalAmount,
       }));
       const queued = await createDepositImportJob(rows);
       const initial = await getDepositImportJob(queued.jobId);
@@ -205,7 +208,8 @@ export function DepositImportDialog({ open, onClose, onSuccess }: Props) {
   }
 
   function handleDownloadErrors(invalidRows: DepositImportInvalidRow[]) {
-    const header = "Row,Date Time,Settlement Type,Bank,Liable Person Name,UTR,Amount,Error";
+    const header =
+      "Row,Date Time,Settlement Type,Bank,Liable Person Name,Player Id,Bonus Amount,UTR,Amount,Error";
     const lines = [header];
     for (const r of invalidRows) {
       lines.push(
@@ -215,6 +219,8 @@ export function DepositImportDialog({ open, onClose, onSuccess }: Props) {
           csvQuote(r.settlementType),
           csvQuote(r.bankAccountNumber),
           csvQuote(r.liablePersonName),
+          csvQuote(r.playerId),
+          csvQuote(r.bonusAmount),
           csvQuote(r.utr),
           csvQuote(r.amount),
           csvQuote(r.errors.join("; ")),
@@ -386,12 +392,14 @@ function UploadStep({
       <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4">
         <p className="text-sm font-medium text-gray-700 mb-2">Column guide:</p>
         <div className="text-xs text-gray-600 space-y-1">
-          <p><span className="font-medium">Date Time</span> — DD/MM/YYYY HH:mm or DD/MM/YY HH:mm (optional, defaults to current). Excel formats (including seconds and AM/PM) are accepted; leave blank if Excel changes the cell.</p>
+          <p><span className="font-medium">Date Time</span> — DD/MM/YYYY HH:mm or DD/MM/YY HH:mm in your profile timezone (optional, defaults to current). Excel formats (seconds, AM/PM) are accepted; leave blank to use current time.</p>
           <p><span className="font-medium">Settlement Type</span> — Bank or Person (optional, defaults to Bank)</p>
           <p><span className="font-medium">Bank</span> — Account Number or Holder Name (required if settlement is Bank)</p>
           <p><span className="font-medium">Liable Person Name</span> — Required if settlement is Person</p>
+          <p><span className="font-medium">Player Id</span> — Exchange player code (optional); required if Bonus Amount is set</p>
+          <p><span className="font-medium">Bonus Amount</span> — Optional whole number, min 0 (defaults to 0 when Player Id is set)</p>
           <p><span className="font-medium">UTR</span> — Required, must be unique (4-120 chars)</p>
-          <p><span className="font-medium">Amount</span> — Required, whole number, min 1</p>
+          <p><span className="font-medium">Amount</span> — Required, whole number, min 1. Total = Amount + Bonus after validate.</p>
         </div>
       </div>
     </div>
@@ -441,6 +449,7 @@ function ReviewStep({
               <thead className="sticky top-0 bg-red-50">
                 <tr>
                   <th className="px-3 py-2 text-left font-medium text-red-800">Row</th>
+                  <th className="px-3 py-2 text-left font-medium text-red-800">Player Id</th>
                   <th className="px-3 py-2 text-left font-medium text-red-800">UTR</th>
                   <th className="px-3 py-2 text-left font-medium text-red-800">Amount</th>
                   <th className="px-3 py-2 text-left font-medium text-red-800">Error</th>
@@ -450,6 +459,7 @@ function ReviewStep({
                 {invalidRows.map((r, i) => (
                   <tr key={i} className="bg-white hover:bg-red-50/50">
                     <td className="px-3 py-2 text-gray-600">{r.row}</td>
+                    <td className="px-3 py-2 text-gray-700">{r.playerId || "—"}</td>
                     <td className="px-3 py-2 font-mono text-gray-700">{r.utr || "—"}</td>
                     <td className="px-3 py-2 text-gray-700">{r.amount || "—"}</td>
                     <td className="px-3 py-2 text-red-600">{r.errors.join("; ")}</td>
@@ -476,21 +486,25 @@ function ReviewStep({
               <thead className="sticky top-0 bg-green-50">
                 <tr>
                   <th className="px-3 py-2 text-left font-medium text-green-800">Row</th>
+                  <th className="px-3 py-2 text-left font-medium text-green-800">Player Id</th>
                   <th className="px-3 py-2 text-left font-medium text-green-800">UTR</th>
                   <th className="px-3 py-2 text-left font-medium text-green-800">Amount</th>
-                  <th className="px-3 py-2 text-left font-medium text-green-800">Settlement</th>
-                  <th className="px-3 py-2 text-left font-medium text-green-800">Bank / Person</th>
+                  <th className="px-3 py-2 text-left font-medium text-green-800">Bonus</th>
+                  <th className="px-3 py-2 text-left font-medium text-green-800">Total</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-green-100">
                 {validRows.slice(0, 10).map((r, i) => (
                   <tr key={i} className="bg-white hover:bg-green-50/50">
                     <td className="px-3 py-2 text-gray-600">{r.row}</td>
+                    <td className="px-3 py-2 text-gray-700">{r.playerIdLabel || "—"}</td>
                     <td className="px-3 py-2 font-mono text-gray-700">{r.utr}</td>
                     <td className="px-3 py-2 text-gray-700">{r.amount.toLocaleString()}</td>
-                    <td className="px-3 py-2 capitalize text-gray-600">{r.settlementAccountType}</td>
-                    <td className="px-3 py-2 text-gray-600 truncate max-w-[180px]">
-                      {r.bankDisplayLabel || r.liabilityPersonName || "—"}
+                    <td className="px-3 py-2 text-gray-700">
+                      {r.bonusAmount != null ? r.bonusAmount.toLocaleString() : "—"}
+                    </td>
+                    <td className="px-3 py-2 text-gray-700 font-medium">
+                      {r.totalAmount != null ? r.totalAmount.toLocaleString() : r.amount.toLocaleString()}
                     </td>
                   </tr>
                 ))}
