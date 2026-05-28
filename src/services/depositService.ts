@@ -399,8 +399,13 @@ export type DepositImportValidationResult = {
   invalidRows: DepositImportInvalidRow[];
 };
 
-export async function downloadDepositImportSample(): Promise<Blob> {
-  const response = await apiClient.get("/deposit/import/sample", { responseType: "blob" });
+export async function downloadDepositImportSample(
+  format: "csv" | "xlsx" = "csv",
+): Promise<Blob> {
+  const response = await apiClient.get("/deposit/import/sample", {
+    responseType: "blob",
+    params: format === "xlsx" ? { format: "xlsx" } : undefined,
+  });
   return response.data as Blob;
 }
 
