@@ -77,17 +77,21 @@ export function DepositImportDialog({ open, onClose, onSuccess }: Props) {
     onClose();
   }
 
-  async function handleDownloadSample() {
+  async function handleDownloadSample(format: "csv" | "xlsx") {
     try {
-      const blob = await downloadDepositImportSample();
+      const blob = await downloadDepositImportSample(format);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "deposit-import-sample.csv";
+      a.download =
+        format === "xlsx" ? "deposit-import-sample.xlsx" : "deposit-import-sample.csv";
       document.body.appendChild(a);
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
+      toast.success(
+        format === "xlsx" ? "Excel template downloaded." : "CSV template downloaded.",
+      );
     } catch {
       toast.error("Failed to download sample file");
     }
@@ -328,25 +332,37 @@ function UploadStep({
   file: File | null;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   onFileChange: (f: File | null) => void;
-  onDownloadSample: () => void;
+  onDownloadSample: (format: "csv" | "xlsx") => void;
 }) {
   return (
     <div className="space-y-5">
       {/* Step 1: Download Template */}
       <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-medium text-blue-800">Step 1: Download the CSV template</p>
-            <p className="text-xs text-blue-600 mt-0.5">Fill in deposit data using this template, then upload below</p>
+            <p className="text-sm font-medium text-blue-800">Step 1: Download a template</p>
+            <p className="text-xs text-blue-600 mt-0.5">
+              Fill in deposit data using CSV or Excel, then upload below
+            </p>
           </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={onDownloadSample}
-            startIcon={<IconDownload size={16} />}
-          >
-            Download Template
-          </Button>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => onDownloadSample("csv")}
+              startIcon={<IconDownload size={16} />}
+            >
+              Download CSV Template
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => onDownloadSample("xlsx")}
+              startIcon={<IconDownload size={16} />}
+            >
+              Download Excel Template
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -368,9 +384,9 @@ function UploadStep({
       </div>
 
       <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4">
-        <p className="text-sm font-medium text-gray-700 mb-2">CSV Column Guide:</p>
+        <p className="text-sm font-medium text-gray-700 mb-2">Column guide:</p>
         <div className="text-xs text-gray-600 space-y-1">
-          <p><span className="font-medium">Date Time</span> — DD/MM/YYYY HH:mm or DD/MM/YY HH:mm (optional, defaults to current)</p>
+          <p><span className="font-medium">Date Time</span> — DD/MM/YYYY HH:mm or DD/MM/YY HH:mm (optional, defaults to current). Excel formats (including seconds and AM/PM) are accepted; leave blank if Excel changes the cell.</p>
           <p><span className="font-medium">Settlement Type</span> — Bank or Person (optional, defaults to Bank)</p>
           <p><span className="font-medium">Bank</span> — Account Number or Holder Name (required if settlement is Bank)</p>
           <p><span className="font-medium">Liable Person Name</span> — Required if settlement is Person</p>
