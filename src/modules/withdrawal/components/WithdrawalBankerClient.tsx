@@ -19,6 +19,7 @@ import { FieldLabel } from "@/components/common/FieldLabel";
 import { FieldError } from "@/components/common/FieldError";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { ListingPageContainer } from "@/components/common/ListingPageContainer";
 import PaginatedTableReference, {
   type PaginatedTableReferenceColumn,
@@ -32,6 +33,7 @@ import { getApiErrorMessage } from "@/lib/apiError";
 import { REASON_TYPES } from "@/lib/constants/reasonTypes";
 import { formatWholeRupee } from "@/lib/formatWholeRupee";
 import {
+  bulkBankerApprove,
   listWithdrawalsNormalized,
   patchWithdrawalStatus,
   updateWithdrawalBankerPayout,
@@ -44,6 +46,7 @@ import { userService } from "@/services/userService";
 import type { WithdrawalBankerPayoutInput, WithdrawalRow } from "@/types/withdrawal";
 import { formatDateTimeForUser } from "@/lib/userTimezone";
 import { useApprovalQueueAutoRefresh } from "@/hooks/useApprovalQueueAutoRefresh";
+import { isImportReadyWithdrawal } from "@/modules/withdrawal/withdrawalImportReady";
 
 const COLUMN_FILTER_KEYS = [
   "utr",
@@ -230,6 +233,10 @@ export function WithdrawalBankerClient() {
   const [tableKey, setTableKey] = useState(0);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [selectedWithdrawal, setSelectedWithdrawal] = useState<WithdrawalRow | null>(null);
+  const [visibleRows, setVisibleRows] = useState<WithdrawalRow[]>([]);
+  const [bulkSelection, setBulkSelection] = useState<Record<string, WithdrawalRow>>({});
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const [bulkApproving, setBulkApproving] = useState(false);
 
   useApprovalQueueAutoRefresh({
     module: "withdrawal",
@@ -338,6 +345,126 @@ export function WithdrawalBankerClient() {
     setErrors({});
   }, []);
 
+  const handleRowClick = useCallback((row: unknown) => {
+    const r = row as WithdrawalRow;
+    setSelectedWithdrawal(r);
+    if (isImportReadyWithdrawal(r)) {
+      setUtr(r.utr?.trim() || "");
+      const mode = r.payoutSettlementType === "person" ? "person" : "bank";
+      setPayoutSettlementType(mode);
+      if (mode === "bank" && r.payoutBankId?.trim()) {
+        setBankId(r.payoutBankId.trim());
+        setBankAutocompleteDefault({
+          value: r.payoutBankId.trim(),
+          label: r.payoutBankName?.trim() || r.payoutBankId.trim(),
+        });
+        setLiabilityPersonId("");
+        setPayoutPersonAutocompleteDefault(null);
+      } else if (mode === "person" && r.payoutLiabilityPersonId?.trim()) {
+        setLiabilityPersonId(r.payoutLiabilityPersonId.trim());
+        setPayoutPersonAutocompleteDefault({
+          value: r.payoutLiabilityPersonId.trim(),
+          label: r.payoutLiabilityPersonName?.trim() || r.payoutLiabilityPersonId.trim(),
+        });
+      }
+    } else {
+      setUtr("");
+    }
+  }, []);
+
+  const handleVisibleRowsChange = useCallback((rows: unknown[]) => {
+    setVisibleRows(rows as WithdrawalRow[]);
+  }, []);
+
+  const importReadyOnPage = useMemo(
+    () => visibleRows.filter(isImportReadyWithdrawal),
+    [visibleRows],
+  );
+
+  const bulkSelectedIds = useMemo(() => Object.keys(bulkSelection), [bulkSelection]);
+  const bulkSelectedRows = useMemo(() => Object.values(bulkSelection), [bulkSelection]);
+
+  const bulkSummary = useMemo(() => {
+    const payableTotal = bulkSelectedRows.reduce((sum, row) => sum + Number(row.payableAmount ?? row.amount ?? 0), 0);
+    return {
+      count: bulkSelectedRows.length,
+      payableTotal,
+      utrs: bulkSelectedRows.map((row) => row.utr).filter(Boolean) as string[],
+    };
+  }, [bulkSelectedRows]);
+
+  const showBulkToolbar =
+    filters.status === "requested" || filters.status === "all" || filters.status === "";
+
+  const toggleBulkSelection = useCallback((row: WithdrawalRow, checked: boolean) => {
+    setBulkSelection((prev) => {
+      const next = { ...prev };
+      if (checked) next[row.id] = row;
+      else delete next[row.id];
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAllImportReadyOnPage = useCallback(
+    (checked: boolean) => {
+      if (!checked) {
+        setBulkSelection((prev) => {
+          const next = { ...prev };
+          for (const row of importReadyOnPage) delete next[row.id];
+          return next;
+        });
+        return;
+      }
+      setBulkSelection((prev) => {
+        const next = { ...prev };
+        for (const row of importReadyOnPage) next[row.id] = row;
+        return next;
+      });
+    },
+    [importReadyOnPage],
+  );
+
+  const allImportReadyOnPageSelected =
+    importReadyOnPage.length > 0 && importReadyOnPage.every((row) => Boolean(bulkSelection[row.id]));
+
+  const confirmBulkApprove = useCallback(async () => {
+    if (bulkSelectedIds.length === 0) return;
+    setBulkApproving(true);
+    try {
+      const result = await bulkBankerApprove(bulkSelectedIds);
+      if (result.approved > 0) {
+        toast.success(
+          `Approved ${result.approved} withdrawal${result.approved === 1 ? "" : "s"}${
+            result.failed.length > 0 ? `; ${result.failed.length} failed` : ""
+          }.`,
+        );
+      }
+      if (result.failed.length > 0 && result.approved === 0) {
+        toast.error(result.failed[0]?.error ?? "Bulk approve failed.");
+      } else if (result.failed.length > 0) {
+        const sample = result.failed
+          .slice(0, 3)
+          .map((f) => f.error)
+          .join("; ");
+        toast.error(`${result.failed.length} failed: ${sample}`);
+      }
+      setBulkConfirmOpen(false);
+      setBulkSelection({});
+      setTableKey((k) => k + 1);
+      if (selectedWithdrawal && bulkSelectedIds.includes(selectedWithdrawal.id)) {
+        closeSidebar();
+      }
+    } catch (e: unknown) {
+      toast.error(getApiErrorMessage(e, "Bulk approve failed."));
+    } finally {
+      setBulkApproving(false);
+    }
+  }, [bulkSelectedIds, selectedWithdrawal, closeSidebar]);
+
+  const getRowClassName = useCallback((row: unknown) => {
+    return isImportReadyWithdrawal(row as WithdrawalRow) ? "bg-green-50/90" : undefined;
+  }, []);
+
   const onPayoutSubmit = async () => {
     if (!selectedWithdrawal) return;
     const next: typeof errors = {};
@@ -395,6 +522,24 @@ export function WithdrawalBankerClient() {
 
   const columns = useMemo<PaginatedTableReferenceColumn[]>(
     () => [
+      {
+        field: "_bulkSelect",
+        label: "",
+        sortable: false,
+        minWidth: 44,
+        render: (row: WithdrawalRow) => {
+          if (!isImportReadyWithdrawal(row)) return null;
+          return (
+            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+              <Checkbox
+                checked={Boolean(bulkSelection[row.id])}
+                onChange={(e) => toggleBulkSelection(row, e.target.checked)}
+                aria-label={`Select payout UTR ${row.utr}`}
+              />
+            </div>
+          );
+        },
+      },
       {
         field: "playerName",
         label: "Player",
@@ -523,7 +668,7 @@ export function WithdrawalBankerClient() {
         },
       },
     ],
-    [selectedWithdrawal, loadUserOptions],
+    [selectedWithdrawal, loadUserOptions, bulkSelection, toggleBulkSelection],
   );
 
   return (
@@ -563,8 +708,33 @@ export function WithdrawalBankerClient() {
             </div>
           )}
 
+          {showBulkToolbar && (
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-green-200 bg-green-50/60 px-3 py-2">
+              <Checkbox
+                label="Select all import-ready on this page"
+                checked={allImportReadyOnPageSelected}
+                onChange={(e) => toggleSelectAllImportReadyOnPage(e.target.checked)}
+                disabled={importReadyOnPage.length === 0}
+              />
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-gray-600">
+                  {importReadyOnPage.length} import-ready on page · {bulkSelectedIds.length} selected
+                </span>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="success"
+                  disabled={bulkSelectedIds.length === 0 || bulkApproving}
+                  onClick={() => setBulkConfirmOpen(true)}
+                >
+                  Approve selected ({bulkSelectedIds.length})
+                </Button>
+              </div>
+            </div>
+          )}
+
           <PaginatedTableReference
-            key={tableKey}
+            reloadToken={tableKey}
             columns={columns}
             fetcher={withdrawalBankerFetcher}
             height="calc(100vh - 280px)"
@@ -581,7 +751,9 @@ export function WithdrawalBankerClient() {
             onPageChange={(zeroBased) => setPage(zeroBased + 1)}
             onRowsPerPageChange={setLimit}
             onSortChange={(field, order) => setSort(field, order)}
-            onRowClick={(row) => setSelectedWithdrawal(row as WithdrawalRow)}
+            onRowClick={handleRowClick}
+            onRowsChange={handleVisibleRowsChange}
+            getRowClassName={getRowClassName}
             selectedRowKey={selectedWithdrawal?.id ?? null}
             getRowKey={(row) => String((row as WithdrawalRow).id)}
             compactDensity
@@ -712,6 +884,49 @@ export function WithdrawalBankerClient() {
           </div>
         )}
       </DetailsSidebar>
+
+      {bulkConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 p-4">
+          <div className="card w-full max-w-lg space-y-4 p-4">
+            <h3 className="text-lg font-semibold">Approve import-ready withdrawals</h3>
+            <p className="text-sm text-gray-600">
+              You are about to record payout for <strong>{bulkSummary.count}</strong> requested withdrawal
+              {bulkSummary.count === 1 ? "" : "s"} using payout UTR and bank/person stored from import.
+            </p>
+            <dl className="grid grid-cols-2 gap-2 text-sm">
+              <dt className="text-gray-500">Payable total</dt>
+              <dd className="text-right font-semibold tabular-nums">₹{formatWholeRupee(bulkSummary.payableTotal)}</dd>
+            </dl>
+            {bulkSummary.utrs.length > 0 && (
+              <div className="rounded-md border border-[var(--border)] bg-slate-50 px-3 py-2 text-xs text-gray-700">
+                <p className="mb-1 font-medium">Payout UTRs</p>
+                <p className="font-mono break-all">
+                  {bulkSummary.utrs.slice(0, 5).join(", ")}
+                  {bulkSummary.utrs.length > 5 ? ` … and ${bulkSummary.utrs.length - 5} more` : ""}
+                </p>
+              </div>
+            )}
+            <div className="flex justify-end gap-2 pt-1">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={bulkApproving}
+                onClick={() => setBulkConfirmOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="success"
+                loading={bulkApproving}
+                onClick={() => void confirmBulkApprove()}
+              >
+                Confirm and approve all
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ConfirmSensitiveActionDialog
         title="Reject withdrawal"
