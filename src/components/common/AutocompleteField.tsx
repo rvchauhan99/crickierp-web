@@ -69,6 +69,10 @@ export function AutocompleteField({
   loadOptionsRef.current = loadOptions;
   const resolveOptionByValueRef = useRef(resolveOptionByValue);
   resolveOptionByValueRef.current = resolveOptionByValue;
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const valueRef = useRef(value);
+  valueRef.current = value;
   const defaultResolveAttemptRef = useRef<string | null>(null);
   /** Avoid repeated `loadOptions("")` when value is still missing from the loaded page. */
   const emptySearchAttemptRef = useRef<string | null>(null);
@@ -127,12 +131,12 @@ export function AutocompleteField({
           normalizedQuery.length > 0 &&
           rows.length === 1 &&
           rows[0] &&
-          rows[0].value !== value
+          rows[0].value !== valueRef.current
         ) {
           const picked = rows[0];
           selectedCacheRef.current = picked;
           setSelectedOption(picked);
-          onChange(picked.value);
+          onChangeRef.current(picked.value);
           setOpen(false);
           setQuery("");
         }
@@ -140,7 +144,7 @@ export function AutocompleteField({
         setLoading(false);
       }
     },
-    [autoSelectSingleOption, onChange, value],
+    [autoSelectSingleOption],
   );
 
   // Sync display label when value / options / defaultOption change (mirrors techhind selected-option cache).
@@ -230,7 +234,7 @@ export function AutocompleteField({
     if (!open || disabled) return;
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
     debounceRef.current = window.setTimeout(() => {
-      runLoad(query);
+      void runLoad(query);
     }, debounceMs);
 
     return () => {

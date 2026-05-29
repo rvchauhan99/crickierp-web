@@ -39,6 +39,7 @@ import {
 } from "@/modules/withdrawal/withdrawalListingStatusFilter";
 import { useApprovalQueueAutoRefresh } from "@/hooks/useApprovalQueueAutoRefresh";
 import { currentDateTimeLocalValue, formatDateTimeForUser } from "@/lib/userTimezone";
+import { WithdrawalImportDialog } from "./WithdrawalImportDialog";
 
 const COLUMN_FILTER_KEYS = [
   "utr",
@@ -122,6 +123,7 @@ export function WithdrawalExchangeClient() {
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
   const [totalCount, setTotalCount] = useState(0);
   const [tableKey, setTableKey] = useState(0);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [cachedUsers, setCachedUsers] = useState<Record<string, string>>({});
 
   useApprovalQueueAutoRefresh({
@@ -650,9 +652,11 @@ export function WithdrawalExchangeClient() {
           exportButtonLabel="Export"
           onExportClick={onExportClick}
           exportDisabled={exporting}
+          importButtonLabel="Import"
+          onImportClick={() => setImportDialogOpen(true)}
         >
           <PaginatedTableReference
-            key={tableKey}
+            reloadToken={tableKey}
             columns={columns}
             fetcher={fetcher}
             height="min(520px, calc(100vh - 380px))"
@@ -697,6 +701,12 @@ export function WithdrawalExchangeClient() {
           />
         </ListingPageContainer>
       </div>
+
+      <WithdrawalImportDialog
+        open={importDialogOpen}
+        onClose={() => setImportDialogOpen(false)}
+        onSuccess={() => setTableKey((k) => k + 1)}
+      />
     </div>
   );
 }

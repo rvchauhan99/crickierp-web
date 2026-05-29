@@ -35,6 +35,8 @@ export type PaginatedTableReferenceProps = {
   selectedRowKey?: string | number | null;
   /** Optional extra CSS classes per row (merged into `<tr>`). */
   getRowClassName?: (row: unknown) => string | undefined;
+  /** Increment to refetch current page without remounting the table. */
+  reloadToken?: number;
 };
 
 declare function PaginatedTableReference(props: PaginatedTableReferenceProps): ReactNode;

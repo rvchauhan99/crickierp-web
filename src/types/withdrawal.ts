@@ -88,3 +88,27 @@ export type SavedWithdrawalAccount = {
   bankName: string;
   ifsc: string;
 };
+
+export type WithdrawalImportJobSummary = {
+  id: string;
+  status: "queued" | "processing" | "completed" | "failed" | "cancelled";
+  createdBy: string;
+  createdAt: string;
+  startedAt?: string;
+  finishedAt?: string;
+  failureReason?: string;
+  progress: {
+    totalRows: number;
+    processedRows: number;
+    successRows: number;
+    failedRows: number;
+    skippedRows: number;
+  };
+  errorSample: Array<{ row: number; utr: string; error: string }>;
+  errorCsvAvailable: boolean;
+};
+
+export type BulkBankerApproveResult = {
+  approved: number;
+  failed: Array<{ withdrawalId: string; error: string }>;
+};
