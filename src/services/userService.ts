@@ -10,6 +10,11 @@ export type CreateUserPayload = {
   timezone?: string;
 };
 
+export type UpdateUserPayload = Partial<Omit<CreateUserPayload, "password">> & {
+  status?: string;
+  timezone?: string;
+};
+
 export const userService = {
   create: async (payload: CreateUserPayload) => {
     const res = await apiClient.post("/users", payload);
@@ -26,7 +31,7 @@ export const userService = {
     });
     return res.data;
   },
-  update: async (id: string, payload: Partial<CreateUserPayload> & { status?: string }) => {
+  update: async (id: string, payload: UpdateUserPayload) => {
     const res = await apiClient.put(`/users/${id}`, payload);
     return res.data;
   },
