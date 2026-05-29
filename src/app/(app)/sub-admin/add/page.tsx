@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { userService } from "@/services/userService";
 import { PermissionGrid, Permission } from "@/components/sub-admin/PermissionGrid";
+import { DEFAULT_TIMEZONE, TIMEZONE_OPTIONS } from "@/lib/timezoneOptions";
 
 export default function SubAdminAddPage() {
   const { user } = useAuth();
@@ -19,6 +20,7 @@ export default function SubAdminAddPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("sub_admin");
+  const [timezone, setTimezone] = useState(DEFAULT_TIMEZONE);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
   const [loading, setLoading] = useState(false);
@@ -42,12 +44,14 @@ export default function SubAdminAddPage() {
         password,
         role: role as "admin" | "sub_admin",
         permissions,
+        timezone,
       });
       setMessage("Administrative user created successfully.");
       setFullName("");
       setEmail("");
       setUsername("");
       setPassword("");
+      setTimezone(DEFAULT_TIMEZONE);
       setPermissions([]);
     } catch (error: unknown) {
       setMessage(getApiErrorMessage(error, "Failed to create user"));
@@ -103,6 +107,16 @@ export default function SubAdminAddPage() {
             {user?.role !== "superadmin" && (
               <p className="mt-1 text-sm text-muted-foreground">You can only create Sub Admins.</p>
             )}
+          </div>
+          <div className="col-span-2">
+            <FieldLabel>Timezone</FieldLabel>
+            <Select title="timezone" value={timezone} onChange={(e) => setTimezone(e.target.value)}>
+              {TIMEZONE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </Select>
           </div>
           
           <div className="col-span-2 mt-2">

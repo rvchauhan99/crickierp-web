@@ -13,6 +13,7 @@ import { PermissionGrid, Permission } from "@/components/sub-admin/PermissionGri
 import { userService } from "@/services/userService";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { useAuth } from "@/context/AuthContext";
+import { DEFAULT_TIMEZONE, timezoneOptionsWithValue } from "@/lib/timezoneOptions";
 
 type UserRow = {
   _id: string;
@@ -22,6 +23,7 @@ type UserRow = {
   role: string;
   status: "active" | "deactive";
   permissions?: string[];
+  timezone?: string;
 };
 
 type EditableRole = "superadmin" | "admin" | "sub_admin";
@@ -37,6 +39,7 @@ export default function SubAdminEditPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
+  const [timezone, setTimezone] = useState(DEFAULT_TIMEZONE);
   const [status, setStatus] = useState<"active" | "deactive">("active");
   const [permissions, setPermissions] = useState<string[]>([]);
   const [newPassword, setNewPassword] = useState("");
@@ -75,6 +78,7 @@ export default function SubAdminEditPage() {
       setFullName("");
       setEmail("");
       setUsername("");
+      setTimezone(DEFAULT_TIMEZONE);
       setStatus("active");
       setPermissions([]);
       return;
@@ -82,6 +86,7 @@ export default function SubAdminEditPage() {
     setFullName(row.fullName ?? "");
     setEmail(row.email ?? "");
     setUsername(row.username ?? "");
+    setTimezone(row.timezone?.trim() || DEFAULT_TIMEZONE);
     setStatus((row.status as "active" | "deactive") ?? "active");
     setPermissions((row.permissions ?? []).filter((k) => !k.startsWith("masters.")));
   }, []);
@@ -154,11 +159,11 @@ export default function SubAdminEditPage() {
     if (!ensureSelectedUser()) return;
     setSavingFinalUpdate(true);
     try {
-      await userService.update(selectedUserId, { fullName, email, username, status, permissions });
+      await userService.update(selectedUserId, { fullName, email, username, status, permissions, timezone });
       setUpdateMessage("User details updated successfully.");
       setUsers((prev) =>
         prev.map((row) =>
-          row._id === selectedUserId ? { ...row, fullName, email, username, status, permissions } : row
+          row._id === selectedUserId ? { ...row, fullName, email, username, status, permissions, timezone } : row
         )
       );
     } catch (error: unknown) {
@@ -233,6 +238,21 @@ export default function SubAdminEditPage() {
                 <div className="col-span-2">
                   <FieldLabel>Username</FieldLabel>
                   <Input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="Enter username" />
+                </div>
+                <div className="col-span-2">
+                  <FieldLabel>Timezone</FieldLabel>
+                  <Select
+                    title="timezone"
+                    value={timezone}
+                    onChange={(event) => setTimezone(event.target.value)}
+                    disabled={!canMutateSelected}
+                  >
+                    {timezoneOptionsWithValue(timezone).map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </Select>
                 </div>
               </FormGrid>
             </div>
