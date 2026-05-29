@@ -1,14 +1,17 @@
 import { normalizeDateTimeInputForApi } from "@/lib/userTimezone";
 import { apiClient } from "./apiClient";
 import type {
+  BulkBankerApproveResult,
   SavedWithdrawalAccount,
   WithdrawalAmendInput,
   WithdrawalAmendmentEntry,
   WithdrawalBankerPayoutInput,
   WithdrawalCreateInput,
+  WithdrawalImportJobSummary,
   WithdrawalRow,
   WithdrawalView,
 } from "@/types/withdrawal";
+import { getAccessToken } from "./sessionStore";
 
 function toOptionalParam(value: unknown): string | undefined {
   if (value === null || value === undefined) return undefined;
@@ -306,4 +309,230 @@ export async function amendWithdrawal(id: string, body: WithdrawalAmendInput): P
 export async function deleteWithdrawal(id: string): Promise<unknown> {
   const response = await apiClient.delete<{ success: boolean; data: unknown }>(`/withdrawal/${id}`);
   return response.data?.data;
+}
+
+export async function bulkBankerApprove(withdrawalIds: string[]): Promise<BulkBankerApproveResult> {
+  const response = await apiClient.post<{ success: boolean; data: BulkBankerApproveResult }>(
+    "/withdrawal/bulk-banker-approve",
+    { withdrawalIds },
+  );
+  return (
+    response.data?.data ?? {
+      approved: 0,
+      failed: [],
+    }
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CSV Import
+// ---------------------------------------------------------------------------
+
+export type WithdrawalImportValidRow = {
+  row: number;
+  playerMongoId: string;
+  playerIdLabel?: string;
+  accountNumber: string;
+  accountHolderName: string;
+  bankName: string;
+  ifsc: string;
+  amount: number;
+  reverseBonus: number;
+  payableAmount: number;
+  requestedAt?: string;
+  payoutUtr?: string;
+  payoutSettlementType?: "bank" | "person";
+  payoutBankId?: string;
+  payoutBankDisplayLabel?: string;
+  payoutLiabilityPersonId?: string;
+  payoutLiabilityPersonName?: string;
+};
+
+export type WithdrawalImportInvalidRow = {
+  row: number;
+  dateTime: string;
+  playerId: string;
+  accountNumber: string;
+  accountHolderName: string;
+  bankName: string;
+  ifsc: string;
+  amount: string;
+  reverseBonus: string;
+  payoutUtr: string;
+  payoutSettlementType: string;
+  payoutBank: string;
+  payoutLiablePersonName: string;
+  errors: string[];
+};
+
+export type WithdrawalImportValidationResult = {
+  summary: { total: number; valid: number; invalid: number; skipped: number };
+  validRows: WithdrawalImportValidRow[];
+  invalidRows: WithdrawalImportInvalidRow[];
+};
+
+export async function downloadWithdrawalImportSample(format: "csv" | "xlsx" = "csv"): Promise<Blob> {
+  const response = await apiClient.get("/withdrawal/import/sample", {
+    responseType: "blob",
+    params: format === "xlsx" ? { format: "xlsx" } : undefined,
+  });
+  return response.data as Blob;
+}
+
+export async function validateWithdrawalImport(file: File): Promise<WithdrawalImportValidationResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await apiClient.post<{ success: boolean; data: WithdrawalImportValidationResult }>(
+    "/withdrawal/import/validate",
+    formData,
+    { headers: { "Content-Type": "multipart/form-data" } },
+  );
+  return response.data.data;
+}
+
+export async function createWithdrawalImportJob(
+  rows: Array<{
+    playerMongoId: string;
+    accountNumber: string;
+    accountHolderName: string;
+    bankName: string;
+    ifsc: string;
+    amount: number;
+    reverseBonus: number;
+    requestedAt?: string;
+    payoutUtr?: string;
+    payoutSettlementType?: "bank" | "person";
+    payoutBankId?: string;
+    payoutLiabilityPersonId?: string;
+  }>,
+): Promise<{ jobId: string; status: string }> {
+  const response = await apiClient.post<{ success: boolean; data: { jobId: string; status: string } }>(
+    "/withdrawal/import/jobs",
+    { rows },
+    { timeout: 60_000 },
+  );
+  return response.data.data;
+}
+
+export async function getWithdrawalImportJob(jobId: string): Promise<WithdrawalImportJobSummary> {
+  const response = await apiClient.get<{ success: boolean; data: WithdrawalImportJobSummary }>(
+    `/withdrawal/import/jobs/${encodeURIComponent(jobId)}`,
+    { timeout: 30_000 },
+  );
+  return response.data.data;
+}
+
+export async function downloadWithdrawalImportJobErrorCsv(
+  jobId: string,
+): Promise<{ blob: Blob; fileName: string }> {
+  const response = await apiClient.get<Blob>(`/withdrawal/import/jobs/${encodeURIComponent(jobId)}/errors.csv`, {
+    responseType: "blob",
+  });
+  const contentDisposition = String(response.headers["content-disposition"] ?? "");
+  const fileName = parseDispositionFileName(contentDisposition) ?? `withdrawal-import-errors-${jobId}.csv`;
+  return { blob: response.data, fileName };
+}
+
+export async function streamWithdrawalImportJobEvents(
+  jobId: string,
+  onProgress: (payload: WithdrawalImportJobSummary) => void,
+): Promise<() => void> {
+  const token = getAccessToken();
+  if (!token) {
+    throw new Error("Missing access token for realtime updates");
+  }
+
+  const controller = new AbortController();
+  const response = await fetch(
+    `${apiClient.defaults.baseURL}/withdrawal/import/jobs/${encodeURIComponent(jobId)}/events`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      signal: controller.signal,
+      credentials: "include",
+    },
+  );
+  if (!response.ok || !response.body) {
+    throw new Error("Unable to connect to import progress stream");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+  const processChunk = (chunk: string) => {
+    buffer += chunk;
+    const parts = buffer.split("\n\n");
+    buffer = parts.pop() ?? "";
+    for (const part of parts) {
+      const lines = part.split("\n");
+      let eventName = "message";
+      let dataLine = "";
+      for (const line of lines) {
+        if (line.startsWith("event:")) eventName = line.slice(6).trim();
+        if (line.startsWith("data:")) dataLine += line.slice(5).trim();
+      }
+      if (eventName !== "progress" || !dataLine) continue;
+      try {
+        const eventData = JSON.parse(dataLine) as {
+          jobId: string;
+          status: WithdrawalImportJobSummary["status"];
+          totalRows: number;
+          processedRows: number;
+          successRows: number;
+          failedRows: number;
+          skippedRows: number;
+          message?: string;
+        };
+        onProgress({
+          id: eventData.jobId,
+          status: eventData.status,
+          createdBy: "",
+          createdAt: new Date().toISOString(),
+          failureReason: eventData.message,
+          progress: {
+            totalRows: eventData.totalRows,
+            processedRows: eventData.processedRows,
+            successRows: eventData.successRows,
+            failedRows: eventData.failedRows,
+            skippedRows: eventData.skippedRows,
+          },
+          errorSample: [],
+          errorCsvAvailable: false,
+        });
+      } catch {
+        // Ignore malformed events.
+      }
+    }
+  };
+
+  void (async () => {
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        processChunk(decoder.decode(value, { stream: true }));
+      }
+    } catch {
+      // Caller handles fallback polling.
+    }
+  })();
+
+  return () => controller.abort();
+}
+
+function parseDispositionFileName(contentDisposition: string | undefined): string | null {
+  if (!contentDisposition) return null;
+  const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1]);
+    } catch {
+      return utf8Match[1];
+    }
+  }
+  const plainMatch = contentDisposition.match(/filename=\"?([^\";]+)\"?/i);
+  if (!plainMatch?.[1]) return null;
+  return plainMatch[1];
 }

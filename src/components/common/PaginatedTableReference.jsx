@@ -112,6 +112,8 @@ export default function PaginatedTable({
   showPagination = true,
   compactDensity = false,
   rowDetailsRender = null,
+  /** Increment to refetch current page without remounting (preserves filter autocomplete state). */
+  reloadToken = 0,
 }) {
   const hasRowDetails = typeof rowDetailsRender === "function";
   const [expandedRows, setExpandedRows] = React.useState(() => new Set());
@@ -166,6 +168,24 @@ export default function PaginatedTable({
   const [internalSortOrder, setInternalSortOrder] = React.useState(initialSortOrder || "desc");
 
   const [localFilterValues, setLocalFilterValues] = React.useState(columnFilterValues);
+
+  const onColumnFilterChangeRef = React.useRef(onColumnFilterChange);
+  React.useEffect(() => {
+    onColumnFilterChangeRef.current = onColumnFilterChange;
+  }, [onColumnFilterChange]);
+
+  const autocompleteFilterChangeHandlersRef = React.useRef(new Map());
+  const getAutocompleteFilterChangeHandler = React.useCallback((filterKey) => {
+    const cache = autocompleteFilterChangeHandlersRef.current;
+    if (!cache.has(filterKey)) {
+      cache.set(filterKey, (nextVal) => {
+        const normalized = nextVal ?? "";
+        setLocalFilterValues((prev) => ({ ...prev, [filterKey]: normalized }));
+        onColumnFilterChangeRef.current?.(filterKey, normalized);
+      });
+    }
+    return cache.get(filterKey);
+  }, []);
 
   const page = isControlled ? Math.max(0, (controlledPage ?? 1) - 1) : internalPage;
   const rowsPerPage = isControlled ? (controlledLimit ?? initialLimit) : internalRowsPerPage;
@@ -379,7 +399,7 @@ export default function PaginatedTable({
 
   React.useEffect(() => {
     load(page, rowsPerPage, debouncedQuery, sortBy, sortOrder);
-  }, [page, rowsPerPage, debouncedQuery, sortBy, sortOrder, load, filterParamsKey]);
+  }, [page, rowsPerPage, debouncedQuery, sortBy, sortOrder, load, filterParamsKey, reloadToken]);
 
   const handleChangePage = (event, newPage) => {
     if (isControlled && onControlledPageChange) {
@@ -797,11 +817,7 @@ export default function PaginatedTable({
                           <div className="flex-1 min-w-0">
                             <AutocompleteField
                               value={value || ""}
-                              onChange={(nextVal) => {
-                                const normalized = nextVal ?? "";
-                                setLocalFilterValues((prev) => ({ ...prev, [filterKey]: normalized }));
-                                onColumnFilterChange?.(filterKey, normalized);
-                              }}
+                              onChange={getAutocompleteFilterChangeHandler(filterKey)}
                               loadOptions={autocompleteLoadOptions}
                               placeholder={c.filterPlaceholder || "Search..."}
                               emptyText={c.filterEmptyText || "No records found"}
