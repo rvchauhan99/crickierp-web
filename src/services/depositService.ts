@@ -3,6 +3,7 @@ import { apiClient } from "./apiClient";
 import type {
   DepositAmendInput,
   DepositAmendmentEntry,
+  DepositBulkExchangeApproveJobSummary,
   DepositCreateInput,
   DepositImportJobSummary,
   DepositRow,
@@ -340,6 +341,106 @@ export async function bulkExchangeApprove(depositIds: string[]): Promise<BulkExc
       failed: [],
     }
   );
+}
+
+export async function createBulkExchangeApproveJob(depositIds: string[]): Promise<{ jobId: string; status: string }> {
+  const response = await apiClient.post<{ success: boolean; data: { jobId: string; status: string } }>(
+    "/deposit/bulk-exchange-approve/jobs",
+    { depositIds },
+    { timeout: 60_000 },
+  );
+  return response.data.data;
+}
+
+export async function getBulkExchangeApproveJob(jobId: string): Promise<DepositBulkExchangeApproveJobSummary> {
+  const response = await apiClient.get<{ success: boolean; data: DepositBulkExchangeApproveJobSummary }>(
+    `/deposit/bulk-exchange-approve/jobs/${encodeURIComponent(jobId)}`,
+    { timeout: 30_000 },
+  );
+  return response.data.data;
+}
+
+export async function streamBulkExchangeApproveJobEvents(
+  jobId: string,
+  onProgress: (payload: DepositBulkExchangeApproveJobSummary) => void,
+): Promise<() => void> {
+  const token = getAccessToken();
+  if (!token) {
+    throw new Error("Missing access token for realtime updates");
+  }
+  const controller = new AbortController();
+  const response = await fetch(
+    `${apiClient.defaults.baseURL}/deposit/bulk-exchange-approve/jobs/${encodeURIComponent(jobId)}/events`,
+    {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+      credentials: "include",
+    },
+  );
+  if (!response.ok || !response.body) {
+    throw new Error("Unable to connect to bulk exchange approve progress stream");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+  const processChunk = (chunk: string) => {
+    buffer += chunk;
+    const parts = buffer.split("\n\n");
+    buffer = parts.pop() ?? "";
+    for (const part of parts) {
+      const lines = part.split("\n");
+      let eventName = "message";
+      let dataLine = "";
+      for (const line of lines) {
+        if (line.startsWith("event:")) eventName = line.slice(6).trim();
+        if (line.startsWith("data:")) dataLine += line.slice(5).trim();
+      }
+      if (eventName !== "progress" || !dataLine) continue;
+      try {
+        const eventData = JSON.parse(dataLine) as {
+          jobId: string;
+          status: DepositBulkExchangeApproveJobSummary["status"];
+          totalRows: number;
+          processedRows: number;
+          successRows: number;
+          failedRows: number;
+          message?: string;
+        };
+        onProgress({
+          id: eventData.jobId,
+          status: eventData.status,
+          createdBy: "",
+          createdAt: new Date().toISOString(),
+          failureReason: eventData.message,
+          progress: {
+            totalRows: eventData.totalRows,
+            processedRows: eventData.processedRows,
+            successRows: eventData.successRows,
+            failedRows: eventData.failedRows,
+          },
+          errorSample: [],
+        });
+      } catch {
+        // Ignore malformed events.
+      }
+    }
+  };
+
+  void (async () => {
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        processChunk(decoder.decode(value, { stream: true }));
+      }
+    } catch {
+      // Caller handles fallback polling.
+    }
+  })();
+
+  return () => controller.abort();
 }
 
 export async function exchangeActionApprove(depositId: string, playerId: string, bonusAmount: number) {

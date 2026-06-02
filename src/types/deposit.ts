@@ -89,6 +89,23 @@ export type DepositAmendInput = {
   remark?: string;
 };
 
+export type DepositBulkExchangeApproveJobSummary = {
+  id: string;
+  status: "queued" | "processing" | "completed" | "failed" | "cancelled";
+  createdBy: string;
+  createdAt: string;
+  startedAt?: string;
+  finishedAt?: string;
+  failureReason?: string;
+  progress: {
+    totalRows: number;
+    processedRows: number;
+    successRows: number;
+    failedRows: number;
+  };
+  errorSample: Array<{ depositId: string; error: string }>;
+};
+
 export type DepositImportJobSummary = {
   id: string;
   status: "queued" | "processing" | "completed" | "failed" | "cancelled";
