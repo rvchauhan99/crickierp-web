@@ -68,6 +68,18 @@ function isLikelyMongoId(value: string): boolean {
   return /^[a-f\d]{24}$/i.test(value.trim());
 }
 
+function resolveWithdrawalPlayerId(row: WithdrawalRow): string {
+  const player = row.player;
+  if (!player) return "";
+  if (typeof player === "string") return player.trim();
+  if (typeof player !== "object" || player === null) return "";
+  const fromObjectId = (player as { _id?: unknown })._id;
+  if (fromObjectId != null) return String(fromObjectId).trim();
+  const fromId = (player as { id?: unknown }).id;
+  if (fromId != null) return String(fromId).trim();
+  return "";
+}
+
 type UserRow = {
   _id?: string;
   id?: string;
@@ -269,11 +281,7 @@ export function WithdrawalExchangeClient() {
 
   const handleEdit = (row: WithdrawalRow) => {
     setEditingId(row.id);
-    let pid = "";
-    if (row.player && typeof row.player === "object" && row.player !== null && "_id" in row.player) {
-      pid = String((row.player as { _id?: unknown })._id ?? "");
-    }
-    setPlayerId(pid);
+    setPlayerId(resolveWithdrawalPlayerId(row));
     setAccountNumber(row.accountNumber || "");
     setAccountHolderName(row.accountHolderName || "");
     setBankName(row.bankName || "");

@@ -33,9 +33,11 @@ import { getApiErrorMessage } from "@/lib/apiError";
 import { REASON_TYPES } from "@/lib/constants/reasonTypes";
 import { formatWholeRupee } from "@/lib/formatWholeRupee";
 import {
-  bulkBankerApprove,
+  createBulkBankerApproveJob,
+  getBulkBankerApproveJob,
   listWithdrawalsNormalized,
   patchWithdrawalStatus,
+  streamBulkBankerApproveJobEvents,
   updateWithdrawalBankerPayout,
   exportWithdrawals,
 } from "@/services/withdrawalService";
@@ -43,7 +45,7 @@ import { useExport } from "@/hooks/useExport";
 import { listBankLookupOptions } from "@/services/lookupService";
 import { listLiabilityPersonsNormalized } from "@/services/liabilityService";
 import { userService } from "@/services/userService";
-import type { WithdrawalBankerPayoutInput, WithdrawalRow } from "@/types/withdrawal";
+import type { WithdrawalBankerPayoutInput, WithdrawalBulkApproveJobSummary, WithdrawalRow } from "@/types/withdrawal";
 import { formatDateTimeForUser } from "@/lib/userTimezone";
 import { useApprovalQueueAutoRefresh } from "@/hooks/useApprovalQueueAutoRefresh";
 import { isImportReadyWithdrawal } from "@/modules/withdrawal/withdrawalImportReady";
@@ -237,6 +239,10 @@ export function WithdrawalBankerClient() {
   const [bulkSelection, setBulkSelection] = useState<Record<string, WithdrawalRow>>({});
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [bulkApproving, setBulkApproving] = useState(false);
+  const [bulkProgressOpen, setBulkProgressOpen] = useState(false);
+  const [bulkJobId, setBulkJobId] = useState<string | null>(null);
+  const [bulkJobSelectionIds, setBulkJobSelectionIds] = useState<string[]>([]);
+  const [bulkProgress, setBulkProgress] = useState<WithdrawalBulkApproveJobSummary | null>(null);
 
   useApprovalQueueAutoRefresh({
     module: "withdrawal",
@@ -393,8 +399,9 @@ export function WithdrawalBankerClient() {
     };
   }, [bulkSelectedRows]);
 
+  const normalizedStatusFilter = (filters.status ?? "").trim().toLowerCase();
   const showBulkToolbar =
-    filters.status === "requested" || filters.status === "all" || filters.status === "";
+    normalizedStatusFilter === "" || normalizedStatusFilter === "requested" || normalizedStatusFilter === "all";
 
   const toggleBulkSelection = useCallback((row: WithdrawalRow, checked: boolean) => {
     setBulkSelection((prev) => {
@@ -426,40 +433,113 @@ export function WithdrawalBankerClient() {
 
   const allImportReadyOnPageSelected =
     importReadyOnPage.length > 0 && importReadyOnPage.every((row) => Boolean(bulkSelection[row.id]));
+  const bulkProgressPercent = useMemo(() => {
+    const total = Number(bulkProgress?.progress.totalRows ?? 0);
+    const processed = Number(bulkProgress?.progress.processedRows ?? 0);
+    if (total <= 0) return 0;
+    return Math.min(100, Math.max(0, Math.round((processed / total) * 100)));
+  }, [bulkProgress]);
 
   const confirmBulkApprove = useCallback(async () => {
     if (bulkSelectedIds.length === 0) return;
     setBulkApproving(true);
     try {
-      const result = await bulkBankerApprove(bulkSelectedIds);
-      if (result.approved > 0) {
-        toast.success(
-          `Approved ${result.approved} withdrawal${result.approved === 1 ? "" : "s"}${
-            result.failed.length > 0 ? `; ${result.failed.length} failed` : ""
-          }.`,
-        );
-      }
-      if (result.failed.length > 0 && result.approved === 0) {
-        toast.error(result.failed[0]?.error ?? "Bulk approve failed.");
-      } else if (result.failed.length > 0) {
-        const sample = result.failed
-          .slice(0, 3)
-          .map((f) => f.error)
-          .join("; ");
-        toast.error(`${result.failed.length} failed: ${sample}`);
-      }
+      const created = await createBulkBankerApproveJob(bulkSelectedIds);
+      setBulkJobId(created.jobId);
+      setBulkJobSelectionIds(bulkSelectedIds);
+      setBulkProgressOpen(true);
+      setBulkProgress((prev) => ({
+        id: created.jobId,
+        status: "queued",
+        createdBy: prev?.createdBy ?? "",
+        createdAt: prev?.createdAt ?? new Date().toISOString(),
+        progress: { totalRows: bulkSelectedIds.length, processedRows: 0, successRows: 0, failedRows: 0 },
+        errorSample: [],
+      }));
       setBulkConfirmOpen(false);
-      setBulkSelection({});
-      setTableKey((k) => k + 1);
-      if (selectedWithdrawal && bulkSelectedIds.includes(selectedWithdrawal.id)) {
-        closeSidebar();
-      }
     } catch (e: unknown) {
       toast.error(getApiErrorMessage(e, "Bulk approve failed."));
     } finally {
       setBulkApproving(false);
     }
-  }, [bulkSelectedIds, selectedWithdrawal, closeSidebar]);
+  }, [bulkSelectedIds]);
+
+  useEffect(() => {
+    if (!bulkJobId) return;
+    let mounted = true;
+    let stopStream: (() => void) | null = null;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+    const applyProgress = (job: WithdrawalBulkApproveJobSummary) => {
+      if (!mounted) return;
+      setBulkProgress(job);
+      if (job.status === "completed" || job.status === "failed" || job.status === "cancelled") {
+        if (pollTimer) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+        }
+        if (stopStream) {
+          stopStream();
+          stopStream = null;
+        }
+        setBulkSelection({});
+        setTableKey((k) => k + 1);
+        if (selectedWithdrawal && bulkJobSelectionIds.includes(selectedWithdrawal.id)) {
+          closeSidebar();
+        }
+        if (job.status === "completed") {
+          toast.success(
+            `Approved ${job.progress.successRows} withdrawal${job.progress.successRows === 1 ? "" : "s"}${
+              job.progress.failedRows > 0 ? `; ${job.progress.failedRows} failed` : ""
+            }.`,
+          );
+        } else {
+          toast.error(job.failureReason || "Bulk approval job failed.");
+        }
+      }
+    };
+
+    const pollOnce = async () => {
+      try {
+        const snapshot = await getBulkBankerApproveJob(bulkJobId);
+        applyProgress(snapshot);
+      } catch {
+        // Keep trying while stream/poll continues.
+      }
+    };
+
+    void pollOnce();
+    pollTimer = setInterval(() => {
+      void pollOnce();
+    }, 2000);
+
+    void streamBulkBankerApproveJobEvents(bulkJobId, (eventPayload) => {
+      setBulkProgress((prev) => ({
+        ...(prev ?? {
+          id: bulkJobId,
+          createdBy: "",
+          createdAt: new Date().toISOString(),
+          errorSample: [],
+        }),
+        ...eventPayload,
+      }));
+      if (eventPayload.status === "completed" || eventPayload.status === "failed" || eventPayload.status === "cancelled") {
+        void pollOnce();
+      }
+    })
+      .then((stop) => {
+        stopStream = stop;
+      })
+      .catch(() => {
+        // Poll fallback is already active.
+      });
+
+    return () => {
+      mounted = false;
+      if (pollTimer) clearInterval(pollTimer);
+      if (stopStream) stopStream();
+    };
+  }, [bulkJobId, bulkJobSelectionIds, closeSidebar, selectedWithdrawal]);
 
   const getRowClassName = useCallback((row: unknown) => {
     return isImportReadyWithdrawal(row as WithdrawalRow) ? "bg-green-50/90" : undefined;
@@ -710,12 +790,23 @@ export function WithdrawalBankerClient() {
 
           {showBulkToolbar && (
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-green-200 bg-green-50/60 px-3 py-2">
-              <Checkbox
-                label="Select all import-ready on this page"
-                checked={allImportReadyOnPageSelected}
-                onChange={(e) => toggleSelectAllImportReadyOnPage(e.target.checked)}
-                disabled={importReadyOnPage.length === 0}
-              />
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  label="Current page selection"
+                  checked={allImportReadyOnPageSelected}
+                  onChange={(e) => toggleSelectAllImportReadyOnPage(e.target.checked)}
+                  disabled={importReadyOnPage.length === 0}
+                />
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="secondary"
+                  disabled={importReadyOnPage.length === 0}
+                  onClick={() => toggleSelectAllImportReadyOnPage(true)}
+                >
+                  Select all green rows on this page ({importReadyOnPage.length})
+                </Button>
+              </div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-gray-600">
                   {importReadyOnPage.length} import-ready on page · {bulkSelectedIds.length} selected
@@ -922,6 +1013,61 @@ export function WithdrawalBankerClient() {
                 onClick={() => void confirmBulkApprove()}
               >
                 Confirm and approve all
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bulkProgressOpen && bulkProgress && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 p-4">
+          <div className="card w-full max-w-lg space-y-4 p-4">
+            <h3 className="text-lg font-semibold">Bulk settlement progress</h3>
+            <div className="space-y-2">
+              <div className="h-3 w-full overflow-hidden rounded-full bg-gray-200">
+                <div
+                  className="h-full rounded-full bg-emerald-500 transition-all"
+                  style={{ width: `${bulkProgressPercent}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-xs text-gray-600">
+                <span>
+                  {bulkProgress.progress.processedRows}/{bulkProgress.progress.totalRows} processed
+                </span>
+                <span>{bulkProgressPercent}%</span>
+              </div>
+            </div>
+            <dl className="grid grid-cols-2 gap-2 text-sm">
+              <dt className="text-gray-500">Success</dt>
+              <dd className="text-right font-semibold tabular-nums text-emerald-700">
+                {bulkProgress.progress.successRows}
+              </dd>
+              <dt className="text-gray-500">Failed</dt>
+              <dd className="text-right font-semibold tabular-nums text-red-600">
+                {bulkProgress.progress.failedRows}
+              </dd>
+              <dt className="text-gray-500">Status</dt>
+              <dd className="text-right font-medium capitalize">{bulkProgress.status}</dd>
+            </dl>
+            {bulkProgress.errorSample.length > 0 && (
+              <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                <p className="mb-1 font-medium">Failure sample</p>
+                <p className="break-all">
+                  {bulkProgress.errorSample
+                    .slice(0, 3)
+                    .map((item) => item.error)
+                    .join("; ")}
+                </p>
+              </div>
+            )}
+            <div className="flex justify-end gap-2 pt-1">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setBulkProgressOpen(false)}
+                disabled={bulkProgress.status === "processing" || bulkProgress.status === "queued"}
+              >
+                Close
               </Button>
             </div>
           </div>

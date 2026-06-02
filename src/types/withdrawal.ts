@@ -112,3 +112,20 @@ export type BulkBankerApproveResult = {
   approved: number;
   failed: Array<{ withdrawalId: string; error: string }>;
 };
+
+export type WithdrawalBulkApproveJobSummary = {
+  id: string;
+  status: "queued" | "processing" | "completed" | "failed" | "cancelled";
+  createdBy: string;
+  createdAt: string;
+  startedAt?: string;
+  finishedAt?: string;
+  failureReason?: string;
+  progress: {
+    totalRows: number;
+    processedRows: number;
+    successRows: number;
+    failedRows: number;
+  };
+  errorSample: Array<{ withdrawalId: string; error: string }>;
+};
