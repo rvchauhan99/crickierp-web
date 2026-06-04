@@ -15,6 +15,7 @@ import type { Exchange } from "@/types/exchange";
 import type { AutocompleteOption } from "@/components/common/AutocompleteField";
 import { useExport } from "@/hooks/useExport";
 import { formatDateTimeForUser } from "@/lib/userTimezone";
+import { formatDashboardCurrency } from "@/modules/dashboard/utils/formatCurrency";
 
 const COLUMN_FILTER_KEYS = [
   "name",
@@ -48,6 +49,14 @@ type ExchangeUserRow = {
 function toOptionalFilterValue(value: string): string | undefined {
   const trimmed = value.trim();
   return trimmed === "" ? undefined : trimmed;
+}
+
+function displayCurrentBalance(row: Exchange): string {
+  const balance =
+    row.currentBalance != null && Number.isFinite(row.currentBalance)
+      ? row.currentBalance
+      : row.openingBalance;
+  return formatDashboardCurrency(balance);
 }
 
 function buildUserLabel(row: ExchangeUserRow): string {
@@ -213,7 +222,7 @@ export function ExchangeListClient() {
       {
         field: "openingBalance",
         label: "Opening Balance",
-        render: (row: Exchange) => row.openingBalance,
+        render: (row: Exchange) => formatDashboardCurrency(row.openingBalance),
         sortable: true,
         minWidth: 150,
         filterType: "number" as const,
@@ -225,7 +234,7 @@ export function ExchangeListClient() {
       {
         field: "currentBalance",
         label: "Current Balance",
-        render: (row: Exchange) => row.currentBalance ?? row.openingBalance,
+        render: (row: Exchange) => displayCurrentBalance(row),
         sortable: false,
         minWidth: 150,
         filterType: "number" as const,
