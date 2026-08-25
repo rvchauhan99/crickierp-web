@@ -38,6 +38,7 @@ import { listBankLookupOptions, listExpenseTypeLookupOptions } from "@/services/
 import { listLiabilityPersonsNormalized } from "@/services/liabilityService";
 import { userService } from "@/services/userService";
 import type { ExpenseRow } from "@/types/expense";
+import { useFormatMoney } from "@/hooks/useFormatMoney";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { REASON_TYPES } from "@/lib/constants/reasonTypes";
 import { formatDateTimeForUser } from "@/lib/userTimezone";
@@ -205,6 +206,7 @@ function ExpenseDetailCard({
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 export function ExpenseAuditClient() {
+  const { formatMoney } = useFormatMoney();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -451,7 +453,7 @@ export function ExpenseAuditClient() {
         filterKey: "amount",
         filterKeyTo: "amount_to",
         operatorKey: "amount_op",
-        render: (row: ExpenseRow) => (row.amount != null ? `₹${row.amount.toLocaleString()}` : "—"),
+        render: (row: ExpenseRow) => (row.amount != null ? formatMoney(row.amount) : "—"),
       },
       {
         field: "status",
@@ -567,7 +569,7 @@ export function ExpenseAuditClient() {
       <DetailsSidebar
         open={!!selectedExpense}
         title="Expense Audit"
-        subtitle={selectedExpense ? `Amount: ₹${selectedExpense.amount.toLocaleString()}` : undefined}
+        subtitle={selectedExpense ? `Amount: ${formatMoney(selectedExpense.amount)}` : undefined}
         onClose={closeSidebar}
         width="400px"
       >

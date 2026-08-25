@@ -1,15 +1,12 @@
 "use client";
 
 import { IconBuildingBank } from "@tabler/icons-react";
+import { useFormatMoney } from "@/hooks/useFormatMoney";
 import { type DashboardSummary } from "./DashboardKPIs";
 
 interface Props {
   banksBreakdown: DashboardSummary["banksBreakdown"];
   loading?: boolean;
-}
-
-function formatAmount(value: number) {
-  return Number(value ?? 0).toLocaleString("en-IN");
 }
 
 function formatCount(value: number) {
@@ -20,20 +17,25 @@ function AmountWithTxnCount({
   amount,
   count,
   amountClass,
+  formatMoney,
 }: {
   amount: number;
   count: number;
   amountClass: string;
+  formatMoney: (value: number) => string;
 }) {
   return (
     <div className="flex flex-col items-end gap-0.5 leading-tight">
-      <span className={amountClass}>{formatAmount(amount)}</span>
+      <span className={amountClass}>{formatMoney(amount)}</span>
       <span className="text-[10px] font-medium tabular-nums text-slate-500">{formatCount(count)} txn</span>
     </div>
   );
 }
 
 export function DashboardBankSummary({ banksBreakdown, loading = false }: Props) {
+  const { formatMoney } = useFormatMoney();
+  const fmt = (value: number) => formatMoney(value, { includeSign: true });
+
   if (!banksBreakdown || banksBreakdown.length === 0) {
     if (!loading) return null;
     return (
@@ -106,13 +108,14 @@ export function DashboardBankSummary({ banksBreakdown, loading = false }: Props)
                 <tr key={bank.bankId} className="border-t border-slate-100 hover:bg-slate-50/60">
                   <td className="px-3 py-2.5 whitespace-nowrap font-medium text-slate-800">{bank.name}</td>
                   <td className="px-3 py-2.5 text-right whitespace-nowrap text-slate-700">
-                    {formatAmount(bank.openingBalance)}
+                    {fmt(bank.openingBalance)}
                   </td>
                   <td className="px-3 py-2.5 text-right whitespace-nowrap">
                     <AmountWithTxnCount
                       amount={bank.deposit}
                       count={bank.depositCount}
                       amountClass="text-emerald-700"
+                      formatMoney={fmt}
                     />
                   </td>
                   <td className="px-3 py-2.5 text-right whitespace-nowrap">
@@ -120,6 +123,7 @@ export function DashboardBankSummary({ banksBreakdown, loading = false }: Props)
                       amount={bank.withdrawal}
                       count={bank.withdrawalCount}
                       amountClass="text-rose-700"
+                      formatMoney={fmt}
                     />
                   </td>
                   <td className="px-3 py-2.5 text-right whitespace-nowrap">
@@ -127,6 +131,7 @@ export function DashboardBankSummary({ banksBreakdown, loading = false }: Props)
                       amount={bank.expenses}
                       count={bank.expenseCount}
                       amountClass="text-amber-700"
+                      formatMoney={fmt}
                     />
                   </td>
                   <td className="px-3 py-2.5 text-right whitespace-nowrap">
@@ -134,6 +139,7 @@ export function DashboardBankSummary({ banksBreakdown, loading = false }: Props)
                       amount={bank.transferOut}
                       count={bank.transferOutCount}
                       amountClass="text-rose-700"
+                      formatMoney={fmt}
                     />
                   </td>
                   <td className="px-3 py-2.5 text-right whitespace-nowrap">
@@ -141,13 +147,14 @@ export function DashboardBankSummary({ banksBreakdown, loading = false }: Props)
                       amount={bank.transferIn}
                       count={bank.transferInCount}
                       amountClass="text-emerald-700"
+                      formatMoney={fmt}
                     />
                   </td>
                   <td className="px-3 py-2.5 text-right whitespace-nowrap text-slate-700">
                     {formatCount(bank.entries)}
                   </td>
                   <td className="px-3 py-2.5 text-right whitespace-nowrap font-semibold text-slate-900">
-                    {formatAmount(bank.closingBalance)}
+                    {fmt(bank.closingBalance)}
                   </td>
                 </tr>
               ))}
@@ -156,13 +163,14 @@ export function DashboardBankSummary({ banksBreakdown, loading = false }: Props)
               <tr>
                 <td className="px-3 py-2.5 whitespace-nowrap font-bold text-slate-900">TOTAL</td>
                 <td className="px-3 py-2.5 text-right whitespace-nowrap font-semibold text-slate-900">
-                  {formatAmount(totals.openingBalance)}
+                  {fmt(totals.openingBalance)}
                 </td>
                 <td className="px-3 py-2.5 text-right whitespace-nowrap">
                   <AmountWithTxnCount
                     amount={totals.deposit}
                     count={totals.depositCount}
                     amountClass="font-semibold text-emerald-700"
+                    formatMoney={fmt}
                   />
                 </td>
                 <td className="px-3 py-2.5 text-right whitespace-nowrap">
@@ -170,6 +178,7 @@ export function DashboardBankSummary({ banksBreakdown, loading = false }: Props)
                     amount={totals.withdrawal}
                     count={totals.withdrawalCount}
                     amountClass="font-semibold text-rose-700"
+                    formatMoney={fmt}
                   />
                 </td>
                 <td className="px-3 py-2.5 text-right whitespace-nowrap">
@@ -177,6 +186,7 @@ export function DashboardBankSummary({ banksBreakdown, loading = false }: Props)
                     amount={totals.expenses}
                     count={totals.expenseCount}
                     amountClass="font-semibold text-amber-700"
+                    formatMoney={fmt}
                   />
                 </td>
                 <td className="px-3 py-2.5 text-right whitespace-nowrap">
@@ -184,6 +194,7 @@ export function DashboardBankSummary({ banksBreakdown, loading = false }: Props)
                     amount={totals.transferOut}
                     count={totals.transferOutCount}
                     amountClass="font-semibold text-rose-700"
+                    formatMoney={fmt}
                   />
                 </td>
                 <td className="px-3 py-2.5 text-right whitespace-nowrap">
@@ -191,13 +202,14 @@ export function DashboardBankSummary({ banksBreakdown, loading = false }: Props)
                     amount={totals.transferIn}
                     count={totals.transferInCount}
                     amountClass="font-semibold text-emerald-700"
+                    formatMoney={fmt}
                   />
                 </td>
                 <td className="px-3 py-2.5 text-right whitespace-nowrap font-semibold text-slate-900">
                   {formatCount(totals.entries)}
                 </td>
                 <td className="px-3 py-2.5 text-right whitespace-nowrap font-bold text-slate-900">
-                  {formatAmount(totals.closingBalance)}
+                  {fmt(totals.closingBalance)}
                 </td>
               </tr>
             </tfoot>

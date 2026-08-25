@@ -26,25 +26,20 @@ import { DATE_PRESETS } from "@/modules/dashboard/components/DashboardFilterBar"
 import { BRANDING } from "@/lib/constants/branding";
 import { useAuth } from "@/context/AuthContext";
 import { formControlFocus } from "@/lib/formControlClasses";
+import { useFormatMoney } from "@/hooks/useFormatMoney";
+import { formatScaledMoney } from "@/lib/formatMoney";
 import {
   currentDateTimeLocalValue,
   dateTimeLocalValueToUtcIso,
   formatDateTimeForUser,
 } from "@/lib/userTimezone";
 
-function formatAmount(value: number) {
-  const abs = Math.abs(value);
-  let formatted: string;
-  if (abs >= 10_00_00_000) formatted = `₹${(abs / 10_00_00_000).toFixed(2)}Cr`;
-  else if (abs >= 10_00_000) formatted = `₹${(abs / 10_00_000).toFixed(2)}L`;
-  else formatted = `₹${abs.toLocaleString("en-IN")}`;
-  return value < 0 ? `−${formatted}` : formatted;
-}
-
 const ENTRY_TYPES = ["all", "deposit", "withdrawal", "expense", "liability", "settlement"] as const;
 type EntryTypeFilter = (typeof ENTRY_TYPES)[number];
 
 export default function BankStatementPage() {
+  const { platformCurrency } = useFormatMoney();
+  const formatAmount = (value: number) => formatScaledMoney(value, platformCurrency);
   const { user } = useAuth();
   const isSuperadmin = user?.role === "superadmin";
   const [bankId, setBankId] = useState("");

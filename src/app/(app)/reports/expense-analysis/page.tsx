@@ -34,6 +34,7 @@ import { ExpenseKpiStrip } from "@/modules/expense/components/ExpenseKpiStrip";
 import { ExpenseAnalysisCharts } from "@/modules/expense/components/ExpenseAnalysisCharts";
 import { ExpenseAnalysisFilterPanel } from "@/modules/expense/components/ExpenseAnalysisFilterPanel";
 import { EXPENSE_FINAL_FILTER_KEYS } from "@/modules/expense/expenseFinalListConstants";
+import { useFormatMoney } from "@/hooks/useFormatMoney";
 import { toast } from "sonner";
 
 function toLocalYmd(date: Date): string {
@@ -134,6 +135,7 @@ function buildExpenseAnalysisApiParams(q: string, filters: Record<string, string
 }
 
 export default function ExpenseAnalysisPage() {
+  const { formatMoney } = useFormatMoney();
   const listingState = useListingQueryStateReference({
     defaultLimit: 20,
     filterKeys: [...EXPENSE_FINAL_FILTER_KEYS],
@@ -310,8 +312,7 @@ export default function ExpenseAnalysisPage() {
       {
         field: "amount",
         label: "Amount",
-        render: (row: ExpenseRow) =>
-          row.amount.toLocaleString("en-IN", { style: "currency", currency: "INR" }),
+        render: (row: ExpenseRow) => formatMoney(row.amount),
         sortable: true,
         minWidth: 120,
       },
@@ -329,7 +330,7 @@ export default function ExpenseAnalysisPage() {
         minWidth: 150,
       },
     ],
-    [],
+    [formatMoney],
   );
 
   return (

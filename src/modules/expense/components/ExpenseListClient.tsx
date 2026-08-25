@@ -16,6 +16,7 @@ import { DetailsSidebar } from "@/components/common/DetailsSidebar";
 import { Button } from "@/components/ui/Button";
 import { useListingQueryStateReference } from "@/hooks/useListingQueryStateReference";
 import { tableColumnPresets } from "@/lib/tableStylePresets";
+import { useFormatMoney } from "@/hooks/useFormatMoney";
 import { getApiErrorMessage } from "@/lib/apiError";
 import {
   cancelApprovedExpense,
@@ -49,6 +50,7 @@ function formatFileSize(bytes: number): string {
 }
 
 export function ExpenseListClient() {
+  const { formatMoney } = useFormatMoney();
   const { user } = useAuth();
   const canCancelApproved = user?.role === "superadmin";
 
@@ -295,7 +297,7 @@ export function ExpenseListClient() {
       <DetailsSidebar
         open={!!selectedExpense}
         title="Expense Details"
-        subtitle={selectedExpense ? `Amount: ₹${selectedExpense.amount.toLocaleString()}` : undefined}
+        subtitle={selectedExpense ? `Amount: ${formatMoney(selectedExpense.amount)}` : undefined}
         onClose={closeSidebar}
         width="420px"
       >

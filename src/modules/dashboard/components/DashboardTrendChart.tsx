@@ -15,7 +15,7 @@ import {
 } from "recharts";
 import { IconChartBar, IconChartArea } from "@tabler/icons-react";
 import { cn } from "@/lib/cn";
-import { formatDashboardCurrency } from "../utils/formatCurrency";
+import { useFormatMoney } from "@/hooks/useFormatMoney";
 
 const SKELETON_BAR_HEIGHTS = [32, 58, 41, 76, 43, 67, 52, 37, 70, 46, 63, 35, 55, 48];
 
@@ -41,10 +41,12 @@ const CustomTooltip = ({
   active,
   payload,
   label,
+  formatMoney,
 }: {
   active?: boolean;
   payload?: { name: string; value: number; color: string }[];
   label?: string;
+  formatMoney: (value: number, options?: { includeSign?: boolean }) => string;
 }) => {
   if (!active || !payload?.length) return null;
   return (
@@ -58,7 +60,7 @@ const CustomTooltip = ({
             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
             {p.name}
           </span>
-          <span className="font-semibold text-slate-800">{formatDashboardCurrency(p.value)}</span>
+          <span className="font-semibold text-slate-800">{formatMoney(p.value, { includeSign: true })}</span>
         </div>
       ))}
     </div>
@@ -66,6 +68,8 @@ const CustomTooltip = ({
 };
 
 export function DashboardTrendChart({ data, loading }: Props) {
+  const { formatMoney } = useFormatMoney();
+  const fmt = (value: number) => formatMoney(value, { includeSign: true });
   const [chartType, setChartType] = useState<"area" | "bar">("area");
 
   const chartData = data.map((d) => ({
@@ -150,13 +154,13 @@ export function DashboardTrendChart({ data, loading }: Props) {
                   interval="preserveStartEnd"
                 />
                 <YAxis
-                  tickFormatter={(value) => formatDashboardCurrency(Number(value ?? 0))}
+                  tickFormatter={(value) => fmt(Number(value ?? 0))}
                   tick={{ fontSize: 10, fill: "#94a3b8" }}
                   axisLine={false}
                   tickLine={false}
                   width={96}
                 />
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={<CustomTooltip formatMoney={formatMoney} />} />
                 <Legend
                   wrapperStyle={{ fontSize: "11px", paddingTop: "12px" }}
                   iconType="circle"
@@ -195,13 +199,13 @@ export function DashboardTrendChart({ data, loading }: Props) {
                   interval="preserveStartEnd"
                 />
                 <YAxis
-                  tickFormatter={(value) => formatDashboardCurrency(Number(value ?? 0))}
+                  tickFormatter={(value) => fmt(Number(value ?? 0))}
                   tick={{ fontSize: 10, fill: "#94a3b8" }}
                   axisLine={false}
                   tickLine={false}
                   width={96}
                 />
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={<CustomTooltip formatMoney={formatMoney} />} />
                 <Legend
                   wrapperStyle={{ fontSize: "11px", paddingTop: "12px" }}
                   iconType="circle"

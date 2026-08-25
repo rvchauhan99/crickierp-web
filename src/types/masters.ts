@@ -1,4 +1,4 @@
-export type MasterFieldType = "STRING" | "TEXT" | "BOOLEAN" | "INTEGER" | "DATE";
+export type MasterFieldType = "STRING" | "TEXT" | "BOOLEAN" | "INTEGER" | "DECIMAL" | "DATE";
 
 export type MasterField = {
   name: string;

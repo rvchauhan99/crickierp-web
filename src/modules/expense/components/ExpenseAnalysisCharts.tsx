@@ -15,6 +15,7 @@ import {
   Legend,
 } from "recharts";
 import { Card } from "@/components/ui/Card";
+import { useFormatMoney } from "@/hooks/useFormatMoney";
 
 const COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#f97316"];
 
@@ -42,12 +43,13 @@ const ChartWrapper = ({ title, children }: { title: string; children: React.Reac
 );
 
 export function ExpenseAnalysisCharts({ data }: ChartProps) {
+  const { formatMoney } = useFormatMoney();
   const chartData = [...data].sort((a, b) => b.totalAmount - a.totalAmount).slice(0, 10);
   
   const barData = chartData.map(item => ({
     name: item.name || "Unknown",
     amount: item.totalAmount,
-    label: `₹${(item.totalAmount / 1000).toFixed(1)}k`
+    label: `${formatMoney(item.totalAmount / 1000, { maximumFractionDigits: 1, minimumFractionDigits: 1 })}k`
   }));
 
   const pieData = chartData.map(item => ({
@@ -80,7 +82,7 @@ export function ExpenseAnalysisCharts({ data }: ChartProps) {
             formatter={(value) => {
               const n = typeof value === "number" ? value : Number(value);
               const safe = Number.isFinite(n) ? n : 0;
-              return [`₹${safe.toLocaleString()}`, "Amount"];
+              return [formatMoney(safe), "Amount"];
             }}
           />
           <Bar

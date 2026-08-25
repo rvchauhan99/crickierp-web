@@ -24,7 +24,7 @@ import { tableColumnPresets } from "@/lib/tableStylePresets";
 import { useAuth } from "@/context/AuthContext";
 import { NAV_PERMISSIONS } from "@/lib/constants/navPermissions";
 import { getApiErrorMessage } from "@/lib/apiError";
-import { formatWholeRupee } from "@/lib/formatWholeRupee";
+import { useFormatMoney } from "@/hooks/useFormatMoney";
 import {
   amendDeposit,
   deleteDeposit,
@@ -69,6 +69,7 @@ function buildUserLabel(row: ExchangeUserRow): string {
 }
 
 export function DepositFinalListClient() {
+  const { formatWholeMoney } = useFormatMoney();
   const { user } = useAuth();
   const listingState = useListingQueryStateReference({
     defaultLimit: 50,
@@ -393,20 +394,20 @@ export function DepositFinalListClient() {
       {
         field: "amount",
         label: "Amount",
-        render: (row: DepositRow) => formatWholeRupee(row.amount),
+        render: (row: DepositRow) => formatWholeMoney(row.amount),
         sortable: true,
       },
       {
         field: "bonusAmount",
         label: "Bonus",
-        render: (row: DepositRow) => (row.bonusAmount != null ? formatWholeRupee(row.bonusAmount) : "—"),
+        render: (row: DepositRow) => (row.bonusAmount != null ? formatWholeMoney(row.bonusAmount) : "—"),
         sortable: true,
         minWidth: 90,
       },
       {
         field: "totalAmount",
         label: "Total",
-        render: (row: DepositRow) => (row.totalAmount != null ? formatWholeRupee(row.totalAmount) : "—"),
+        render: (row: DepositRow) => (row.totalAmount != null ? formatWholeMoney(row.totalAmount) : "—"),
         sortable: true,
       },
       {
@@ -433,7 +434,7 @@ export function DepositFinalListClient() {
       {
         field: "bankBalanceAfter",
         label: "Bank balance after",
-        render: (row: DepositRow) => (row.bankBalanceAfter != null ? formatWholeRupee(row.bankBalanceAfter) : "—"),
+        render: (row: DepositRow) => (row.bankBalanceAfter != null ? formatWholeMoney(row.bankBalanceAfter) : "—"),
         sortable: false,
         minWidth: 140,
       },
@@ -568,9 +569,9 @@ export function DepositFinalListClient() {
                 <div className="flex justify-between gap-2">
                   <dt className="text-gray-500">Amount / bonus / total</dt>
                   <dd className="text-right font-medium">
-                    {formatWholeRupee(selectedDeposit.amount)} /{" "}
-                    {selectedDeposit.bonusAmount != null ? formatWholeRupee(selectedDeposit.bonusAmount) : "—"} /{" "}
-                    {selectedDeposit.totalAmount != null ? formatWholeRupee(selectedDeposit.totalAmount) : "—"}
+                    {formatWholeMoney(selectedDeposit.amount)} /{" "}
+                    {selectedDeposit.bonusAmount != null ? formatWholeMoney(selectedDeposit.bonusAmount) : "—"} /{" "}
+                    {selectedDeposit.totalAmount != null ? formatWholeMoney(selectedDeposit.totalAmount) : "—"}
                   </dd>
                 </div>
                 <div className="flex justify-between gap-2">
@@ -639,10 +640,10 @@ export function DepositFinalListClient() {
                           <td className="py-2 text-gray-800">
                             <span className="line-clamp-3">{h.reason}</span>
                             <div className="mt-1 text-[10px] text-gray-500">
-                              Amt {h.old.amount != null ? formatWholeRupee(h.old.amount) : "—"} →{" "}
-                              {h.new.amount != null ? formatWholeRupee(h.new.amount) : "—"} · Total{" "}
-                              {h.old.totalAmount != null ? formatWholeRupee(h.old.totalAmount) : "—"} →{" "}
-                              {h.new.totalAmount != null ? formatWholeRupee(h.new.totalAmount) : "—"}
+                              Amt {h.old.amount != null ? formatWholeMoney(h.old.amount) : "—"} →{" "}
+                              {h.new.amount != null ? formatWholeMoney(h.new.amount) : "—"} · Total{" "}
+                              {h.old.totalAmount != null ? formatWholeMoney(h.old.totalAmount) : "—"} →{" "}
+                              {h.new.totalAmount != null ? formatWholeMoney(h.new.totalAmount) : "—"}
                             </div>
                           </td>
                         </tr>
@@ -787,7 +788,7 @@ export function DepositFinalListClient() {
           <div><span className="font-medium">Settlement:</span>{" "}
             {selectedDeposit?.settlementAccountType === "person" ? "Liability person" : "Bank"}
           </div>
-          <div><span className="font-medium">Amount:</span> {selectedDeposit?.amount != null ? formatWholeRupee(selectedDeposit.amount) : "—"}</div>
+          <div><span className="font-medium">Amount:</span> {selectedDeposit?.amount != null ? formatWholeMoney(selectedDeposit.amount) : "—"}</div>
           <div>
             <span className="font-medium">
               {selectedDeposit?.settlementAccountType === "person" ? "Liable person:" : "Bank:"}

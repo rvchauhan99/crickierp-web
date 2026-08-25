@@ -10,6 +10,13 @@ import { FieldLabel } from "@/components/common/FieldLabel";
 import { FieldError } from "@/components/common/FieldError";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import {
+  OperatedMoneyFields,
+  defaultOperatedMoneyValue,
+  toMoneyFxPayload,
+} from "@/components/common/OperatedMoneyFields";
+import { getCurrencyMinUnit } from "@/lib/currencies";
+import { usePlatformSettings } from "@/context/PlatformSettingsContext";
 import { ListingPageContainer } from "@/components/common/ListingPageContainer";
 import PaginatedTableReference, {
   type PaginatedTableReferenceColumn,
@@ -33,7 +40,7 @@ import { listBankLookupOptions } from "@/services/lookupService";
 import { listLiabilityPersonsNormalized } from "@/services/liabilityService";
 import type { DepositCreateInput, DepositRow } from "@/types/deposit";
 import { getApiErrorMessage } from "@/lib/apiError";
-import { formatWholeRupee } from "@/lib/formatWholeRupee";
+import { useFormatMoney } from "@/hooks/useFormatMoney";
 import { useApprovalQueueAutoRefresh } from "@/hooks/useApprovalQueueAutoRefresh";
 import { DepositImportDialog } from "./DepositImportDialog";
 import { currentDateTimeLocalValue, formatDateTimeForUser } from "@/lib/userTimezone";
@@ -79,6 +86,8 @@ export function DepositBankerClient() {
   });
   const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setFilter, setSort, clearFilters } =
     listingState;
+  const { platformCurrency } = usePlatformSettings();
+  const { formatWholeMoney } = useFormatMoney();
 
   const [settlementAccountType, setSettlementAccountType] = useState<"bank" | "person">("bank");
   const [bankId, setBankId] = useState("");
@@ -92,7 +101,7 @@ export function DepositBankerClient() {
     bankIdRef.current = bankId;
   }, [bankId]);
   const [utr, setUtr] = useState("");
-  const [amount, setAmount] = useState("");
+  const [money, setMoney] = useState(() => defaultOperatedMoneyValue(platformCurrency));
   const [entryAt, setEntryAt] = useState(currentDateTimeLocalValue());
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{
@@ -106,7 +115,7 @@ export function DepositBankerClient() {
   const [editDeposit, setEditDeposit] = useState<DepositRow | null>(null);
   const [editBankId, setEditBankId] = useState("");
   const [editUtr, setEditUtr] = useState("");
-  const [editAmount, setEditAmount] = useState("");
+  const [editMoney, setEditMoney] = useState(() => defaultOperatedMoneyValue(platformCurrency));
   const [editLoading, setEditLoading] = useState(false);
   const [editSettlementAccountType, setEditSettlementAccountType] = useState<"bank" | "person">("bank");
   const [editLiabilityPersonId, setEditLiabilityPersonId] = useState("");
@@ -119,6 +128,20 @@ export function DepositBankerClient() {
   }>({});
 
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (!platformCurrency) return;
+    setMoney((prev) =>
+      prev.operatedCurrency ? prev : { ...prev, operatedCurrency: platformCurrency },
+    );
+  }, [platformCurrency]);
+
+  useEffect(() => {
+    if (!platformCurrency) return;
+    setEditMoney((prev) =>
+      prev.operatedCurrency ? prev : { ...prev, operatedCurrency: platformCurrency },
+    );
+  }, [platformCurrency, editDeposit]);
 
   useApprovalQueueAutoRefresh({
     module: "deposit",
@@ -155,20 +178,30 @@ export function DepositBankerClient() {
   }, []);
 
   const onSubmit = async () => {
+    if (!platformCurrency) {
+      toast.error("Set platform currency in Profile first");
+      return;
+    }
     const next: typeof errors = {};
     if (settlementAccountType === "bank" && !bankId.trim()) next.bankId = "Bank is required.";
     if (settlementAccountType === "person" && !liabilityPersonId.trim()) {
       next.liabilityPersonId = "Liability person is required.";
     }
     if (!utr.trim()) next.utr = "UTR is required.";
-    const amt = Number(amount);
-    if (!amount.trim() || Number.isNaN(amt) || amt < 1) {
-      next.amount = "Amount must be at least 1.";
-    } else if (!Number.isInteger(amt)) {
-      next.amount = "Amount must be a whole number (no decimals).";
+    const amt = Number(money.amount);
+    const minUnit = getCurrencyMinUnit(money.operatedCurrency || platformCurrency);
+    if (!money.amount.trim() || Number.isNaN(amt) || amt < minUnit) {
+      next.amount = `Amount must be at least ${minUnit}.`;
+    } else if ((money.operatedCurrency || platformCurrency) !== platformCurrency) {
+      const rate = Number(money.exchangeRate);
+      if (!money.exchangeRate.trim() || !Number.isFinite(rate) || rate <= 0) {
+        next.amount = "Enter a valid exchange rate.";
+      }
     }
     setErrors(next);
     if (Object.keys(next).length > 0) return;
+
+    const fx = toMoneyFxPayload(money, platformCurrency);
 
     const payload: DepositCreateInput =
       settlementAccountType === "bank"
@@ -176,14 +209,20 @@ export function DepositBankerClient() {
             settlementAccountType: "bank",
             bankId: bankId.trim(),
             utr: utr.trim(),
-            amount: amt,
+            amount: fx.amount,
+            operatedCurrency: fx.operatedCurrency,
+            operatedAmount: fx.operatedAmount,
+            exchangeRate: fx.exchangeRate,
             entryAt,
           }
         : {
             settlementAccountType: "person",
             liabilityPersonId: liabilityPersonId.trim(),
             utr: utr.trim(),
-            amount: amt,
+            amount: fx.amount,
+            operatedCurrency: fx.operatedCurrency,
+            operatedAmount: fx.operatedAmount,
+            exchangeRate: fx.exchangeRate,
             entryAt,
           };
 
@@ -192,7 +231,7 @@ export function DepositBankerClient() {
       await createDeposit(payload);
       toast.success("Deposit recorded successfully.");
       setUtr("");
-      setAmount("");
+      setMoney(defaultOperatedMoneyValue(platformCurrency));
       setEntryAt(currentDateTimeLocalValue());
       setErrors({});
       setTableKey((k) => k + 1);
@@ -210,7 +249,7 @@ export function DepositBankerClient() {
     setLiabilityPersonId("");
     setPersonAutocompleteDefault(null);
     setUtr("");
-    setAmount("");
+    setMoney(defaultOperatedMoneyValue(platformCurrency));
     setEntryAt(currentDateTimeLocalValue());
     setErrors({});
   };
@@ -222,26 +261,36 @@ export function DepositBankerClient() {
     setEditLiabilityPersonId("");
     setEditPersonAutocompleteDefault(null);
     setEditUtr("");
-    setEditAmount("");
+    setEditMoney(defaultOperatedMoneyValue(platformCurrency));
     setEditErrors({});
   };
 
   const onEditSubmit = async () => {
     if (!editDeposit) return;
+    if (!platformCurrency) {
+      toast.error("Set platform currency in Profile first");
+      return;
+    }
     const next: typeof editErrors = {};
     if (editSettlementAccountType === "bank" && !editBankId.trim()) next.bankId = "Bank is required.";
     if (editSettlementAccountType === "person" && !editLiabilityPersonId.trim()) {
       next.liabilityPersonId = "Liability person is required.";
     }
     if (!editUtr.trim()) next.utr = "UTR is required.";
-    const amt = Number(editAmount);
-    if (!editAmount.trim() || Number.isNaN(amt) || amt < 1) {
-      next.amount = "Amount must be at least 1.";
-    } else if (!Number.isInteger(amt)) {
-      next.amount = "Amount must be a whole number (no decimals).";
+    const amt = Number(editMoney.amount);
+    const minUnit = getCurrencyMinUnit(editMoney.operatedCurrency || platformCurrency);
+    if (!editMoney.amount.trim() || Number.isNaN(amt) || amt < minUnit) {
+      next.amount = `Amount must be at least ${minUnit}.`;
+    } else if ((editMoney.operatedCurrency || platformCurrency) !== platformCurrency) {
+      const rate = Number(editMoney.exchangeRate);
+      if (!editMoney.exchangeRate.trim() || !Number.isFinite(rate) || rate <= 0) {
+        next.amount = "Enter a valid exchange rate.";
+      }
     }
     setEditErrors(next);
     if (Object.keys(next).length > 0) return;
+
+    const fx = toMoneyFxPayload(editMoney, platformCurrency);
 
     const editPayload: DepositCreateInput =
       editSettlementAccountType === "bank"
@@ -249,13 +298,19 @@ export function DepositBankerClient() {
             settlementAccountType: "bank",
             bankId: editBankId.trim(),
             utr: editUtr.trim(),
-            amount: amt,
+            amount: fx.amount,
+            operatedCurrency: fx.operatedCurrency,
+            operatedAmount: fx.operatedAmount,
+            exchangeRate: fx.exchangeRate,
           }
         : {
             settlementAccountType: "person",
             liabilityPersonId: editLiabilityPersonId.trim(),
             utr: editUtr.trim(),
-            amount: amt,
+            amount: fx.amount,
+            operatedCurrency: fx.operatedCurrency,
+            operatedAmount: fx.operatedAmount,
+            exchangeRate: fx.exchangeRate,
           };
 
     setEditLoading(true);
@@ -359,7 +414,7 @@ export function DepositBankerClient() {
       {
         field: "amount",
         label: "Amount",
-        render: (row: DepositRow) => formatWholeRupee(row.amount),
+        render: (row: DepositRow) => formatWholeMoney(row.amount),
         sortable: true,
         minWidth: 110,
         filterType: "number" as const,
@@ -427,7 +482,11 @@ export function DepositBankerClient() {
                     : null,
                 );
                 setEditUtr(row.utr);
-                setEditAmount(String(row.amount));
+                setEditMoney({
+                  amount: String(row.operatedAmount ?? row.amount),
+                  operatedCurrency: row.operatedCurrency || platformCurrency || "",
+                  exchangeRate: String(row.exchangeRate ?? 1),
+                });
                 setEditErrors({});
               }}
             >
@@ -438,7 +497,7 @@ export function DepositBankerClient() {
           ),
       },
     ],
-    [],
+    [platformCurrency],
   );
 
   return (
@@ -508,35 +567,42 @@ export function DepositBankerClient() {
             <Input placeholder="UTR" className="h-9 text-sm" value={utr} onChange={(e) => setUtr(e.target.value)} />
             <FieldError message={errors.utr} />
           </div>
-          <div className="w-[140px]">
-            <FieldLabel className="mb-1 text-xs text-muted-foreground">Amount *</FieldLabel>
-            <Input
-              type="number"
-              min={1}
-              step="1"
-              placeholder="0"
-              className="h-9 text-sm"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+          <div className="min-w-[320px] flex-1">
+            <OperatedMoneyFields
+              value={money}
+              onChange={setMoney}
+              amountLabel="Amount *"
+              roundMode="integer"
+              amountInputMode="numeric"
+              minAmount={1}
+              idPrefix="deposit-create"
+              compact
             />
-            <FieldError message={errors.amount} />
-          </div>
-          <div className="flex shrink-0 items-start gap-2 mt-[22px]">
-            <Button
-              type="button"
-              variant="success"
-              startIcon={<IconCheck size={16} />}
-              onClick={onSubmit}
-              disabled={loading}
-              className="h-9 px-4"
-            >
-              {loading ? "Saving…" : "Save"}
-            </Button>
-            <Button type="button" variant="danger" startIcon={<IconX size={16} />} onClick={reset} disabled={loading} className="h-9 px-3">
-              Clear
-            </Button>
+            {errors.amount ? <FieldError message={errors.amount} /> : null}
           </div>
         </div>
+        <FormActions>
+          <Button
+            type="button"
+            variant="danger"
+            startIcon={<IconX size={16} />}
+            onClick={reset}
+            disabled={loading}
+            className="h-9 px-4"
+          >
+            Clear
+          </Button>
+          <Button
+            type="button"
+            variant="success"
+            startIcon={<IconCheck size={16} />}
+            onClick={onSubmit}
+            disabled={loading}
+            className="h-9 px-4"
+          >
+            {loading ? "Saving…" : "Save"}
+          </Button>
+        </FormActions>
         </FormContainer>
       </div>
 
@@ -664,18 +730,19 @@ export function DepositBankerClient() {
                 <Input placeholder="UTR" className="h-9 text-sm" value={editUtr} onChange={(e) => setEditUtr(e.target.value)} />
                 <FieldError message={editErrors.utr} />
               </div>
-              <div className="w-[140px]">
-                <FieldLabel className="mb-1 text-xs text-muted-foreground">Amount *</FieldLabel>
-                <Input
-                  type="number"
-                  min={1}
-                  step="1"
-                  placeholder="0"
-                  className="h-9 text-sm"
-                  value={editAmount}
-                  onChange={(e) => setEditAmount(e.target.value)}
+              <div className="min-w-[320px] flex-1">
+                <OperatedMoneyFields
+                  value={editMoney}
+                  onChange={setEditMoney}
+                  amountLabel="Amount *"
+                  roundMode="integer"
+                  amountInputMode="numeric"
+                  minAmount={1}
+                  idPrefix="deposit-edit"
+                  disabled={editLoading}
+                  compact
                 />
-                <FieldError message={editErrors.amount} />
+                {editErrors.amount ? <FieldError message={editErrors.amount} /> : null}
               </div>
             </div>
             <div className="flex justify-end gap-2 pt-4 border-t border-[var(--border)] mt-4">

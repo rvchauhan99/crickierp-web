@@ -6,6 +6,9 @@ export type BankCreateInput = {
   accountNumber: string;
   ifsc: string;
   openingBalance: number;
+  openingOperatedCurrency?: string;
+  openingOperatedAmount?: number;
+  openingExchangeRate?: number;
   status: BankStatus;
 };
 
@@ -17,6 +20,9 @@ export type BankRow = {
   accountNumber: string;
   ifsc: string;
   openingBalance: number;
+  openingOperatedCurrency?: string;
+  openingOperatedAmount?: number;
+  openingExchangeRate?: number;
   currentBalance?: number;
   closingBalanceActual?: number;
   status: BankStatus;

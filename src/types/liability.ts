@@ -12,6 +12,9 @@ export type LiabilityPersonRow = {
   notes?: string;
   isActive: boolean;
   openingBalance: number;
+  openingOperatedCurrency?: string;
+  openingOperatedAmount?: number;
+  openingExchangeRate?: number;
   openingBalanceAbs: number;
   openingBalanceSide: LiabilityBalanceSide;
   totalDebits: number;
@@ -34,6 +37,9 @@ export type LiabilityEntryRow = {
   entryDate?: string;
   entryType: LiabilityEntryType;
   amount: number;
+  operatedCurrency?: string;
+  operatedAmount?: number;
+  exchangeRate?: number;
   fromAccountType: LiabilityAccountType;
   fromAccountId: string;
   fromAccountName?: string;
@@ -57,6 +63,9 @@ export type LiabilityPersonCreateInput = {
   openingBalance?: number;
   openingAmount?: number;
   openingKind?: LiabilityOpeningKind;
+  openingOperatedCurrency?: string;
+  openingOperatedAmount?: number;
+  openingExchangeRate?: number;
   isActive?: boolean;
 };
 
@@ -66,6 +75,9 @@ export type LiabilityEntryCreateInput = {
   entryDate: string;
   entryType: LiabilityEntryType;
   amount: number;
+  operatedCurrency?: string;
+  operatedAmount?: number;
+  exchangeRate?: number;
   fromAccountType: LiabilityAccountType;
   fromAccountId: string;
   toAccountType: LiabilityAccountType;

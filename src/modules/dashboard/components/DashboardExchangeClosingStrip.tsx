@@ -1,7 +1,7 @@
 "use client";
 
 import { IconBuildingStore, IconInfoCircle } from "@tabler/icons-react";
-import { formatDashboardCurrency } from "../utils/formatCurrency";
+import { useFormatMoney } from "@/hooks/useFormatMoney";
 import type { DashboardSummary } from "./DashboardKPIs";
 
 type ExchangeRow = NonNullable<DashboardSummary["exchangesBreakdown"]>[number];
@@ -25,6 +25,9 @@ function hasLedgerBalance(row: ExchangeRow): boolean {
 }
 
 export function DashboardExchangeClosingStrip({ exchangesBreakdown, loading = false, playerScoped = false }: Props) {
+  const { formatMoney } = useFormatMoney();
+  const fmt = (value: number) => formatMoney(value, { includeSign: true });
+
   if (loading) {
     return (
       <div className="space-y-3">
@@ -56,10 +59,10 @@ export function DashboardExchangeClosingStrip({ exchangesBreakdown, loading = fa
           >
             <p className="truncate text-[11px] font-semibold uppercase tracking-wider text-slate-500">{row.name}</p>
             <p className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
-              {formatDashboardCurrency(row.periodClosingBalance ?? 0)}
+              {fmt(row.periodClosingBalance ?? 0)}
             </p>
             <p className="mt-1 text-xs text-slate-500">
-              Opening: <span className="font-medium text-slate-700">{formatDashboardCurrency(row.periodOpeningBalance ?? 0)}</span>
+              Opening: <span className="font-medium text-slate-700">{fmt(row.periodOpeningBalance ?? 0)}</span>
             </p>
           </article>
         ))}

@@ -10,6 +10,12 @@ import { FieldLabel } from "@/components/common/FieldLabel";
 import { FieldError } from "@/components/common/FieldError";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import {
+  OperatedMoneyFields,
+  defaultOperatedMoneyValue,
+  toMoneyFxPayload,
+} from "@/components/common/OperatedMoneyFields";
+import { usePlatformSettings } from "@/context/PlatformSettingsContext";
 import { ListingPageContainer } from "@/components/common/ListingPageContainer";
 import PaginatedTableReference, {
   type PaginatedTableReferenceColumn,
@@ -84,6 +90,7 @@ export function ExpenseAddClient() {
   });
   const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setFilter, setSort, clearFilters } =
     listingState;
+  const { platformCurrency } = usePlatformSettings();
 
   const expenseListFetcher = useCallback(async (params: Record<string, unknown>) => {
     return listExpensesNormalized(params);
@@ -139,7 +146,7 @@ export function ExpenseAddClient() {
   const [expenseTypeId, setExpenseTypeId] = useState("");
   const [expenseTypeMetaStatus, setExpenseTypeMetaStatus] = useState<ExpenseTypeMetaStatus>("idle");
   const [typeRequiresAudit, setTypeRequiresAudit] = useState(true);
-  const [amount, setAmount] = useState("");
+  const [money, setMoney] = useState(() => defaultOperatedMoneyValue(platformCurrency));
   const [expenseDate, setExpenseDate] = useState(() => todayYmdInUserTz());
   const [description, setDescription] = useState("");
   const [bankId, setBankId] = useState("");
@@ -223,6 +230,13 @@ export function ExpenseAddClient() {
     };
   }, [expenseTypeId, editingId, syncExpenseTypeAuditMeta]);
 
+  useEffect(() => {
+    if (!platformCurrency) return;
+    setMoney((prev) =>
+      prev.operatedCurrency ? prev : { ...prev, operatedCurrency: platformCurrency },
+    );
+  }, [platformCurrency, editingId]);
+
   const loadLiabilityPersonOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {
       const res = await listLiabilityPersonsNormalized({
@@ -277,7 +291,7 @@ export function ExpenseAddClient() {
     setExpenseTypeId("");
     setExpenseTypeMetaStatus("idle");
     setTypeRequiresAudit(true);
-    setAmount("");
+    setMoney(defaultOperatedMoneyValue(platformCurrency));
     setExpenseDate(todayYmdInUserTz());
     setDescription("");
     setBankId("");
@@ -285,7 +299,7 @@ export function ExpenseAddClient() {
     setLiabilityPersonId("");
     setSelectedFiles([]);
     setErrors({});
-  }, []);
+  }, [platformCurrency]);
 
   const onFilesSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -303,14 +317,24 @@ export function ExpenseAddClient() {
   }, []);
 
   const onSubmit = async () => {
+    if (!platformCurrency) {
+      toast.error("Set platform currency in Profile first");
+      return;
+    }
     const next: typeof errors = {};
     if (!editingId && expenseTypeId.trim() && expenseTypeMetaStatus !== "ready") {
       toast.error("Wait for the expense type to finish loading.");
       return;
     }
     if (!expenseTypeId.trim()) next.expenseTypeId = "Expense type is required.";
-    const amt = Number(amount);
-    if (!amount.trim() || Number.isNaN(amt) || amt < 0.01) next.amount = "Enter a valid amount.";
+    const operatedAmt = Number(money.amount);
+    if (!money.amount.trim() || Number.isNaN(operatedAmt) || operatedAmt < 0.01) next.amount = "Enter a valid amount.";
+    else if ((money.operatedCurrency || platformCurrency) !== platformCurrency) {
+      const rate = Number(money.exchangeRate);
+      if (!money.exchangeRate.trim() || !Number.isFinite(rate) || rate <= 0) {
+        next.amount = "Enter a valid exchange rate.";
+      }
+    }
     if (!expenseDate.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(expenseDate.trim())) {
       next.expenseDate = "Expense date is required (YYYY-MM-DD).";
     }
@@ -326,12 +350,17 @@ export function ExpenseAddClient() {
     setErrors(next);
     if (Object.keys(next).length > 0) return;
 
+    const fx = toMoneyFxPayload(money, platformCurrency, "decimal");
+
     setLoading(true);
     try {
       if (editingId) {
         await updateExpense(editingId, {
           expenseTypeId: expenseTypeId.trim(),
-          amount: amt,
+          amount: fx.amount,
+          operatedCurrency: fx.operatedCurrency,
+          operatedAmount: fx.operatedAmount,
+          exchangeRate: fx.exchangeRate,
           expenseDate: expenseDate.trim(),
           description: description.trim() || undefined,
           bankId: bankId.trim() || null,
@@ -342,14 +371,20 @@ export function ExpenseAddClient() {
           skipsAudit && settlementAccountType === "person"
             ? {
                 expenseTypeId: expenseTypeId.trim(),
-                amount: amt,
+                amount: fx.amount,
+                operatedCurrency: fx.operatedCurrency,
+                operatedAmount: fx.operatedAmount,
+                exchangeRate: fx.exchangeRate,
                 expenseDate: expenseDate.trim(),
                 description: description.trim() || undefined,
                 liabilityPersonId: liabilityPersonId.trim(),
               }
             : {
                 expenseTypeId: expenseTypeId.trim(),
-                amount: amt,
+                amount: fx.amount,
+                operatedCurrency: fx.operatedCurrency,
+                operatedAmount: fx.operatedAmount,
+                exchangeRate: fx.exchangeRate,
                 expenseDate: expenseDate.trim(),
                 description: description.trim() || undefined,
                 ...(skipsAudit && settlementAccountType === "bank"
@@ -408,7 +443,11 @@ export function ExpenseAddClient() {
     })();
     setSettlementAccountType("bank");
     setLiabilityPersonId("");
-    setAmount(String(row.amount));
+    setMoney({
+      amount: String(row.operatedAmount ?? row.amount),
+      operatedCurrency: row.operatedCurrency || platformCurrency || "",
+      exchangeRate: String(row.exchangeRate ?? 1),
+    });
     setExpenseDate(row.expenseDate || todayYmdInUserTz());
     setDescription(row.description || "");
     setBankId(row.bankId || "");
@@ -526,16 +565,19 @@ export function ExpenseAddClient() {
               />
               <FieldError message={errors.expenseTypeId} />
             </div>
-            <div className="space-y-1.5">
-              <FieldLabel>Amount *</FieldLabel>
-              <Input
-                inputMode="decimal"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0.00"
-              />
-              <FieldError message={errors.amount} />
-            </div>
+            <OperatedMoneyFields
+              value={money}
+              onChange={setMoney}
+              amountLabel="Amount *"
+              roundMode="decimal"
+              minAmount={0.01}
+              idPrefix="expense"
+            />
+            {errors.amount ? (
+              <div className="col-span-full">
+                <FieldError message={errors.amount} />
+              </div>
+            ) : null}
             <div className="space-y-1.5">
               <FieldLabel>Expense date *</FieldLabel>
               <Input type="date" value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} />

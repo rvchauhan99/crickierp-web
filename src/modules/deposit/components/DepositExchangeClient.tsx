@@ -45,7 +45,7 @@ import { Checkbox } from "@/components/ui/Checkbox";
 import { userService } from "@/services/userService";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { REASON_TYPES } from "@/lib/constants/reasonTypes";
-import { formatWholeRupee } from "@/lib/formatWholeRupee";
+import { useFormatMoney } from "@/hooks/useFormatMoney";
 import { useApprovalQueueAutoRefresh } from "@/hooks/useApprovalQueueAutoRefresh";
 import { formatDateTimeForUser } from "@/lib/userTimezone";
 
@@ -120,6 +120,7 @@ type DepositDetailItem = {
 };
 
 function DepositDetailCard({ deposit }: { deposit: DepositRow }) {
+  const { formatWholeMoney } = useFormatMoney();
   const items: DepositDetailItem[] = [
     {
       icon: <IconCreditCard className="size-4 shrink-0 text-[var(--brand-primary)]" />,
@@ -135,7 +136,7 @@ function DepositDetailCard({ deposit }: { deposit: DepositRow }) {
     {
       icon: <IconCurrencyRupee className="size-4 shrink-0 text-[var(--brand-primary)]" />,
       label: "Amount",
-      value: formatWholeRupee(deposit.amount),
+      value: formatWholeMoney(deposit.amount),
     },
     {
       icon: <IconClock className="size-4 shrink-0 text-[var(--brand-primary)]" />,
@@ -188,6 +189,7 @@ function DepositDetailCard({ deposit }: { deposit: DepositRow }) {
 // ─── Main component ─────────────────────────────────────────────────────────
 
 export function DepositExchangeClient() {
+  const { formatWholeMoney } = useFormatMoney();
   const listingState = useListingQueryStateReference({
     defaultLimit: 20,
     filterKeys: COLUMN_FILTER_KEYS,
@@ -755,7 +757,7 @@ export function DepositExchangeClient() {
         label: "Amount",
         render: (row: DepositRow) => (
           <span className="font-medium tabular-nums">
-            ₹{formatWholeRupee(row.amount)}
+            {formatWholeMoney(row.amount)}
           </span>
         ),
         sortable: true,
@@ -1068,8 +1070,8 @@ export function DepositExchangeClient() {
                     {selectedDeposit && (
                       <>
                         {" "}
-                        · Calculated: ₹
-                        {formatWholeRupee(Number(bonusAmountFromPercent(selectedDeposit.amount, playerBonusPercent)))}
+                        · Calculated:{" "}
+                        {formatWholeMoney(Number(bonusAmountFromPercent(selectedDeposit.amount, playerBonusPercent)))}
                       </>
                     )}
                   </p>
@@ -1198,11 +1200,11 @@ export function DepositExchangeClient() {
             </p>
             <dl className="grid grid-cols-2 gap-2 text-sm">
               <dt className="text-gray-500">Deposit amount</dt>
-              <dd className="text-right font-medium tabular-nums">₹{formatWholeRupee(bulkSummary.amountTotal)}</dd>
+              <dd className="text-right font-medium tabular-nums">{formatWholeMoney(bulkSummary.amountTotal)}</dd>
               <dt className="text-gray-500">Bonus total</dt>
-              <dd className="text-right font-medium tabular-nums">₹{formatWholeRupee(bulkSummary.bonusTotal)}</dd>
+              <dd className="text-right font-medium tabular-nums">{formatWholeMoney(bulkSummary.bonusTotal)}</dd>
               <dt className="text-gray-500">Grand total</dt>
-              <dd className="text-right font-semibold tabular-nums">₹{formatWholeRupee(bulkSummary.grandTotal)}</dd>
+              <dd className="text-right font-semibold tabular-nums">{formatWholeMoney(bulkSummary.grandTotal)}</dd>
             </dl>
             {bulkSummary.utrs.length > 0 && (
               <div className="rounded-md border border-[var(--border)] bg-slate-50 px-3 py-2 text-xs text-gray-700">

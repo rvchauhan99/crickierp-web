@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { IconCheck, IconFilter, IconRefresh, IconDownload, IconFileSpreadsheet, IconFileText } from "@tabler/icons-react";
 import { 
   DropdownMenu, 
@@ -14,16 +15,19 @@ import { AutocompleteField, type AutocompleteOption } from "@/components/common/
 import { FieldLabel } from "@/components/common/FieldLabel";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import {
+  OperatedMoneyFields,
+  defaultOperatedMoneyValue,
+  toMoneyFxPayload,
+} from "@/components/common/OperatedMoneyFields";
+import { usePlatformSettings } from "@/context/PlatformSettingsContext";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { cn } from "@/lib/cn";
 import { createExchangeTopup, listExchanges, listExchangeTopups, exportExchangeTopups } from "@/services/exchangeService";
 import { useExport } from "@/hooks/useExport";
 import type { ExchangeTopupRow } from "@/types/exchange";
+import { useFormatMoney } from "@/hooks/useFormatMoney";
 import { formatDateTimeForUser } from "@/lib/userTimezone";
-
-function formatAmount(value: number) {
-  return `₹${Number(value || 0).toLocaleString("en-IN")}`;
-}
 
 function createdByLabel(createdBy: ExchangeTopupRow["createdBy"]): string {
   if (!createdBy || typeof createdBy === "string") return "";
@@ -31,14 +35,24 @@ function createdByLabel(createdBy: ExchangeTopupRow["createdBy"]): string {
 }
 
 export function ExchangeTopUpClient() {
+  const { platformCurrency } = usePlatformSettings();
+  const { formatMoney } = useFormatMoney();
+  const formatAmount = (value: number) => formatMoney(Number(value || 0));
   const [exchangeId, setExchangeId] = useState("");
-  const [amount, setAmount] = useState("");
+  const [money, setMoney] = useState(() => defaultOperatedMoneyValue(platformCurrency));
   const [remark, setRemark] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<ExchangeTopupRow[]>([]);
   const [currentBalance, setCurrentBalance] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!platformCurrency) return;
+    setMoney((prev) =>
+      prev.operatedCurrency ? prev : { ...prev, operatedCurrency: platformCurrency },
+    );
+  }, [platformCurrency]);
 
   const loadExchangeOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {
@@ -84,24 +98,39 @@ export function ExchangeTopUpClient() {
   }, [handleExport, exchangeId]);
 
   const submitTopup = async () => {
+    if (!platformCurrency) {
+      toast.error("Set platform currency in Profile first");
+      return;
+    }
     if (!exchangeId.trim()) {
       setError("Please select exchange.");
       return;
     }
-    const amountValue = Number(amount);
-    if (!Number.isFinite(amountValue) || amountValue <= 0) {
+    const operatedAmt = Number(money.amount);
+    if (!money.amount.trim() || !Number.isFinite(operatedAmt) || operatedAmt <= 0) {
       setError("Please enter valid amount.");
       return;
     }
+    if ((money.operatedCurrency || platformCurrency) !== platformCurrency) {
+      const rate = Number(money.exchangeRate);
+      if (!money.exchangeRate.trim() || !Number.isFinite(rate) || rate <= 0) {
+        setError("Please enter a valid exchange rate.");
+        return;
+      }
+    }
+    const fx = toMoneyFxPayload(money, platformCurrency, "decimal");
     setSubmitting(true);
     setError(null);
     try {
       const created = await createExchangeTopup({
         exchangeId: exchangeId.trim(),
-        amount: amountValue,
+        amount: fx.amount,
+        operatedCurrency: fx.operatedCurrency,
+        operatedAmount: fx.operatedAmount,
+        exchangeRate: fx.exchangeRate,
         remark: remark.trim() || undefined,
       });
-      setAmount("");
+      setMoney(defaultOperatedMoneyValue(platformCurrency));
       setRemark("");
       setCurrentBalance(created.currentBalance ?? null);
       await refreshTopups();
@@ -134,17 +163,14 @@ export function ExchangeTopUpClient() {
               placeholder="Search exchange..."
             />
           </div>
-          <div className="space-y-1.5">
-            <FieldLabel>Top Up Amount</FieldLabel>
-            <Input
-              type="number"
-              min={0.01}
-              step="0.01"
-              value={amount}
-              onChange={(event) => setAmount(event.target.value)}
-              placeholder="0.00"
-            />
-          </div>
+          <OperatedMoneyFields
+            value={money}
+            onChange={setMoney}
+            amountLabel="Top Up Amount"
+            roundMode="decimal"
+            minAmount={0.01}
+            idPrefix="exchange-topup"
+          />
           <div className="space-y-1.5">
             <FieldLabel>Remark</FieldLabel>
             <Input value={remark} onChange={(event) => setRemark(event.target.value)} placeholder="Optional remark" />

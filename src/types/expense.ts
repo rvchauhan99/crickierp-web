@@ -22,6 +22,9 @@ export type ExpenseRow = {
   expenseTypeId?: string;
   expenseTypeName?: string;
   amount: number;
+  operatedCurrency?: string;
+  operatedAmount?: number;
+  exchangeRate?: number;
   expenseDate?: string;
   description?: string;
   bankId?: string;
@@ -53,6 +56,9 @@ export type ExpenseApproveInput =
 export type ExpenseCreateInput = {
   expenseTypeId: string;
   amount: number;
+  operatedCurrency?: string;
+  operatedAmount?: number;
+  exchangeRate?: number;
   expenseDate: string;
   description?: string;
   bankId?: string;
@@ -62,6 +68,9 @@ export type ExpenseCreateInput = {
 export type ExpenseUpdateInput = {
   expenseTypeId?: string;
   amount?: number;
+  operatedCurrency?: string;
+  operatedAmount?: number;
+  exchangeRate?: number;
   expenseDate?: string;
   description?: string;
   bankId?: string | null;

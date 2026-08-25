@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ListingPageContainer } from "@/components/common/ListingPageContainer";
 import { FormContainer, FormActions } from "@/components/common/FormContainer";
@@ -9,6 +9,12 @@ import { FieldLabel } from "@/components/common/FieldLabel";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { AutocompleteField, type AutocompleteOption } from "@/components/common/AutocompleteField";
+import {
+  OperatedMoneyFields,
+  defaultOperatedMoneyValue,
+  toMoneyFxPayload,
+} from "@/components/common/OperatedMoneyFields";
+import { usePlatformSettings } from "@/context/PlatformSettingsContext";
 import PaginatedTableReference, {
   type PaginatedTableReferenceColumn,
 } from "@/components/common/PaginatedTableReference";
@@ -36,10 +42,11 @@ export function LiabilityEntryClient() {
     filterKeys: FILTER_KEYS,
   });
   const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setSort, clearFilters } = listingState;
+  const { platformCurrency } = usePlatformSettings();
 
   const [entryDate, setEntryDate] = useState(() => todayYmdInUserTz());
   const [entryType, setEntryType] = useState<LiabilityEntryType>("journal");
-  const [amount, setAmount] = useState("");
+  const [money, setMoney] = useState(() => defaultOperatedMoneyValue(platformCurrency));
   const [fromAccountType, setFromAccountType] = useState<LiabilityAccountType>("person");
   const [fromAccountId, setFromAccountId] = useState("");
   const [toAccountType, setToAccountType] = useState<LiabilityAccountType>("bank");
@@ -49,6 +56,13 @@ export function LiabilityEntryClient() {
   const [saving, setSaving] = useState(false);
   const [tableKey, setTableKey] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+
+  useEffect(() => {
+    if (!platformCurrency) return;
+    setMoney((prev) =>
+      prev.operatedCurrency ? prev : { ...prev, operatedCurrency: platformCurrency },
+    );
+  }, [platformCurrency]);
 
   const loadPersonOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     const res = await listLiabilityPersonsNormalized({ page: 1, limit: 30, q: query, sortBy: "name", sortOrder: "asc" });
@@ -103,26 +117,40 @@ export function LiabilityEntryClient() {
   const resetForm = useCallback(() => {
     setEntryDate(todayYmdInUserTz());
     setEntryType("journal");
-    setAmount("");
+    setMoney(defaultOperatedMoneyValue(platformCurrency));
     setFromAccountType("person");
     setFromAccountId("");
     setToAccountType("bank");
     setToAccountId("");
     setReferenceNo("");
     setRemark("");
-  }, []);
+  }, [platformCurrency]);
 
   const onSubmit = async () => {
-    const amt = Number(amount);
+    if (!platformCurrency) {
+      toast.error("Set platform currency in Profile first");
+      return;
+    }
+    const operatedAmt = Number(money.amount);
     if (!entryDate || !/^\d{4}-\d{2}-\d{2}$/.test(entryDate)) return toast.error("Valid entry date required.");
     if (!fromAccountId.trim() || !toAccountId.trim()) return toast.error("Both accounts are required.");
-    if (!amount.trim() || Number.isNaN(amt) || amt <= 0) return toast.error("Valid amount required.");
+    if (!money.amount.trim() || Number.isNaN(operatedAmt) || operatedAmt <= 0) return toast.error("Valid amount required.");
+    if ((money.operatedCurrency || platformCurrency) !== platformCurrency) {
+      const rate = Number(money.exchangeRate);
+      if (!money.exchangeRate.trim() || !Number.isFinite(rate) || rate <= 0) {
+        return toast.error("Enter a valid exchange rate.");
+      }
+    }
+    const fx = toMoneyFxPayload(money, platformCurrency, "decimal");
     setSaving(true);
     try {
       await createLiabilityEntry({
         entryDate,
         entryType,
-        amount: amt,
+        amount: fx.amount,
+        operatedCurrency: fx.operatedCurrency,
+        operatedAmount: fx.operatedAmount,
+        exchangeRate: fx.exchangeRate,
         fromAccountType,
         fromAccountId: fromAccountId.trim(),
         toAccountType,
@@ -174,10 +202,14 @@ export function LiabilityEntryClient() {
               <option value="journal">Journal</option>
             </select>
           </div>
-          <div className="space-y-1.5">
-            <FieldLabel>Amount *</FieldLabel>
-            <Input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" />
-          </div>
+          <OperatedMoneyFields
+            value={money}
+            onChange={setMoney}
+            amountLabel="Amount *"
+            roundMode="decimal"
+            minAmount={0.01}
+            idPrefix="liability-entry"
+          />
           <div className="space-y-1.5">
             <FieldLabel>Reference No</FieldLabel>
             <Input value={referenceNo} onChange={(e) => setReferenceNo(e.target.value)} placeholder="Reference" />

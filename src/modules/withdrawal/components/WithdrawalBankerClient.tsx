@@ -31,7 +31,7 @@ import { useListingQueryStateReference } from "@/hooks/useListingQueryStateRefer
 import { tableColumnPresets } from "@/lib/tableStylePresets";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { REASON_TYPES } from "@/lib/constants/reasonTypes";
-import { formatWholeRupee } from "@/lib/formatWholeRupee";
+import { useFormatMoney } from "@/hooks/useFormatMoney";
 import {
   createBulkBankerApproveJob,
   getBulkBankerApproveJob,
@@ -103,6 +103,7 @@ function formatRelative(iso?: string): string {
 // ─── Detail card for sidebar ──────────────────────────────────────────────
 
 function WithdrawalDetailCard({ withdrawal }: { withdrawal: WithdrawalRow }) {
+  const { formatWholeMoney } = useFormatMoney();
   const items = [
     {
       icon: <IconUser className="size-4 shrink-0 text-[var(--brand-primary)]" />,
@@ -122,7 +123,7 @@ function WithdrawalDetailCard({ withdrawal }: { withdrawal: WithdrawalRow }) {
     {
       icon: <IconCurrencyRupee className="size-4 shrink-0 text-[var(--brand-primary)]" />,
       label: "Payable amount",
-      value: withdrawal.payableAmount != null ? formatWholeRupee(withdrawal.payableAmount) : "—",
+      value: withdrawal.payableAmount != null ? formatWholeMoney(withdrawal.payableAmount) : "—",
     },
     {
       icon: <IconClock className="size-4 shrink-0 text-gray-400" />,
@@ -165,6 +166,7 @@ function WithdrawalDetailCard({ withdrawal }: { withdrawal: WithdrawalRow }) {
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 export function WithdrawalBankerClient() {
+  const { formatWholeMoney } = useFormatMoney();
   const listingState = useListingQueryStateReference({
     defaultLimit: 20,
     filterKeys: COLUMN_FILTER_KEYS,
@@ -649,7 +651,7 @@ export function WithdrawalBankerClient() {
       {
         field: "payableAmount",
         label: "Payable",
-        render: (row: WithdrawalRow) => (row.payableAmount != null ? `₹${formatWholeRupee(row.payableAmount)}` : "—"),
+        render: (row: WithdrawalRow) => (row.payableAmount != null ? formatWholeMoney(row.payableAmount) : "—"),
         sortable: true,
         minWidth: 100,
         filterType: "number" as const,
@@ -986,7 +988,7 @@ export function WithdrawalBankerClient() {
             </p>
             <dl className="grid grid-cols-2 gap-2 text-sm">
               <dt className="text-gray-500">Payable total</dt>
-              <dd className="text-right font-semibold tabular-nums">₹{formatWholeRupee(bulkSummary.payableTotal)}</dd>
+              <dd className="text-right font-semibold tabular-nums">{formatWholeMoney(bulkSummary.payableTotal)}</dd>
             </dl>
             {bulkSummary.utrs.length > 0 && (
               <div className="rounded-md border border-[var(--border)] bg-slate-50 px-3 py-2 text-xs text-gray-700">

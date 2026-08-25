@@ -19,18 +19,13 @@ import { DATE_PRESETS } from "@/modules/dashboard/components/DashboardFilterBar"
 import { getExchangeStatement } from "@/services/exchangeService";
 import { listExchangeLookupOptions, listPlayerLookupOptions } from "@/services/lookupService";
 import type { ExchangeStatementEntryType, ExchangeStatementResponse } from "@/types/exchange";
+import { useFormatMoney } from "@/hooks/useFormatMoney";
+import { formatScaledMoney } from "@/lib/formatMoney";
 import { formatDateTimeForUser } from "@/lib/userTimezone";
 
-function formatAmount(value: number) {
-  const abs = Math.abs(value);
-  let formatted: string;
-  if (abs >= 10_00_00_000) formatted = `₹${(abs / 10_00_00_000).toFixed(2)}Cr`;
-  else if (abs >= 10_00_000) formatted = `₹${(abs / 10_00_000).toFixed(2)}L`;
-  else formatted = `₹${abs.toLocaleString("en-IN")}`;
-  return value < 0 ? `-${formatted}` : formatted;
-}
-
 export function ExchangeStatementClient() {
+  const { platformCurrency } = useFormatMoney();
+  const formatAmount = (value: number) => formatScaledMoney(value, platformCurrency, "-");
   const [exchangeId, setExchangeId] = useState("");
   const [playerId, setPlayerId] = useState("");
   const [fromDate, setFromDate] = useState("");

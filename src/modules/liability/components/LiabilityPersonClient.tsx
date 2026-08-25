@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { IconPlus, IconPencil, IconDeviceFloppy, IconX } from "@tabler/icons-react";
 import { ListingPageContainer } from "@/components/common/ListingPageContainer";
@@ -13,6 +13,12 @@ import { FormGrid } from "@/components/common/FormGrid";
 import { FieldLabel } from "@/components/common/FieldLabel";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import {
+  OperatedMoneyFields,
+  defaultOperatedMoneyValue,
+  toMoneyFxPayload,
+} from "@/components/common/OperatedMoneyFields";
+import { usePlatformSettings } from "@/context/PlatformSettingsContext";
 import { TableStatusBadge } from "@/components/common/TableStatusBadge";
 import { useListingQueryStateReference } from "@/hooks/useListingQueryStateReference";
 import { tableColumnPresets } from "@/lib/tableStylePresets";
@@ -39,12 +45,14 @@ export function LiabilityPersonClient() {
     filterKeys: FILTER_KEYS,
   });
   const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setSort, clearFilters } = listingState;
+  const { platformCurrency } = usePlatformSettings();
+  const fmtLiability = (value: number) => formatLiabilityMoneyAbs(value, platformCurrency);
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [notes, setNotes] = useState("");
-  const [openingAmount, setOpeningAmount] = useState("");
+  const [openingMoney, setOpeningMoney] = useState(() => defaultOperatedMoneyValue(platformCurrency));
   const [openingKind, setOpeningKind] = useState<LiabilityOpeningKind>("receivable");
   const [isActive, setIsActive] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -52,16 +60,23 @@ export function LiabilityPersonClient() {
   const [tableKey, setTableKey] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
 
+  useEffect(() => {
+    if (!platformCurrency) return;
+    setOpeningMoney((prev) =>
+      prev.operatedCurrency ? prev : { ...prev, operatedCurrency: platformCurrency },
+    );
+  }, [platformCurrency, editingId]);
+
   const resetForm = useCallback(() => {
     setName("");
     setPhone("");
     setEmail("");
     setNotes("");
-    setOpeningAmount("");
+    setOpeningMoney(defaultOperatedMoneyValue(platformCurrency));
     setOpeningKind("receivable");
     setIsActive(true);
     setEditingId(null);
-  }, []);
+  }, [platformCurrency]);
 
   const fetcher = useCallback(async (params: Record<string, unknown>) => {
     return listLiabilityPersonsNormalized(params);
@@ -89,16 +104,32 @@ export function LiabilityPersonClient() {
   }, [handleExport, filterParams, sortBy, sortOrder]);
 
   const onSubmit = async () => {
+    if (!platformCurrency) {
+      toast.error("Set platform currency in Profile first");
+      return;
+    }
     if (!name.trim()) {
       toast.error("Name is required");
       return;
     }
-    const amtRaw = openingAmount.trim();
+    const amtRaw = openingMoney.amount.trim();
     const amt = amtRaw ? Number(amtRaw) : 0;
     if (amtRaw && (Number.isNaN(amt) || amt < 0)) {
       toast.error("Opening amount must be a non-negative number.");
       return;
     }
+    if (amt > 0 && (openingMoney.operatedCurrency || platformCurrency) !== platformCurrency) {
+      const rate = Number(openingMoney.exchangeRate);
+      if (!openingMoney.exchangeRate.trim() || !Number.isFinite(rate) || rate <= 0) {
+        toast.error("Enter a valid exchange rate.");
+        return;
+      }
+    }
+    const fx = toMoneyFxPayload(
+      { ...openingMoney, amount: amtRaw === "" ? "0" : openingMoney.amount },
+      platformCurrency,
+      "decimal",
+    );
     setLoading(true);
     try {
       const payload = {
@@ -106,8 +137,11 @@ export function LiabilityPersonClient() {
         phone: phone.trim() || undefined,
         email: email.trim() || undefined,
         notes: notes.trim() || undefined,
-        openingAmount: amt,
-        ...(amt > 0 ? { openingKind } : {}),
+        openingAmount: fx.amount,
+        openingOperatedCurrency: fx.operatedCurrency,
+        openingOperatedAmount: fx.operatedAmount,
+        openingExchangeRate: fx.exchangeRate,
+        ...(fx.amount > 0 ? { openingKind } : {}),
         isActive,
       };
       if (editingId) {
@@ -137,7 +171,7 @@ export function LiabilityPersonClient() {
         render: (r: LiabilityPersonRow) => (
           <div className="flex flex-col items-end gap-0.5">
             <span className={liabilitySideAmountClass(r.openingBalanceSide)}>
-              {formatLiabilityMoneyAbs(r.openingBalanceAbs)}
+              {fmtLiability(r.openingBalanceAbs)}
             </span>
             <span
               className={`inline-block rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${liabilitySideBadgeClass(r.openingBalanceSide)}`}
@@ -163,7 +197,7 @@ export function LiabilityPersonClient() {
         render: (r: LiabilityPersonRow) => (
           <div className="flex flex-col items-end gap-0.5">
             <span className={liabilitySideAmountClass(r.closingBalanceSide)}>
-              {formatLiabilityMoneyAbs(r.closingBalanceAbs)}
+              {fmtLiability(r.closingBalanceAbs)}
             </span>
             <span
               className={`inline-block rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${liabilitySideBadgeClass(r.closingBalanceSide)}`}
@@ -197,7 +231,11 @@ export function LiabilityPersonClient() {
               setPhone(r.phone || "");
               setEmail(r.email || "");
               setNotes(r.notes || "");
-              setOpeningAmount(String(r.openingBalanceAbs ?? 0));
+              setOpeningMoney({
+                amount: String(r.openingOperatedAmount ?? r.openingBalanceAbs ?? 0),
+                operatedCurrency: r.openingOperatedCurrency || platformCurrency || "",
+                exchangeRate: String(r.openingExchangeRate ?? 1),
+              });
               setOpeningKind(
                 r.openingBalanceSide === "payable"
                   ? "payable"
@@ -211,7 +249,7 @@ export function LiabilityPersonClient() {
         ),
       },
     ],
-    [],
+    [platformCurrency],
   );
 
   return (
@@ -233,23 +271,21 @@ export function LiabilityPersonClient() {
             <FieldLabel>Email</FieldLabel>
             <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
           </div>
-          <div className="space-y-1.5">
-            <FieldLabel>Opening amount</FieldLabel>
-            <Input
-              inputMode="decimal"
-              min={0}
-              value={openingAmount}
-              onChange={(e) => setOpeningAmount(e.target.value)}
-              placeholder="0"
-            />
-          </div>
+          <OperatedMoneyFields
+            value={openingMoney}
+            onChange={setOpeningMoney}
+            amountLabel="Opening amount"
+            roundMode="decimal"
+            minAmount={0}
+            idPrefix="liability-person-opening"
+          />
           <div className="space-y-1.5">
             <FieldLabel>Opening type</FieldLabel>
             <select
               className="w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
               value={openingKind}
               onChange={(e) => setOpeningKind(e.target.value as LiabilityOpeningKind)}
-              disabled={!openingAmount.trim() || Number(openingAmount) === 0}
+              disabled={!openingMoney.amount.trim() || Number(openingMoney.amount) === 0}
             >
               <option value="receivable">Receivable (we are owed)</option>
               <option value="payable">Payable (we owe)</option>

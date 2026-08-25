@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SUPPORTED_CURRENCIES } from "@/lib/currencies";
 
 /** Mirrors crickierp-api `masters.validation.ts` for client-side checks. */
 
@@ -34,7 +35,49 @@ export const createExpenseTypeBodySchema = z
 
 export const updateExpenseTypeBodySchema = createExpenseTypeBodySchema.partial().strict();
 
-export type MasterModelKey = "reason" | "expenseType";
+const currencyEnum = z.enum(SUPPORTED_CURRENCIES);
+
+export const createExchangeRateBodySchema = z
+  .object({
+    fromCurrency: currencyEnum,
+    toCurrency: currencyEnum,
+    rate: z.number().positive(),
+    isActive: z.boolean().optional(),
+  })
+  .strict()
+  .superRefine((data, ctx) => {
+    if (data.fromCurrency === data.toCurrency) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "From and to currency must be different",
+        path: ["toCurrency"],
+      });
+    }
+  });
+
+export const updateExchangeRateBodySchema = z
+  .object({
+    fromCurrency: currencyEnum.optional(),
+    toCurrency: currencyEnum.optional(),
+    rate: z.number().positive().optional(),
+    isActive: z.boolean().optional(),
+  })
+  .strict()
+  .superRefine((data, ctx) => {
+    if (
+      data.fromCurrency !== undefined &&
+      data.toCurrency !== undefined &&
+      data.fromCurrency === data.toCurrency
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "From and to currency must be different",
+        path: ["toCurrency"],
+      });
+    }
+  });
+
+export type MasterModelKey = "reason" | "expenseType" | "exchangeRate";
 
 export function validateMasterPayload(
   modelKey: MasterModelKey,
@@ -46,9 +89,13 @@ export function validateMasterPayload(
       ? mode === "create"
         ? createReasonBodySchema
         : updateReasonBodySchema
-      : mode === "create"
-        ? createExpenseTypeBodySchema
-        : updateExpenseTypeBodySchema;
+      : modelKey === "expenseType"
+        ? mode === "create"
+          ? createExpenseTypeBodySchema
+          : updateExpenseTypeBodySchema
+        : mode === "create"
+          ? createExchangeRateBodySchema
+          : updateExchangeRateBodySchema;
 
   const result = schema.safeParse(payload);
   if (result.success) {

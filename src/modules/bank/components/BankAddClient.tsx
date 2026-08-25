@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { IconCheck, IconX } from "@tabler/icons-react";
 import { FormActions, FormContainer } from "@/components/common/FormContainer";
@@ -10,6 +10,12 @@ import { FieldError } from "@/components/common/FieldError";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
+import {
+  OperatedMoneyFields,
+  defaultOperatedMoneyValue,
+  toMoneyFxPayload,
+} from "@/components/common/OperatedMoneyFields";
+import { usePlatformSettings } from "@/context/PlatformSettingsContext";
 import { createBank } from "@/services/bankService";
 import type { BankCreateInput } from "@/types/bank";
 import { getApiErrorMessage } from "@/lib/apiError";
@@ -24,7 +30,9 @@ const initialState: BankCreateInput = {
 };
 
 export function BankAddClient() {
+  const { platformCurrency } = usePlatformSettings();
   const [form, setForm] = useState<BankCreateInput>(initialState);
+  const [openingMoney, setOpeningMoney] = useState(() => defaultOperatedMoneyValue(platformCurrency));
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{
     holderName?: string;
@@ -34,26 +42,49 @@ export function BankAddClient() {
     openingBalance?: string;
   }>({});
 
+  useEffect(() => {
+    if (!platformCurrency) return;
+    setOpeningMoney((prev) =>
+      prev.operatedCurrency ? prev : { ...prev, operatedCurrency: platformCurrency },
+    );
+  }, [platformCurrency]);
+
   const reset = () => {
     setForm(initialState);
+    setOpeningMoney(defaultOperatedMoneyValue(platformCurrency));
     setErrors({});
   };
 
   const onSubmit = async () => {
+    if (!platformCurrency) {
+      toast.error("Set platform currency in Profile first");
+      return;
+    }
     const nextErrors: typeof errors = {};
     if (!form.holderName.trim()) nextErrors.holderName = "Holder name is required.";
     if (!form.bankName.trim()) nextErrors.bankName = "Bank name is required.";
     if (!form.accountNumber.trim()) nextErrors.accountNumber = "Account number is required.";
     if (!form.ifsc.trim()) nextErrors.ifsc = "IFSC code is required.";
-    const ob = Number(form.openingBalance);
-    if (Number.isNaN(ob)) {
+    const operatedAmt = openingMoney.amount.trim() === "" ? 0 : Number(openingMoney.amount);
+    if (Number.isNaN(operatedAmt)) {
       nextErrors.openingBalance = "Opening balance is required.";
-    } else if (ob < 0) {
+    } else if (operatedAmt < 0) {
       nextErrors.openingBalance = "Opening balance must be at least 0.";
+    } else if ((openingMoney.operatedCurrency || platformCurrency) !== platformCurrency) {
+      const rate = Number(openingMoney.exchangeRate);
+      if (!openingMoney.exchangeRate.trim() || !Number.isFinite(rate) || rate <= 0) {
+        nextErrors.openingBalance = "Enter a valid exchange rate.";
+      }
     }
 
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
+
+    const fx = toMoneyFxPayload(
+      { ...openingMoney, amount: openingMoney.amount.trim() === "" ? "0" : openingMoney.amount },
+      platformCurrency,
+      "decimal",
+    );
 
     setLoading(true);
     try {
@@ -63,7 +94,10 @@ export function BankAddClient() {
         bankName: form.bankName.trim(),
         accountNumber: form.accountNumber.trim(),
         ifsc: form.ifsc.trim(),
-        openingBalance: ob,
+        openingBalance: fx.amount,
+        openingOperatedCurrency: fx.operatedCurrency,
+        openingOperatedAmount: fx.operatedAmount,
+        openingExchangeRate: fx.exchangeRate,
       });
       toast.success("Bank account created successfully.");
       reset();
@@ -117,18 +151,19 @@ export function BankAddClient() {
             />
             <FieldError message={errors.ifsc} />
           </div>
-          <div>
-            <FieldLabel>Opening balance *</FieldLabel>
-            <Input
-              type="number"
-              min={0}
-              step="0.01"
-              placeholder="0"
-              value={form.openingBalance}
-              onChange={(e) => setForm((p) => ({ ...p, openingBalance: Number(e.target.value) }))}
-            />
-            <FieldError message={errors.openingBalance} />
-          </div>
+          <OperatedMoneyFields
+            value={openingMoney}
+            onChange={setOpeningMoney}
+            amountLabel="Opening balance *"
+            roundMode="decimal"
+            minAmount={0}
+            idPrefix="bank-opening"
+          />
+          {errors.openingBalance ? (
+            <div className="col-span-full">
+              <FieldError message={errors.openingBalance} />
+            </div>
+          ) : null}
           <div>
             <FieldLabel>Status</FieldLabel>
             <Select

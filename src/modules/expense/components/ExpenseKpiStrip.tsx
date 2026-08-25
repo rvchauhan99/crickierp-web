@@ -10,6 +10,7 @@ import {
   IconBan,
   IconClock,
 } from "@tabler/icons-react";
+import { useFormatMoney } from "@/hooks/useFormatMoney";
 import type { ExpenseAnalysisSummary } from "@/services/expenseService";
 
 interface ExpenseKpiStripProps {
@@ -19,6 +20,9 @@ interface ExpenseKpiStripProps {
 }
 
 export function ExpenseKpiStrip({ summary, statusFilter }: ExpenseKpiStripProps) {
+  const { formatMoney } = useFormatMoney();
+  const fmt = (value: number, options?: { maximumFractionDigits?: number }) =>
+    formatMoney(value, options);
   const byExpenseType = summary.byExpenseType ?? [];
   const netApprovedTotal = summary.netApprovedTotal ?? summary.grandTotal ?? 0;
   const netApprovedCount = summary.netApprovedCount ?? 0;
@@ -37,7 +41,7 @@ export function ExpenseKpiStrip({ summary, statusFilter }: ExpenseKpiStripProps)
     ? [
         {
           label: "Net Disbursement",
-          value: `₹${netApprovedTotal.toLocaleString("en-IN")}`,
+          value: fmt(netApprovedTotal),
           sub: `${netApprovedCount.toLocaleString()} approved`,
           icon: IconCurrencyRupee,
           color: "text-emerald-600",
@@ -45,7 +49,7 @@ export function ExpenseKpiStrip({ summary, statusFilter }: ExpenseKpiStripProps)
         },
         {
           label: "Cancelled (reversed)",
-          value: `₹${cancelledTotal.toLocaleString("en-IN")}`,
+          value: fmt(cancelledTotal),
           sub: `${cancelledCount.toLocaleString()} reversed`,
           icon: IconBan,
           color: "text-slate-600",
@@ -53,7 +57,7 @@ export function ExpenseKpiStrip({ summary, statusFilter }: ExpenseKpiStripProps)
         },
         {
           label: "Pending audit",
-          value: `₹${pendingTotal.toLocaleString("en-IN")}`,
+          value: fmt(pendingTotal),
           sub: `${pendingCount.toLocaleString()} awaiting approval`,
           icon: IconClock,
           color: "text-amber-600",
@@ -62,7 +66,7 @@ export function ExpenseKpiStrip({ summary, statusFilter }: ExpenseKpiStripProps)
         {
           label: "Top category (approved)",
           value: topCategory?.name || "None",
-          sub: topCategory ? `₹${topCategory.totalAmount.toLocaleString("en-IN")}` : "No approved spend",
+          sub: topCategory ? fmt(topCategory.totalAmount) : "No approved spend",
           icon: IconCategory,
           color: "text-purple-600",
           bg: "bg-purple-50",
@@ -71,7 +75,7 @@ export function ExpenseKpiStrip({ summary, statusFilter }: ExpenseKpiStripProps)
     : [
         {
           label: "Filtered total",
-          value: `₹${summary.grandTotal.toLocaleString("en-IN")}`,
+          value: fmt(summary.grandTotal),
           sub: `${summary.totalCount.toLocaleString()} records`,
           icon: IconCurrencyRupee,
           color: "text-emerald-600",
@@ -87,7 +91,7 @@ export function ExpenseKpiStrip({ summary, statusFilter }: ExpenseKpiStripProps)
         },
         {
           label: "Average",
-          value: `₹${avgAmount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`,
+          value: fmt(avgAmount, { maximumFractionDigits: 0 }),
           sub: "Per record in view",
           icon: IconChartPie,
           color: "text-amber-600",
@@ -96,7 +100,7 @@ export function ExpenseKpiStrip({ summary, statusFilter }: ExpenseKpiStripProps)
         {
           label: "Top category",
           value: topCategory?.name || "None",
-          sub: topCategory ? `₹${topCategory.totalAmount.toLocaleString("en-IN")}` : "No data",
+          sub: topCategory ? fmt(topCategory.totalAmount) : "No data",
           icon: IconCategory,
           color: "text-purple-600",
           bg: "bg-purple-50",

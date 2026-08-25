@@ -33,6 +33,7 @@ import {
   liabilitySideBadgeClass,
   liabilitySideFromSigned,
 } from "@/lib/liabilityDisplay";
+import { useFormatMoney } from "@/hooks/useFormatMoney";
 import { DATE_PRESETS } from "@/modules/dashboard/components/DashboardFilterBar";
 import { cn } from "@/lib/cn";
 import { BRANDING } from "@/lib/constants/branding";
@@ -43,6 +44,8 @@ function todayYmdInUserTz(): string {
 }
 
 export function LiabilityLedgerClient() {
+  const { platformCurrency } = useFormatMoney();
+  const fmtLiability = (value: number) => formatLiabilityMoneyAbs(value, platformCurrency);
   const [personId, setPersonId] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState(todayYmdInUserTz());
@@ -390,7 +393,7 @@ export function LiabilityLedgerClient() {
             <div className="p-4 flex flex-col justify-center gap-1">
               <span className="text-[10px] uppercase font-semibold tracking-widest text-slate-400 mb-0.5">Opening balance</span>
               <span className={cn("text-xl font-bold", liabilitySideAmountClass(periodOpeningSide))}>
-                {formatLiabilityMoneyAbs(periodOpeningAbs)}
+                {fmtLiability(periodOpeningAbs)}
               </span>
               <span
                 className={cn(
@@ -405,13 +408,13 @@ export function LiabilityLedgerClient() {
               <span className="text-[10px] uppercase font-semibold tracking-widest text-slate-500 mb-1 flex items-center gap-1">
                 <IconArrowUpRight className="w-3 h-3" /> Total inward (DR)
               </span>
-              <span className="text-xl font-bold text-slate-800">{formatLiabilityMoneyAbs(totalDebits)}</span>
+              <span className="text-xl font-bold text-slate-800">{fmtLiability(totalDebits)}</span>
             </div>
             <div className="p-4 flex flex-col justify-center">
               <span className="text-[10px] uppercase font-semibold tracking-widest text-slate-500 mb-1 flex items-center gap-1">
                 <IconArrowDownRight className="w-3 h-3" /> Total outward (CR)
               </span>
-              <span className="text-xl font-bold text-slate-800">{formatLiabilityMoneyAbs(totalCredits)}</span>
+              <span className="text-xl font-bold text-slate-800">{fmtLiability(totalCredits)}</span>
             </div>
             <div className={cn("p-4 flex flex-col justify-center", finalBalanceTone.cardClass)}>
               <div className="flex items-center justify-between gap-2 mb-1">
@@ -423,7 +426,7 @@ export function LiabilityLedgerClient() {
                 </span>
               </div>
               <span className={cn("text-2xl font-bold", finalBalanceTone.amountClass)}>
-                {formatLiabilityMoneyAbs(periodClosingAbs)}
+                {fmtLiability(periodClosingAbs)}
               </span>
             </div>
           </div>
@@ -484,18 +487,18 @@ export function LiabilityLedgerClient() {
                       </td>
                       <td className="py-3 px-4 text-right">
                         {r.debit > 0 ? (
-                          <span className="font-semibold text-slate-700">{formatLiabilityMoneyAbs(r.debit)}</span>
+                          <span className="font-semibold text-slate-700">{fmtLiability(r.debit)}</span>
                         ) : null}
                       </td>
                       <td className="py-3 px-4 text-right">
                         {r.credit > 0 ? (
-                          <span className="font-semibold text-slate-700">{formatLiabilityMoneyAbs(r.credit)}</span>
+                          <span className="font-semibold text-slate-700">{fmtLiability(r.credit)}</span>
                         ) : null}
                       </td>
                       <td className="py-3 px-4 text-right bg-slate-50/30 border-l border-slate-100">
                         <div className="flex flex-col items-end gap-0.5">
                           <span className={cn("font-semibold", liabilitySideAmountClass(r.runningBalanceSide))}>
-                            {formatLiabilityMoneyAbs(r.runningBalanceAbs)}
+                            {fmtLiability(r.runningBalanceAbs)}
                           </span>
                           <span
                             className={cn(
@@ -517,13 +520,13 @@ export function LiabilityLedgerClient() {
                     Ledger Totals ({ledger.rows.length} entries)
                   </td>
                   <td className="py-3 px-4 text-right font-bold text-slate-800">
-                    {formatLiabilityMoneyAbs(totalDebits)}
+                    {fmtLiability(totalDebits)}
                   </td>
                   <td className="py-3 px-4 text-right font-bold text-slate-800">
-                    {formatLiabilityMoneyAbs(totalCredits)}
+                    {fmtLiability(totalCredits)}
                   </td>
                   <td className={cn("py-3 px-4 text-right font-bold", finalBalanceTone.footerClass)}>
-                    {formatLiabilityMoneyAbs(periodClosingAbs)}
+                    {fmtLiability(periodClosingAbs)}
                   </td>
                 </tr>
               </tfoot>

@@ -5,6 +5,9 @@ export type Exchange = {
   _id?: string;
   name: string;
   openingBalance: number;
+  openingOperatedCurrency?: string;
+  openingOperatedAmount?: number;
+  openingExchangeRate?: number;
   currentBalance?: number;
   bonus: number;
   provider: string;
@@ -21,7 +24,11 @@ export type Exchange = {
 export type ExchangeCreateInput = Pick<
   Exchange,
   "name" | "openingBalance" | "bonus" | "provider" | "status"
->;
+> & {
+  openingOperatedCurrency?: string;
+  openingOperatedAmount?: number;
+  openingExchangeRate?: number;
+};
 
 export type ExchangeListParams = {
   q?: string;
@@ -107,6 +114,9 @@ export type ExchangeTopupRow = {
     openingBalance?: number;
   };
   amount: number;
+  operatedCurrency?: string;
+  operatedAmount?: number;
+  exchangeRate?: number;
   remark?: string;
   createdBy: {
     _id: string;

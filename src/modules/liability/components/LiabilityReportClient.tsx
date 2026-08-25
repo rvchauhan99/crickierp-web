@@ -35,9 +35,12 @@ import {
   liabilitySideBadgeClass,
   liabilitySideFromSigned,
 } from "@/lib/liabilityDisplay";
+import { useFormatMoney } from "@/hooks/useFormatMoney";
 import type { LiabilityBalanceSide } from "@/types/liability";
 
 export function LiabilityReportClient() {
+  const { platformCurrency } = useFormatMoney();
+  const fmtLiability = (value: number) => formatLiabilityMoneyAbs(value, platformCurrency);
   const [summary, setSummary] = useState<LiabilitySummaryReport | null>(null);
   const [rows, setRows] = useState<LiabilityPersonWiseReportRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -181,7 +184,7 @@ export function LiabilityReportClient() {
                     <IconArrowUpRight className="w-3 h-3"/> Total Receivable
                   </span>
                   <span className="text-xl font-bold text-emerald-700">
-                    {formatLiabilityMoneyAbs(summary.totalReceivable)}
+                    {fmtLiability(summary.totalReceivable)}
                   </span>
                 </div>
                 <div className="p-4 flex flex-col justify-center">
@@ -189,7 +192,7 @@ export function LiabilityReportClient() {
                     <IconArrowDownRight className="w-3 h-3"/> Total Payable
                   </span>
                   <span className="text-xl font-bold text-rose-700">
-                    {formatLiabilityMoneyAbs(summary.totalPayable)}
+                    {fmtLiability(summary.totalPayable)}
                   </span>
                 </div>
                 <div className="p-4 flex flex-col justify-center gap-1">
@@ -218,7 +221,7 @@ export function LiabilityReportClient() {
                           <IconScale className="w-3 h-3" /> {netTitle}
                         </span>
                         <span className={cn("text-xl font-bold", liabilitySideAmountClass(netSide))}>
-                          {formatLiabilityMoneyAbs(netAbs)}
+                          {fmtLiability(netAbs)}
                         </span>
                         <span
                           className={cn(
@@ -293,14 +296,14 @@ export function LiabilityReportClient() {
                           </td>
                           <td className="py-3 px-4 text-right">
                              {r.totalDebits !== undefined ? (
-                               <span className="text-slate-600">{formatLiabilityMoneyAbs(r.totalDebits)}</span>
+                               <span className="text-slate-600">{fmtLiability(r.totalDebits)}</span>
                              ) : (
                                <span className="text-slate-400">—</span>
                              )}
                           </td>
                           <td className="py-3 px-4 text-right">
                              {r.totalCredits !== undefined ? (
-                               <span className="text-slate-600">{formatLiabilityMoneyAbs(r.totalCredits)}</span>
+                               <span className="text-slate-600">{fmtLiability(r.totalCredits)}</span>
                              ) : (
                                <span className="text-slate-400">—</span>
                              )}
@@ -313,7 +316,7 @@ export function LiabilityReportClient() {
                                 ? "text-rose-700"
                                 : "text-slate-700"
                           )}>
-                            {formatLiabilityMoneyAbs(r.balanceAbs ?? Math.abs(r.balance))}
+                            {fmtLiability(r.balanceAbs ?? Math.abs(r.balance))}
                           </td>
                           <td className="py-3 px-4">
                             <span className={cn(
@@ -347,7 +350,7 @@ export function LiabilityReportClient() {
                                     summary.netPositionSide ?? liabilitySideFromSigned(summary.netPosition),
                                   )}
                                 >
-                                  {formatLiabilityMoneyAbs(summary.netPositionAbs ?? Math.abs(summary.netPosition))}
+                                  {fmtLiability(summary.netPositionAbs ?? Math.abs(summary.netPosition))}
                                 </span>
                                 <span
                                   className={cn(

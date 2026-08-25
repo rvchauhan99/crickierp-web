@@ -128,3 +128,19 @@ export async function getPlayerBonusProfile(
   );
 }
 
+export type LookupExchangeRateResult = {
+  rate: number | null;
+  source: "direct" | "reverse" | null;
+};
+
+export async function lookupExchangeRate(
+  from: string,
+  to: string,
+): Promise<LookupExchangeRateResult> {
+  const res = await apiClient.get<{ success: boolean; data: LookupExchangeRateResult }>(
+    "/lookup/exchange-rate",
+    { params: { from, to } },
+  );
+  return res.data?.data ?? { rate: null, source: null };
+}
+

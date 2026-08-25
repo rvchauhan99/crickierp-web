@@ -12,7 +12,7 @@ import {
 } from "@tabler/icons-react";
 import { cn } from "@/lib/cn";
 import { type DashboardSummary } from "./DashboardKPIs";
-import { formatDashboardCurrency } from "../utils/formatCurrency";
+import { useFormatMoney } from "@/hooks/useFormatMoney";
 
 interface Props {
   exchangesBreakdown: DashboardSummary["exchangesBreakdown"];
@@ -20,6 +20,9 @@ interface Props {
 }
 
 export function DashboardExchangeSummary({ exchangesBreakdown, loading = false }: Props) {
+  const { formatMoney } = useFormatMoney();
+  const fmt = (value: number) => formatMoney(value, { includeSign: true });
+
   if (!exchangesBreakdown || exchangesBreakdown.length === 0) {
     if (!loading) return null;
     // Loading skeleton
@@ -57,7 +60,7 @@ export function DashboardExchangeSummary({ exchangesBreakdown, loading = false }
                   ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                   : "bg-rose-50 text-rose-700 border-rose-200"
               )}>
-                P&L {formatDashboardCurrency(ex.netPL)}
+                P&L {fmt(ex.netPL)}
               </div>
             </div>
 
@@ -66,7 +69,7 @@ export function DashboardExchangeSummary({ exchangesBreakdown, loading = false }
               {/* Deposit */}
               <div className="space-y-1">
                 <p className="text-[10px] uppercase font-semibold text-slate-500 tracking-wider">Deposits</p>
-                <p className="text-base font-bold text-slate-900">{formatDashboardCurrency(ex.depositVerified)}</p>
+                <p className="text-base font-bold text-slate-900">{fmt(ex.depositVerified)}</p>
                 <div className="flex items-center text-[10px] text-emerald-600">
                   <IconArrowUpRight className="w-3 h-3 mr-0.5" />
                   Verified
@@ -76,7 +79,7 @@ export function DashboardExchangeSummary({ exchangesBreakdown, loading = false }
               {/* Withdrawal */}
               <div className="space-y-1">
                 <p className="text-[10px] uppercase font-semibold text-slate-500 tracking-wider">Withdrawals</p>
-                <p className="text-base font-bold text-slate-900">{formatDashboardCurrency(ex.withdrawalApproved)}</p>
+                <p className="text-base font-bold text-slate-900">{fmt(ex.withdrawalApproved)}</p>
                 <div className="flex items-center text-[10px] text-rose-600">
                   <IconArrowDownRight className="w-3 h-3 mr-0.5" />
                   Approved
@@ -86,10 +89,10 @@ export function DashboardExchangeSummary({ exchangesBreakdown, loading = false }
               {/* Net Bonus */}
               <div className="space-y-1">
                 <p className="text-[10px] uppercase font-semibold text-slate-500 tracking-wider">Net Bonus</p>
-                <p className="text-base font-bold text-amber-700">{formatDashboardCurrency(ex.netBonus)}</p>
+                <p className="text-base font-bold text-amber-700">{fmt(ex.netBonus)}</p>
                 <div className="flex flex-col text-[10px] text-slate-500 leading-tight">
-                  <span>+{formatDashboardCurrency(ex.bonusGiven, { includeSign: false })} D</span>
-                  <span>−{formatDashboardCurrency(ex.bonusRecovered, { includeSign: false })} W</span>
+                  <span>+{formatMoney(ex.bonusGiven)} D</span>
+                  <span>−{formatMoney(ex.bonusRecovered)} W</span>
                 </div>
               </div>
 
@@ -100,7 +103,7 @@ export function DashboardExchangeSummary({ exchangesBreakdown, loading = false }
                   "text-base font-bold",
                   ex.netPL >= 0 ? "text-emerald-600" : "text-rose-600"
                 )}>
-                  {formatDashboardCurrency(ex.netPL)}
+                  {fmt(ex.netPL)}
                 </p>
                 <div className={cn(
                   "flex items-center text-[10px]",
@@ -127,7 +130,7 @@ export function DashboardExchangeSummary({ exchangesBreakdown, loading = false }
               {/* First-Time Deposit */}
               <div className="space-y-1">
                 <p className="text-[10px] uppercase font-semibold text-slate-500 tracking-wider">1st Deposit</p>
-                <p className="text-base font-bold text-emerald-700">{formatDashboardCurrency(ex.firstTimeDepositAmount)}</p>
+                <p className="text-base font-bold text-emerald-700">{fmt(ex.firstTimeDepositAmount)}</p>
                 <div className="flex items-center text-[10px] text-emerald-600">
                   <IconCash className="w-3 h-3 mr-0.5" />
                   Selected period

@@ -1,10 +1,8 @@
-const wholeRupeeFormatter = new Intl.NumberFormat("en-IN", {
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 0,
-});
+import { formatMoney, formatWholeMoney } from "./formatMoney";
 
-export function formatWholeRupee(value: number): string {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return "0";
-  return wholeRupeeFormatter.format(Math.round(numeric));
+/** @deprecated Prefer formatMoney / useFormatMoney — currency-aware ISO minor units */
+export function formatWholeRupee(value: number, currency: string | null | undefined = "INR") {
+  return formatWholeMoney(value, currency);
 }
+
+export { formatMoney, formatWholeMoney };

@@ -1,18 +1,19 @@
-const dashboardCurrencyFormatter = new Intl.NumberFormat("en-IN", {
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 2,
-});
+import { formatMoney } from "@/lib/formatMoney";
 
 type FormatDashboardCurrencyOptions = {
   withSymbol?: boolean;
   includeSign?: boolean;
+  currency?: string | null;
 };
 
-export function formatDashboardCurrency(value: number, options: FormatDashboardCurrencyOptions = {}) {
-  const { withSymbol = true, includeSign = true } = options;
-  const numericValue = Number.isFinite(value) ? value : 0;
-  const abs = Math.abs(numericValue);
-  const sign = includeSign && numericValue < 0 ? "−" : "";
-  const symbol = withSymbol ? "₹" : "";
-  return `${sign}${symbol}${dashboardCurrencyFormatter.format(abs)}`;
+export function formatDashboardCurrency(
+  value: number,
+  options: FormatDashboardCurrencyOptions = {},
+) {
+  const { withSymbol = true, includeSign = true, currency = "INR" } = options;
+  return formatMoney(value, withSymbol ? currency : null, {
+    includeSign,
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+  });
 }

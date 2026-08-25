@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { CurrencySelect } from "@/components/common/CurrencySelect";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { IconCheck, IconX } from "@tabler/icons-react";
@@ -8,10 +9,15 @@ import type { MasterField } from "@/types/masters";
 import { cn } from "@/lib/cn";
 import type { MasterModelKey } from "@/lib/mastersSchemas";
 import { validateMasterPayload } from "@/lib/mastersSchemas";
+import { SUPPORTED_CURRENCIES } from "@/lib/currencies";
 
 function formatFieldLabel(name: string): string {
   const spaced = name.replace(/([A-Z])/g, " $1").trim();
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+function isCurrencyField(name: string): boolean {
+  return name === "fromCurrency" || name === "toCurrency";
 }
 
 function buildInitial(
@@ -28,7 +34,7 @@ function buildInitial(
       base[f.name] = f.name === "isActive" ? true : false;
     } else if (f.name === "reasonType") {
       base[f.name] = "general";
-    } else if (f.type === "INTEGER") {
+    } else if (f.type === "INTEGER" || f.type === "DECIMAL") {
       base[f.name] = "";
     } else {
       base[f.name] = "";
@@ -92,7 +98,7 @@ export function MasterForm({
     const payload: Record<string, unknown> = {};
     for (const f of fields) {
       const raw = formData[f.name];
-      if (f.type === "INTEGER") {
+      if (f.type === "INTEGER" || f.type === "DECIMAL") {
         const s = raw === "" || raw === undefined ? "" : String(raw);
         if (s === "") continue;
         payload[f.name] = Number(s);
@@ -125,7 +131,12 @@ export function MasterForm({
           next[f.name] = `${formatFieldLabel(f.name)} is required.`;
         }
       }
-      if (f.type === "INTEGER" && raw !== undefined && raw !== null && String(raw).trim() !== "") {
+      if (
+        (f.type === "INTEGER" || f.type === "DECIMAL") &&
+        raw !== undefined &&
+        raw !== null &&
+        String(raw).trim() !== ""
+      ) {
         const n = Number(raw);
         if (!Number.isFinite(n)) {
           next[f.name] = "Invalid number.";
@@ -185,12 +196,14 @@ export function MasterForm({
           );
         }
 
-        if (field.type === "INTEGER") {
+        if (field.type === "INTEGER" || field.type === "DECIMAL") {
           return (
             <div key={field.name}>
               <label className="mb-1 block text-sm font-medium text-gray-700">{label}</label>
               <Input
                 type="number"
+                inputMode="decimal"
+                step={field.type === "DECIMAL" ? "any" : 1}
                 value={formData[field.name] === "" || formData[field.name] == null ? "" : String(formData[field.name])}
                 onChange={(e) => handleChange(field.name, e.target.value)}
                 disabled={disabled}
@@ -224,6 +237,23 @@ export function MasterForm({
           );
         }
 
+        if (isCurrencyField(field.name)) {
+          return (
+            <div key={field.name}>
+              <label className="mb-1 block text-sm font-medium text-gray-700">{label}</label>
+              <CurrencySelect
+                value={String(formData[field.name] ?? "")}
+                onChange={(code) => handleChange(field.name, code)}
+                currencies={SUPPORTED_CURRENCIES}
+                placeholder="Search currency..."
+                aria-label={label}
+                disabled={disabled}
+              />
+              {err ? <p className="mt-1 text-sm text-[var(--danger)]">{err}</p> : null}
+            </div>
+          );
+        }
+
         return (
           <div key={field.name}>
             <label className="mb-1 block text-sm font-medium text-gray-700">{label}</label>
@@ -241,33 +271,24 @@ export function MasterForm({
       {!viewMode && (
         <div className="flex justify-end gap-2 pt-2">
           {onCancel && (
-            <Button 
-              type="button" 
-              variant="secondary" 
-              onClick={onCancel} 
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onCancel}
               disabled={loading}
               startIcon={<IconX size={16} />}
             >
               Cancel
             </Button>
           )}
-          <Button 
-            type="submit" 
-            loading={loading}
-            startIcon={<IconCheck size={16} />}
-          >
+          <Button type="submit" loading={loading} startIcon={<IconCheck size={16} />}>
             {submitLabel}
           </Button>
         </div>
       )}
       {viewMode && onCancel && (
         <div className="flex justify-end pt-2">
-          <Button 
-            type="button" 
-            variant="secondary" 
-            onClick={onCancel}
-            startIcon={<IconX size={16} />}
-          >
+          <Button type="button" variant="secondary" onClick={onCancel} startIcon={<IconX size={16} />}>
             Close
           </Button>
         </div>

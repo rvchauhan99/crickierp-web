@@ -3,7 +3,7 @@
 import React from "react";
 import { IconArrowUpRight, IconArrowDownRight, IconClock } from "@tabler/icons-react";
 import { cn } from "@/lib/cn";
-import { formatDashboardCurrency } from "../utils/formatCurrency";
+import { useFormatMoney } from "@/hooks/useFormatMoney";
 import { formatDateTimeForUser } from "@/lib/userTimezone";
 
 export type RecentActivityItem = {
@@ -50,6 +50,8 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export function DashboardRecentActivity({ items, loading }: Props) {
+  const { formatMoney } = useFormatMoney();
+
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col">
       {/* Header */}
@@ -148,7 +150,7 @@ export function DashboardRecentActivity({ items, loading }: Props) {
                           isDeposit ? "text-emerald-700" : "text-rose-700",
                         )}
                       >
-                        {isDeposit ? "+" : "−"}{formatDashboardCurrency(item.amount, { includeSign: false })}
+                        {isDeposit ? "+" : "−"}{formatMoney(item.amount)}
                       </span>
                     </td>
 

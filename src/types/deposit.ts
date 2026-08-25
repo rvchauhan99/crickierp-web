@@ -10,6 +10,9 @@ export type DepositCreateInput =
       bankId: string;
       utr: string;
       amount: number;
+      operatedCurrency?: string;
+      operatedAmount?: number;
+      exchangeRate?: number;
       entryAt?: string;
     }
   | {
@@ -17,6 +20,9 @@ export type DepositCreateInput =
       liabilityPersonId: string;
       utr: string;
       amount: number;
+      operatedCurrency?: string;
+      operatedAmount?: number;
+      exchangeRate?: number;
       entryAt?: string;
     };
 
@@ -50,6 +56,9 @@ export type DepositRow = {
   liabilityPersonName?: string;
   utr: string;
   amount: number;
+  operatedCurrency?: string;
+  operatedAmount?: number;
+  exchangeRate?: number;
   status: DepositStatus;
   stage?: string;
   createdAt?: string;

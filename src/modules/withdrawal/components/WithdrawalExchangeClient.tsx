@@ -11,6 +11,13 @@ import { FieldError } from "@/components/common/FieldError";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
+import {
+  OperatedMoneyFields,
+  defaultOperatedMoneyValue,
+  toMoneyFxPayload,
+} from "@/components/common/OperatedMoneyFields";
+import { getCurrencyMinUnit, roundMoneyToCurrency } from "@/lib/currencies";
+import { usePlatformSettings } from "@/context/PlatformSettingsContext";
 import { ListingPageContainer } from "@/components/common/ListingPageContainer";
 import PaginatedTableReference, {
   type PaginatedTableReferenceColumn,
@@ -32,7 +39,7 @@ import { userService } from "@/services/userService";
 import type { SavedWithdrawalAccount, WithdrawalRow } from "@/types/withdrawal";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { cn } from "@/lib/cn";
-import { formatWholeRupee } from "@/lib/formatWholeRupee";
+import { useFormatMoney } from "@/hooks/useFormatMoney";
 import {
   withdrawalStatusApiParam,
   withdrawalStatusColumnSelectValue,
@@ -113,19 +120,21 @@ function formatRelative(iso?: string): string {
 }
 
 export function WithdrawalExchangeClient() {
+  const { formatWholeMoney } = useFormatMoney();
   const listingState = useListingQueryStateReference({
     defaultLimit: 20,
     filterKeys: COLUMN_FILTER_KEYS,
   });
   const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setFilter, setSort, clearFilters } =
     listingState;
+  const { platformCurrency } = usePlatformSettings();
 
   const [playerId, setPlayerId] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [accountHolderName, setAccountHolderName] = useState("");
   const [bankName, setBankName] = useState("");
   const [ifsc, setIfsc] = useState("");
-  const [amount, setAmount] = useState("");
+  const [money, setMoney] = useState(() => defaultOperatedMoneyValue(platformCurrency));
   const [reverseBonus, setReverseBonus] = useState("0");
   const [requestedAt, setRequestedAt] = useState(currentDateTimeLocalValue());
   const [savedPreset, setSavedPreset] = useState("");
@@ -206,35 +215,54 @@ export function WithdrawalExchangeClient() {
     };
   }, [playerId]);
 
+  useEffect(() => {
+    if (!platformCurrency) return;
+    setMoney((prev) =>
+      prev.operatedCurrency ? prev : { ...prev, operatedCurrency: platformCurrency },
+    );
+  }, [platformCurrency, editingId]);
+
   const payablePreview = useMemo(() => {
-    const a = Number(amount);
+    if (!platformCurrency) return 0;
+    const a = Number(money.amount);
     const b = Number(reverseBonus);
-    if (!amount.trim() || Number.isNaN(a) || a < 1) return 0;
+    if (!money.amount.trim() || Number.isNaN(a) || a < 1) return 0;
+    const fx = toMoneyFxPayload(money, platformCurrency);
+    if (!Number.isFinite(fx.amount) || !Number.isFinite(fx.exchangeRate) || fx.exchangeRate <= 0) return 0;
     const rb = Number.isNaN(b) || b < 0 ? 0 : b;
-    return Math.max(0, Math.round(a - rb));
-  }, [amount, reverseBonus]);
+    const rbPlatform = roundMoneyToCurrency(rb * fx.exchangeRate, platformCurrency);
+    return Math.max(0, roundMoneyToCurrency(fx.amount - rbPlatform, platformCurrency));
+  }, [money, reverseBonus, platformCurrency]);
 
   const onSubmit = async () => {
+    if (!platformCurrency) {
+      toast.error("Set platform currency in Profile first");
+      return;
+    }
     const next: Record<string, string | undefined> = {};
     if (!playerId.trim()) next.playerId = "Player is required.";
     if (!accountNumber.trim()) next.accountNumber = "Account number is required.";
     if (!accountHolderName.trim()) next.accountHolderName = "Account holder name is required.";
     if (!bankName.trim()) next.bankName = "Bank name is required.";
     if (!ifsc.trim()) next.ifsc = "IFSC is required.";
-    const amt = Number(amount);
-    if (!amount.trim() || Number.isNaN(amt) || amt < 1) {
-      next.amount = "Amount must be at least 1.";
-    } else if (!Number.isInteger(amt)) {
-      next.amount = "Amount must be a whole number (no decimals).";
+    const amt = Number(money.amount);
+    const minUnit = getCurrencyMinUnit(money.operatedCurrency || platformCurrency);
+    if (!money.amount.trim() || Number.isNaN(amt) || amt < minUnit) {
+      next.amount = `Amount must be at least ${minUnit}.`;
+    } else if ((money.operatedCurrency || platformCurrency) !== platformCurrency) {
+      const rate = Number(money.exchangeRate);
+      if (!money.exchangeRate.trim() || !Number.isFinite(rate) || rate <= 0) {
+        next.amount = "Enter a valid exchange rate.";
+      }
     }
     const rb = Number(reverseBonus);
     if (reverseBonus.trim() !== "" && (Number.isNaN(rb) || rb < 0)) {
       next.reverseBonus = "Reverse bonus must be ≥ 0.";
-    } else if (reverseBonus.trim() !== "" && !Number.isInteger(rb)) {
-      next.reverseBonus = "Reverse bonus must be a whole number (no decimals).";
     }
     setErrors(next);
     if (Object.keys(next).length > 0) return;
+
+    const fx = toMoneyFxPayload(money, platformCurrency);
 
     setLoading(true);
     try {
@@ -244,7 +272,10 @@ export function WithdrawalExchangeClient() {
           accountHolderName: accountHolderName.trim(),
           bankName: bankName.trim(),
           ifsc: ifsc.trim(),
-          amount: amt,
+          amount: fx.amount,
+          operatedCurrency: fx.operatedCurrency,
+          operatedAmount: fx.operatedAmount,
+          exchangeRate: fx.exchangeRate,
           reverseBonus: Number.isNaN(rb) || rb < 0 ? 0 : rb,
         });
         toast.success("Withdrawal updated successfully.");
@@ -255,7 +286,10 @@ export function WithdrawalExchangeClient() {
           accountHolderName: accountHolderName.trim(),
           bankName: bankName.trim(),
           ifsc: ifsc.trim(),
-          amount: amt,
+          amount: fx.amount,
+          operatedCurrency: fx.operatedCurrency,
+          operatedAmount: fx.operatedAmount,
+          exchangeRate: fx.exchangeRate,
           reverseBonus: Number.isNaN(rb) || rb < 0 ? 0 : rb,
           requestedAt,
         });
@@ -266,7 +300,7 @@ export function WithdrawalExchangeClient() {
       setAccountHolderName("");
       setBankName("");
       setIfsc("");
-      setAmount("");
+      setMoney(defaultOperatedMoneyValue(platformCurrency));
       setReverseBonus("0");
       setRequestedAt(currentDateTimeLocalValue());
       setSavedPreset("");
@@ -286,8 +320,18 @@ export function WithdrawalExchangeClient() {
     setAccountHolderName(row.accountHolderName || "");
     setBankName(row.bankName || "");
     setIfsc(row.ifsc || "");
-    setAmount(String(row.amount));
-    setReverseBonus(String(row.reverseBonus || 0));
+    setMoney({
+      amount: String(row.operatedAmount ?? row.amount),
+      operatedCurrency: row.operatedCurrency || platformCurrency || "",
+      exchangeRate: String(row.exchangeRate ?? 1),
+    });
+    setReverseBonus(
+      String(
+        row.reverseBonus != null && row.exchangeRate && row.exchangeRate > 0
+          ? Math.round(row.reverseBonus / row.exchangeRate)
+          : row.reverseBonus || 0,
+      ),
+    );
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -297,7 +341,7 @@ export function WithdrawalExchangeClient() {
     setAccountHolderName("");
     setBankName("");
     setIfsc("");
-    setAmount("");
+    setMoney(defaultOperatedMoneyValue(platformCurrency));
     setReverseBonus("0");
     setRequestedAt(currentDateTimeLocalValue());
     setSavedPreset("");
@@ -398,7 +442,7 @@ export function WithdrawalExchangeClient() {
       {
         field: "amount",
         label: "Amount",
-        render: (row: WithdrawalRow) => formatWholeRupee(row.amount),
+        render: (row: WithdrawalRow) => formatWholeMoney(row.amount),
         sortable: true,
         minWidth: 100,
         filterType: "number" as const,
@@ -410,7 +454,7 @@ export function WithdrawalExchangeClient() {
       {
         field: "payableAmount",
         label: "Payable",
-        render: (row: WithdrawalRow) => (row.payableAmount != null ? formatWholeRupee(row.payableAmount) : "—"),
+        render: (row: WithdrawalRow) => (row.payableAmount != null ? formatWholeMoney(row.payableAmount) : "—"),
         sortable: true,
         minWidth: 100,
       },
@@ -603,18 +647,20 @@ export function WithdrawalExchangeClient() {
               <Input value={ifsc} onChange={(e) => setIfsc(e.target.value)} placeholder="IFSC" />
               <FieldError message={errors.ifsc} />
             </div>
-            <div>
-              <FieldLabel>Withdrawal amount *</FieldLabel>
-              <Input
-                type="number"
-                min={1}
-                step="1"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0"
-              />
-              <FieldError message={errors.amount} />
-            </div>
+            <OperatedMoneyFields
+              value={money}
+              onChange={setMoney}
+              amountLabel="Withdrawal amount *"
+              roundMode="integer"
+              amountInputMode="numeric"
+              minAmount={1}
+              idPrefix="withdrawal"
+            />
+            {errors.amount ? (
+              <div className="col-span-full">
+                <FieldError message={errors.amount} />
+              </div>
+            ) : null}
             <div>
               <FieldLabel>Reverse bonus</FieldLabel>
               <Input
@@ -629,7 +675,7 @@ export function WithdrawalExchangeClient() {
             </div>
             <div>
               <FieldLabel>Payable amount</FieldLabel>
-              <Input readOnly value={formatWholeRupee(payablePreview)} className="bg-slate-50" />
+              <Input readOnly value={formatWholeMoney(payablePreview)} className="bg-slate-50" />
             </div>
           </FormGrid>
           <FormActions className="justify-between px-5 py-4">

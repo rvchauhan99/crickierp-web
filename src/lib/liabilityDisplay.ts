@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/formatMoney";
 import type { LiabilityBalanceSide } from "@/types/liability";
 
 /** Platform-side interpretation of a signed balance: +receivable, -payable. */
@@ -6,10 +7,11 @@ export function liabilitySideFromSigned(balance: number): LiabilityBalanceSide {
   return balance > 0 ? "receivable" : "payable";
 }
 
-export function formatLiabilityMoneyAbs(value: number): string {
-  const abs = Math.abs(Number(value));
-  if (!Number.isFinite(abs)) return "₹0";
-  return `₹${abs.toLocaleString("en-IN")}`;
+export function formatLiabilityMoneyAbs(value: number, currency: string | null | undefined = "INR") {
+  return formatMoney(Math.abs(value), currency, {
+    includeSign: false,
+    maximumFractionDigits: 2,
+  });
 }
 
 export function liabilitySideBadgeClass(side: LiabilityBalanceSide | undefined): string {

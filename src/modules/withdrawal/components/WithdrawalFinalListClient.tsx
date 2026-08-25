@@ -24,7 +24,7 @@ import { tableColumnPresets } from "@/lib/tableStylePresets";
 import { useAuth } from "@/context/AuthContext";
 import { NAV_PERMISSIONS } from "@/lib/constants/navPermissions";
 import { getApiErrorMessage } from "@/lib/apiError";
-import { formatWholeRupee } from "@/lib/formatWholeRupee";
+import { useFormatMoney } from "@/hooks/useFormatMoney";
 import { listBankLookupOptions } from "@/services/lookupService";
 import { listReasonOptions } from "@/services/reasonService";
 import { REASON_TYPES } from "@/lib/constants/reasonTypes";
@@ -51,6 +51,7 @@ function toOptionalFilterValue(value: string): string | undefined {
 }
 
 export function WithdrawalFinalListClient() {
+  const { formatWholeMoney } = useFormatMoney();
   const { user } = useAuth();
   const listingState = useListingQueryStateReference({
     defaultLimit: 50,
@@ -332,19 +333,19 @@ export function WithdrawalFinalListClient() {
       {
         field: "amount",
         label: "Requested",
-        render: (row: WithdrawalRow) => formatWholeRupee(row.amount),
+        render: (row: WithdrawalRow) => formatWholeMoney(row.amount),
         sortable: true,
       },
       {
         field: "reverseBonus",
         label: "Reverse Bonus",
-        render: (row: WithdrawalRow) => (row.reverseBonus != null ? formatWholeRupee(row.reverseBonus) : "—"),
+        render: (row: WithdrawalRow) => (row.reverseBonus != null ? formatWholeMoney(row.reverseBonus) : "—"),
         sortable: true,
       },
       {
         field: "payableAmount",
         label: "Payable",
-        render: (row: WithdrawalRow) => (row.payableAmount != null ? formatWholeRupee(row.payableAmount) : "—"),
+        render: (row: WithdrawalRow) => (row.payableAmount != null ? formatWholeMoney(row.payableAmount) : "—"),
         sortable: true,
         minWidth: 100,
       },
@@ -486,9 +487,9 @@ export function WithdrawalFinalListClient() {
                 <div className="flex justify-between gap-2">
                   <dt className="text-gray-500">Amount / reverse / payable</dt>
                   <dd className="text-right font-medium">
-                    {formatWholeRupee(selectedWithdrawal.amount)} /{" "}
-                    {formatWholeRupee(selectedWithdrawal.reverseBonus ?? 0)} /{" "}
-                    {formatWholeRupee(selectedWithdrawal.payableAmount ?? 0)}
+                    {formatWholeMoney(selectedWithdrawal.amount)} /{" "}
+                    {formatWholeMoney(selectedWithdrawal.reverseBonus ?? 0)} /{" "}
+                    {formatWholeMoney(selectedWithdrawal.payableAmount ?? 0)}
                   </dd>
                 </div>
                 {selectedWithdrawal.lastAmendedAt && (
@@ -553,8 +554,8 @@ export function WithdrawalFinalListClient() {
                           <td className="py-2 text-gray-800">
                             <span className="line-clamp-3">{h.reason}</span>
                             <div className="mt-1 text-[10px] text-gray-500">
-                              Payable {h.old.payableAmount != null ? formatWholeRupee(h.old.payableAmount) : "—"} →{" "}
-                              {h.new.payableAmount != null ? formatWholeRupee(h.new.payableAmount) : "—"}
+                              Payable {h.old.payableAmount != null ? formatWholeMoney(h.old.payableAmount) : "—"} →{" "}
+                              {h.new.payableAmount != null ? formatWholeMoney(h.new.payableAmount) : "—"}
                             </div>
                           </td>
                         </tr>
@@ -674,7 +675,7 @@ export function WithdrawalFinalListClient() {
         <div className="space-y-1 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-gray-700">
           <div><span className="font-medium">UTR:</span> {selectedWithdrawal?.utr || "—"}</div>
           <div><span className="font-medium">Status:</span> {selectedWithdrawal?.status || "—"}</div>
-          <div><span className="font-medium">Amount:</span> {selectedWithdrawal?.amount != null ? formatWholeRupee(selectedWithdrawal.amount) : "—"}</div>
+          <div><span className="font-medium">Amount:</span> {selectedWithdrawal?.amount != null ? formatWholeMoney(selectedWithdrawal.amount) : "—"}</div>
           <div><span className="font-medium">Player:</span> {selectedWithdrawal?.playerName || "—"}</div>
           <div>
             <span className="font-medium">Payout settlement:</span>{" "}

@@ -13,7 +13,7 @@ import {
   IconClock,
 } from "@tabler/icons-react";
 import { cn } from "@/lib/cn";
-import { formatDashboardCurrency } from "../utils/formatCurrency";
+import { useFormatMoney } from "@/hooks/useFormatMoney";
 
 export type DashboardSummary = {
   deposit: {
@@ -184,6 +184,8 @@ function KPICard({
 }
 
 export function DashboardKPIs({ summary, loading = false }: Props) {
+  const { formatMoney } = useFormatMoney();
+  const fmt = (value: number) => formatMoney(value, { includeSign: true });
   const d = summary?.deposit;
   const w = summary?.withdrawal;
   const e = summary?.expense;
@@ -200,7 +202,7 @@ export function DashboardKPIs({ summary, loading = false }: Props) {
       <KPICard
         loading={loading}
         title="Total Deposits"
-        value={formatDashboardCurrency(d?.totalAmount ?? 0)}
+        value={fmt(d?.totalAmount ?? 0)}
         subtitle={`${formatCount(d?.totalCount ?? 0)} non-rejected entries`}
         icon={<IconArrowUpRight className="w-5 h-5 text-emerald-600" />}
         iconBg="bg-emerald-50"
@@ -211,7 +213,7 @@ export function DashboardKPIs({ summary, loading = false }: Props) {
         }
         footer={
           <div className="flex items-center justify-between">
-            <span>Verified: <strong className="text-slate-600">{formatDashboardCurrency(d?.verifiedAmount ?? 0)}</strong></span>
+            <span>Verified: <strong className="text-slate-600">{fmt(d?.verifiedAmount ?? 0)}</strong></span>
             <span>Rejected: <strong className="text-red-400">{d?.rejectedCount ?? 0}</strong></span>
           </div>
         }
@@ -221,7 +223,7 @@ export function DashboardKPIs({ summary, loading = false }: Props) {
       <KPICard
         loading={loading}
         title="Total Withdrawals"
-        value={formatDashboardCurrency(w?.totalAmount ?? 0)}
+        value={fmt(w?.totalAmount ?? 0)}
         subtitle={`${formatCount(w?.totalCount ?? 0)} non-rejected entries`}
         icon={<IconArrowDownRight className="w-5 h-5 text-rose-600" />}
         iconBg="bg-rose-50"
@@ -233,7 +235,7 @@ export function DashboardKPIs({ summary, loading = false }: Props) {
         }
         footer={
           <div className="flex items-center justify-between">
-            <span>Approved: <strong className="text-slate-600">{formatDashboardCurrency(w?.approvedAmount ?? 0)}</strong></span>
+            <span>Approved: <strong className="text-slate-600">{fmt(w?.approvedAmount ?? 0)}</strong></span>
             <span>Rejected: <strong className="text-red-400">{w?.rejectedCount ?? 0}</strong></span>
           </div>
         }
@@ -243,15 +245,15 @@ export function DashboardKPIs({ summary, loading = false }: Props) {
       <KPICard
         loading={loading}
         title="Net Bonus (D − W)"
-        value={formatDashboardCurrency((d?.bonusTotal ?? 0) - (w?.reverseBonusTotal ?? 0))}
+        value={fmt((d?.bonusTotal ?? 0) - (w?.reverseBonusTotal ?? 0))}
         subtitle="Deposit bonuses minus reverse bonuses"
         icon={<IconGift className="w-5 h-5 text-amber-500" />}
         iconBg="bg-amber-50"
         valueColor="text-amber-700"
         footer={
           <div className="flex items-center justify-between">
-            <span>Given: <strong className="text-emerald-500">{formatDashboardCurrency(d?.bonusTotal ?? 0)}</strong></span>
-            <span>Recovered: <strong className="text-rose-500">{formatDashboardCurrency(w?.reverseBonusTotal ?? 0)}</strong></span>
+            <span>Given: <strong className="text-emerald-500">{fmt(d?.bonusTotal ?? 0)}</strong></span>
+            <span>Recovered: <strong className="text-rose-500">{fmt(w?.reverseBonusTotal ?? 0)}</strong></span>
           </div>
         }
       />
@@ -260,7 +262,7 @@ export function DashboardKPIs({ summary, loading = false }: Props) {
       <KPICard
         loading={loading}
         title="Gross P & L"
-        value={formatDashboardCurrency(grossPL)}
+        value={fmt(grossPL)}
         subtitle="Total Deposits − Total Withdrawals − Net Bonus"
         icon={
           grossPL >= 0
@@ -275,7 +277,7 @@ export function DashboardKPIs({ summary, loading = false }: Props) {
       <KPICard
         loading={loading}
         title="Total Expenses"
-        value={formatDashboardCurrency(e?.totalAmount ?? 0)}
+        value={fmt(e?.totalAmount ?? 0)}
         subtitle={`${formatCount(e?.totalCount ?? 0)} expenses`}
         icon={<IconReceipt className="w-5 h-5 text-orange-500" />}
         iconBg="bg-orange-50"
@@ -287,7 +289,7 @@ export function DashboardKPIs({ summary, loading = false }: Props) {
         }
         footer={
           <div className="flex items-center justify-between">
-            <span>Approved: <strong className="text-slate-600">{formatDashboardCurrency(e?.approvedAmount ?? 0)}</strong></span>
+            <span>Approved: <strong className="text-slate-600">{fmt(e?.approvedAmount ?? 0)}</strong></span>
           </div>
         }
       />
@@ -296,7 +298,7 @@ export function DashboardKPIs({ summary, loading = false }: Props) {
       <KPICard
         loading={loading}
         title="Net P & L"
-        value={formatDashboardCurrency(netPL)}
+        value={fmt(netPL)}
         subtitle="Gross P&L − Approved Expenses"
         icon={
           netPL >= 0
@@ -359,7 +361,7 @@ export function DashboardKPIs({ summary, loading = false }: Props) {
       <KPICard
         loading={loading}
         title="First-Time Deposit"
-        value={formatDashboardCurrency(pm?.firstTimeDepositAmount ?? 0)}
+        value={fmt(pm?.firstTimeDepositAmount ?? 0)}
         subtitle="Sum of first verified/finalized deposits in selected period"
         icon={<IconArrowUpRight className="w-5 h-5 text-emerald-600" />}
         iconBg="bg-emerald-50"

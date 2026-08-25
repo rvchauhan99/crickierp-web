@@ -3,7 +3,7 @@
 import React from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { IconChartDonut } from "@tabler/icons-react";
-import { formatDashboardCurrency } from "../utils/formatCurrency";
+import { useFormatMoney } from "@/hooks/useFormatMoney";
 
 export type PLDonutSummary = {
   deposit: { verifiedAmount: number };
@@ -22,9 +22,11 @@ const SEGMENTS = ["Deposits (Verified)", "Withdrawals (Approved)", "Expenses (Ap
 const CustomTooltip = ({
   active,
   payload,
+  formatMoney,
 }: {
   active?: boolean;
   payload?: { name: string; value: number; payload: { fill: string } }[];
+  formatMoney: (value: number, options?: { includeSign?: boolean }) => string;
 }) => {
   if (!active || !payload?.length) return null;
   const p = payload[0];
@@ -34,12 +36,14 @@ const CustomTooltip = ({
         <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: p.payload.fill }} />
         <span className="text-slate-600">{p.name}</span>
       </div>
-      <p className="font-semibold text-slate-800 mt-1 text-sm">{formatDashboardCurrency(p.value)}</p>
+      <p className="font-semibold text-slate-800 mt-1 text-sm">{formatMoney(p.value, { includeSign: true })}</p>
     </div>
   );
 };
 
 export function DashboardPLDonut({ summary, loading }: Props) {
+  const { formatMoney } = useFormatMoney();
+  const fmt = (value: number) => formatMoney(value, { includeSign: true });
   const depositsVal = summary?.deposit?.verifiedAmount ?? 0;
   const withdrawalsVal = summary?.withdrawal?.approvedAmount ?? 0;
   const expensesVal = summary?.expense?.approvedAmount ?? 0;
@@ -105,7 +109,7 @@ export function DashboardPLDonut({ summary, loading }: Props) {
                     <Cell key={`cell-${index}`} fill={entry.fill} />
                   ))}
                 </Pie>
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={<CustomTooltip formatMoney={formatMoney} />} />
               </PieChart>
             </ResponsiveContainer>
 
@@ -121,7 +125,7 @@ export function DashboardPLDonut({ summary, loading }: Props) {
                     <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
                     <span className="text-xs text-slate-500">{item.label}</span>
                   </div>
-                  <span className="text-xs font-semibold text-slate-700">{formatDashboardCurrency(item.value)}</span>
+                  <span className="text-xs font-semibold text-slate-700">{fmt(item.value)}</span>
                 </div>
               ))}
             </div>

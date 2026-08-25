@@ -17,6 +17,9 @@ export type WithdrawalCreateInput = {
   amount: number;
   reverseBonus?: number;
   requestedAt?: string;
+  operatedCurrency?: string;
+  operatedAmount?: number;
+  exchangeRate?: number;
 };
 
 export type WithdrawalAmendmentSnapshot = {
@@ -59,6 +62,9 @@ export type WithdrawalRow = {
   bankName: string;
   ifsc?: string;
   amount: number;
+  operatedCurrency?: string;
+  operatedAmount?: number;
+  exchangeRate?: number;
   reverseBonus?: number;
   payableAmount?: number;
   payoutSettlementType?: WithdrawalPayoutSettlementType;

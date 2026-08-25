@@ -288,6 +288,9 @@ export async function getExchangeStatement(
 export async function createExchangeTopup(input: {
   exchangeId: string;
   amount: number;
+  operatedCurrency?: string;
+  operatedAmount?: number;
+  exchangeRate?: number;
   remark?: string;
 }): Promise<ExchangeTopupRow & { currentBalance?: number }> {
   const res = await apiClient.post<{ success: boolean; data: ExchangeTopupRow & { currentBalance?: number } }>(
