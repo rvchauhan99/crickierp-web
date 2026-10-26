@@ -1,0 +1,104 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      VPS_HOST: ${{ vars.VPS_HOST }}
+      VPS_USER: ${{ vars.VPS_USER }}
+    steps:
+      - name: Check VPS connection vars
+        run: |
+          set -euo pipefail
+          if [ -z "${VPS_HOST}" ]; then
+            echo "missing GitHub variable VPS_HOST" >&2
+            exit 1
+          fi
+          if [ -z "${VPS_USER}" ]; then
+            echo "missing GitHub variable VPS_USER" >&2
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - name: Write public build env
+        env:
+          NEXT_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+          NEXT_PUBLIC_PLATFORM_NAME: ${{ vars.NEXT_PUBLIC_PLATFORM_NAME }}
+          NEXT_PUBLIC_PLAYER_IMPORT_ASYNC_ENABLED: ${{ vars.NEXT_PUBLIC_PLAYER_IMPORT_ASYNC_ENABLED }}
+        run: |
+          set -euo pipefail
+          umask 077
+          {
+            echo "NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-/api/v1}"
+            echo "NEXT_PUBLIC_PLATFORM_NAME=${NEXT_PUBLIC_PLATFORM_NAME:-AddaCRM}"
+            echo "NEXT_PUBLIC_PLAYER_IMPORT_ASYNC_ENABLED=${NEXT_PUBLIC_PLAYER_IMPORT_ASYNC_ENABLED:-true}"
+          } > "${RUNNER_TEMP}/addacrm-web.env"
+
+      - name: Install SSH key
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "${VPS_SSH_KEY}" > ~/.ssh/addacrm_deploy
+          chmod 600 ~/.ssh/addacrm_deploy
+          ssh-keyscan -H "${VPS_HOST}" >> ~/.ssh/known_hosts
+          echo "SSH_OPTS=-i ${HOME}/.ssh/addacrm_deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes" >> "${GITHUB_ENV}"
+
+      - name: Sync application to VPS
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2086
+          rsync -az --delete \
+            --exclude '.git/' \
+            --exclude '.github/' \
+            --exclude '.env' \
+            --exclude '.env.*' \
+            --exclude 'node_modules/' \
+            --exclude '.next/' \
+            --exclude '.DS_Store' \
+            -e "ssh ${SSH_OPTS}" \
+            ./ "${VPS_USER}@${VPS_HOST}:/opt/addacrm-web/"
+
+      - name: Copy build env and compose up
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2086
+          scp ${SSH_OPTS} "${RUNNER_TEMP}/addacrm-web.env" "${VPS_USER}@${VPS_HOST}:/opt/addacrm-web/.env.next"
+          # shellcheck disable=SC2086
+          ssh ${SSH_OPTS} "${VPS_USER}@${VPS_HOST}" 'set -euo pipefail
+            cd /opt/addacrm-web
+            mv .env.next .env
+            chmod 600 .env
+            docker compose up -d --build
+            docker compose ps
+          '
+
+      - name: Health check
+        env:
+          PUBLIC_WEB_HOST: ${{ vars.PUBLIC_WEB_HOST }}
+        run: |
+          set -euo pipefail
+          host="${PUBLIC_WEB_HOST:-addacrm.178.92.120.191.sslip.io}"
+          url="https://${host}/login"
+          echo "checking ${url}"
+          ok=0
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 8 "${url}" | grep -q "AddaCRM Admin"; then
+              ok=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "${ok}" != "1" ]; then
+            echo "web health check failed after retries" >&2
+            exit 1
+          fi

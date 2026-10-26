@@ -510,75 +510,79 @@ export function DepositBankerClient() {
           description="Default settlement is bank. Rare cases may settle through a liable person instead; exchange approval posts the liability ledger entry when person is chosen."
           contentOverflow="visible"
         >
-        <div className="flex flex-wrap items-start gap-4 px-5 py-4">
-          <div className="w-[180px]">
-            <FieldLabel className="mb-1 text-xs text-muted-foreground">Entry date & time *</FieldLabel>
-            <Input type="datetime-local" className="h-9 text-sm" value={entryAt} onChange={(e) => setEntryAt(e.target.value)} />
-          </div>
-          <div className="w-[140px] space-y-1.5">
-            <FieldLabel className="mb-1 text-xs text-muted-foreground">Settlement *</FieldLabel>
-            <select
-              className="w-full h-9 rounded-md border border-[var(--border)] bg-white px-3 py-1.5 text-sm"
-              value={settlementAccountType}
-              onChange={(e) => {
-                const v = e.target.value === "person" ? "person" : "bank";
-                setSettlementAccountType(v);
-                setErrors((prev) => {
-                  const n = { ...prev };
-                  delete n.bankId;
-                  delete n.liabilityPersonId;
-                  return n;
-                });
-              }}
-            >
-              <option value="bank">Bank</option>
-              <option value="person">Liability person</option>
-            </select>
-          </div>
-          {settlementAccountType === "bank" ? (
-            <div className="min-w-[200px] flex-1">
-              <FieldLabel className="mb-1 text-xs text-muted-foreground">Bank *</FieldLabel>
-              <AutocompleteField
-                value={bankId}
-                onChange={setBankId}
-                loadOptions={loadBankOptions}
-                placeholder="Search bank..."
-                emptyText="No banks found"
-                defaultOption={bankAutocompleteDefault}
-              />
-              <FieldError message={errors.bankId} />
+        <div className="flex flex-col gap-4 px-5 py-4">
+          <div className="flex flex-wrap items-start gap-4">
+            <div className="w-[180px]">
+              <FieldLabel className="mb-1 text-xs text-muted-foreground">Entry date & time *</FieldLabel>
+              <Input type="datetime-local" className="h-9 text-sm" value={entryAt} onChange={(e) => setEntryAt(e.target.value)} />
             </div>
-          ) : (
-            <div className="min-w-[200px] flex-1">
-              <FieldLabel className="mb-1 text-xs text-muted-foreground">Liability person *</FieldLabel>
-              <AutocompleteField
-                value={liabilityPersonId}
-                onChange={setLiabilityPersonId}
-                loadOptions={loadLiabilityPersonOptions}
-                placeholder="Search liability person..."
-                emptyText="No persons found"
-                defaultOption={personAutocompleteDefault}
-              />
-              <FieldError message={errors.liabilityPersonId} />
+            <div className="w-[140px] space-y-1.5">
+              <FieldLabel className="mb-1 text-xs text-muted-foreground">Settlement *</FieldLabel>
+              <select
+                className="w-full h-9 rounded-md border border-[var(--border)] bg-white px-3 py-1.5 text-sm"
+                value={settlementAccountType}
+                onChange={(e) => {
+                  const v = e.target.value === "person" ? "person" : "bank";
+                  setSettlementAccountType(v);
+                  setErrors((prev) => {
+                    const n = { ...prev };
+                    delete n.bankId;
+                    delete n.liabilityPersonId;
+                    return n;
+                  });
+                }}
+              >
+                <option value="bank">Bank</option>
+                <option value="person">Liability person</option>
+              </select>
             </div>
-          )}
-          <div className="w-[160px]">
-            <FieldLabel className="mb-1 text-xs text-muted-foreground">UTR *</FieldLabel>
-            <Input placeholder="UTR" className="h-9 text-sm" value={utr} onChange={(e) => setUtr(e.target.value)} />
-            <FieldError message={errors.utr} />
+            {settlementAccountType === "bank" ? (
+              <div className="min-w-[200px] flex-1">
+                <FieldLabel className="mb-1 text-xs text-muted-foreground">Bank *</FieldLabel>
+                <AutocompleteField
+                  value={bankId}
+                  onChange={setBankId}
+                  loadOptions={loadBankOptions}
+                  placeholder="Search bank..."
+                  emptyText="No banks found"
+                  defaultOption={bankAutocompleteDefault}
+                />
+                <FieldError message={errors.bankId} />
+              </div>
+            ) : (
+              <div className="min-w-[200px] flex-1">
+                <FieldLabel className="mb-1 text-xs text-muted-foreground">Liability person *</FieldLabel>
+                <AutocompleteField
+                  value={liabilityPersonId}
+                  onChange={setLiabilityPersonId}
+                  loadOptions={loadLiabilityPersonOptions}
+                  placeholder="Search liability person..."
+                  emptyText="No persons found"
+                  defaultOption={personAutocompleteDefault}
+                />
+                <FieldError message={errors.liabilityPersonId} />
+              </div>
+            )}
+            <div className="w-[160px]">
+              <FieldLabel className="mb-1 text-xs text-muted-foreground">UTR *</FieldLabel>
+              <Input placeholder="UTR" className="h-9 text-sm" value={utr} onChange={(e) => setUtr(e.target.value)} />
+              <FieldError message={errors.utr} />
+            </div>
           </div>
-          <div className="min-w-[320px] flex-1">
-            <OperatedMoneyFields
-              value={money}
-              onChange={setMoney}
-              amountLabel="Amount *"
-              roundMode="integer"
-              amountInputMode="numeric"
-              minAmount={1}
-              idPrefix="deposit-create"
-              compact
-            />
-            {errors.amount ? <FieldError message={errors.amount} /> : null}
+          <div className="flex flex-wrap items-start gap-4">
+            <div className="w-full max-w-[500px]">
+              <OperatedMoneyFields
+                value={money}
+                onChange={setMoney}
+                amountLabel="Amount *"
+                roundMode="integer"
+                amountInputMode="numeric"
+                minAmount={1}
+                idPrefix="deposit-create"
+                compact
+              />
+              {errors.amount ? <FieldError message={errors.amount} /> : null}
+            </div>
           </div>
         </div>
         <FormActions>
@@ -670,79 +674,83 @@ export function DepositBankerClient() {
             <p className="text-sm text-muted-foreground">
               Settlement mode, counterparty, UTR, and amount can be corrected while the deposit is pending.
             </p>
-            <div className="flex flex-wrap items-start gap-4 pt-2">
-              <div className="w-[140px] space-y-1">
-                <FieldLabel className="mb-1 text-xs text-muted-foreground">Settlement *</FieldLabel>
-                <select
-                  className="w-full max-w-xs rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
-                  value={editSettlementAccountType}
-                  onChange={(e) => {
-                    const v = e.target.value === "person" ? "person" : "bank";
-                    setEditSettlementAccountType(v);
-                    setEditErrors((prev) => {
-                      const n = { ...prev };
-                      delete n.bankId;
-                      delete n.liabilityPersonId;
-                      return n;
-                    });
-                  }}
-                  disabled={editLoading}
-                >
-                  <option value="bank">Bank</option>
-                  <option value="person">Liability person</option>
-                </select>
-              </div>
-              {editSettlementAccountType === "bank" ? (
-                <div className="min-w-[200px] flex-1">
-                  <FieldLabel className="mb-1 text-xs text-muted-foreground">Bank *</FieldLabel>
-                  <AutocompleteField
-                    value={editBankId}
-                    onChange={setEditBankId}
-                    loadOptions={loadBankOptions}
-                    placeholder="Search bank..."
-                    emptyText="No banks found"
-                    defaultOption={
-                      editDeposit && editBankId
-                        ? { value: editBankId, label: editDeposit.bankName.trim() || "—" }
-                        : null
-                    }
+            <div className="flex flex-col gap-4 pt-2">
+              <div className="flex flex-wrap items-start gap-4">
+                <div className="w-[140px] space-y-1">
+                  <FieldLabel className="mb-1 text-xs text-muted-foreground">Settlement *</FieldLabel>
+                  <select
+                    className="w-full max-w-xs rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
+                    value={editSettlementAccountType}
+                    onChange={(e) => {
+                      const v = e.target.value === "person" ? "person" : "bank";
+                      setEditSettlementAccountType(v);
+                      setEditErrors((prev) => {
+                        const n = { ...prev };
+                        delete n.bankId;
+                        delete n.liabilityPersonId;
+                        return n;
+                      });
+                    }}
                     disabled={editLoading}
-                  />
-                  <FieldError message={editErrors.bankId} />
+                  >
+                    <option value="bank">Bank</option>
+                    <option value="person">Liability person</option>
+                  </select>
                 </div>
-              ) : (
-                <div className="min-w-[200px] flex-1">
-                  <FieldLabel className="mb-1 text-xs text-muted-foreground">Liability person *</FieldLabel>
-                  <AutocompleteField
-                    value={editLiabilityPersonId}
-                    onChange={setEditLiabilityPersonId}
-                    loadOptions={loadLiabilityPersonOptions}
-                    placeholder="Search liability person..."
-                    emptyText="No persons found"
-                    defaultOption={editPersonAutocompleteDefault}
-                    disabled={editLoading}
-                  />
-                  <FieldError message={editErrors.liabilityPersonId} />
+                {editSettlementAccountType === "bank" ? (
+                  <div className="min-w-[200px] flex-1">
+                    <FieldLabel className="mb-1 text-xs text-muted-foreground">Bank *</FieldLabel>
+                    <AutocompleteField
+                      value={editBankId}
+                      onChange={setEditBankId}
+                      loadOptions={loadBankOptions}
+                      placeholder="Search bank..."
+                      emptyText="No banks found"
+                      defaultOption={
+                        editDeposit && editBankId
+                          ? { value: editBankId, label: editDeposit.bankName.trim() || "—" }
+                          : null
+                      }
+                      disabled={editLoading}
+                    />
+                    <FieldError message={editErrors.bankId} />
+                  </div>
+                ) : (
+                  <div className="min-w-[200px] flex-1">
+                    <FieldLabel className="mb-1 text-xs text-muted-foreground">Liability person *</FieldLabel>
+                    <AutocompleteField
+                      value={editLiabilityPersonId}
+                      onChange={setEditLiabilityPersonId}
+                      loadOptions={loadLiabilityPersonOptions}
+                      placeholder="Search liability person..."
+                      emptyText="No persons found"
+                      defaultOption={editPersonAutocompleteDefault}
+                      disabled={editLoading}
+                    />
+                    <FieldError message={editErrors.liabilityPersonId} />
+                  </div>
+                )}
+                <div className="w-[160px]">
+                  <FieldLabel className="mb-1 text-xs text-muted-foreground">UTR *</FieldLabel>
+                  <Input placeholder="UTR" className="h-9 text-sm" value={editUtr} onChange={(e) => setEditUtr(e.target.value)} />
+                  <FieldError message={editErrors.utr} />
                 </div>
-              )}
-              <div className="w-[160px]">
-                <FieldLabel className="mb-1 text-xs text-muted-foreground">UTR *</FieldLabel>
-                <Input placeholder="UTR" className="h-9 text-sm" value={editUtr} onChange={(e) => setEditUtr(e.target.value)} />
-                <FieldError message={editErrors.utr} />
               </div>
-              <div className="min-w-[320px] flex-1">
-                <OperatedMoneyFields
-                  value={editMoney}
-                  onChange={setEditMoney}
-                  amountLabel="Amount *"
-                  roundMode="integer"
-                  amountInputMode="numeric"
-                  minAmount={1}
-                  idPrefix="deposit-edit"
-                  disabled={editLoading}
-                  compact
-                />
-                {editErrors.amount ? <FieldError message={editErrors.amount} /> : null}
+              <div className="flex flex-wrap items-start gap-4">
+                <div className="w-full max-w-[500px]">
+                  <OperatedMoneyFields
+                    value={editMoney}
+                    onChange={setEditMoney}
+                    amountLabel="Amount *"
+                    roundMode="integer"
+                    amountInputMode="numeric"
+                    minAmount={1}
+                    idPrefix="deposit-edit"
+                    disabled={editLoading}
+                    compact
+                  />
+                  {editErrors.amount ? <FieldError message={editErrors.amount} /> : null}
+                </div>
               </div>
             </div>
             <div className="flex justify-end gap-2 pt-4 border-t border-[var(--border)] mt-4">
