@@ -13,6 +13,11 @@ export type Exchange = {
   provider: string;
   status: ExchangeStatus;
   version?: number;
+  parentExchange?: string | { _id?: string; id?: string; name?: string; provider?: string } | null;
+  parentExchangeId?: string;
+  parentExchangeName?: string;
+  subExchangeCount?: number;
+  unassignedPlayerCount?: number;
   createdBy?: string;
   createdByName?: string;
   updatedBy?: string;
@@ -23,8 +28,10 @@ export type Exchange = {
 
 export type ExchangeCreateInput = Pick<
   Exchange,
-  "name" | "openingBalance" | "bonus" | "provider" | "status"
+  "name" | "openingBalance" | "bonus" | "status"
 > & {
+  provider?: string;
+  parentExchangeId?: string | null;
   openingOperatedCurrency?: string;
   openingOperatedAmount?: number;
   openingExchangeRate?: number;
@@ -57,6 +64,8 @@ export type ExchangeListParams = {
   bonus?: string;
   bonusTo?: string;
   bonusOp?: string;
+  parentExchangeId?: string;
+  topLevelOnly?: boolean;
 };
 
 export type ExchangeListResult = {
@@ -84,6 +93,8 @@ export type ExchangeStatementRow = {
   utr?: string;
   remark?: string;
   createdByName?: string;
+  subExchangeId?: string;
+  subExchangeName?: string;
 };
 
 export type ExchangeStatementResponse = {
@@ -93,6 +104,7 @@ export type ExchangeStatementResponse = {
     provider: string;
     openingBalance: number;
     currentBalance?: number;
+    isGroup?: boolean;
   };
   periodOpeningBalance: number;
   periodClosingBalance: number;

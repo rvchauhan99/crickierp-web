@@ -23,6 +23,7 @@ import {
 } from "@/services/withdrawalService";
 import type { WithdrawalImportJobSummary } from "@/types/withdrawal";
 import { getApiErrorMessage } from "@/lib/apiError";
+import { usePlatformSettings } from "@/context/PlatformSettingsContext";
 import { toast } from "sonner";
 
 type Step = "upload" | "review" | "result";
@@ -347,6 +348,7 @@ function UploadStep({
   onFileChange: (f: File | null) => void;
   onDownloadSample: (format: "csv" | "xlsx") => void;
 }) {
+  const { liabilityModuleEnabled } = usePlatformSettings();
   return (
     <div className="space-y-5">
       {/* Step 1: Download Template */}
@@ -404,10 +406,16 @@ function UploadStep({
           <p><span className="font-medium">Account Number / Holder Name / Bank Name / IFSC</span> — Required beneficiary details. Account Number must be full digits (text), not scientific notation (E+).</p>
           <p><span className="font-medium">Amount</span> — Required whole number, min 1</p>
           <p><span className="font-medium">Reverse Bonus</span> — Optional whole number, min 0 (defaults to 0)</p>
-          <p><span className="font-medium">Payout UTR</span> — Optional; required with payout bank/person for banker bulk approve</p>
-          <p><span className="font-medium">Payout Settlement Type</span> — Bank or Person (optional, defaults to Bank)</p>
-          <p><span className="font-medium">Payout Bank</span> — Company bank account no. or holder name (when settlement is Bank). If using account number, enter full digits (no E+ format).</p>
-          <p><span className="font-medium">Payout Liable Person Name</span> — Required when payout settlement is Person</p>
+          <p><span className="font-medium">Payout UTR</span> — Optional; required with payout bank for banker bulk approve</p>
+          {liabilityModuleEnabled ? (
+            <>
+              <p><span className="font-medium">Payout Settlement Type</span> — Bank or Person (optional, defaults to Bank)</p>
+              <p><span className="font-medium">Payout Bank</span> — Company bank account no. or holder name (when settlement is Bank). If using account number, enter full digits (no E+ format).</p>
+              <p><span className="font-medium">Payout Liable Person Name</span> — Required when payout settlement is Person</p>
+            </>
+          ) : (
+            <p><span className="font-medium">Payout Bank</span> — Company bank account no. or holder name (person payout is disabled for this deployment). If using account number, enter full digits (no E+ format).</p>
+          )}
         </div>
       </div>
     </div>

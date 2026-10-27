@@ -48,6 +48,7 @@ import { userService } from "@/services/userService";
 import type { WithdrawalBankerPayoutInput, WithdrawalBulkApproveJobSummary, WithdrawalRow } from "@/types/withdrawal";
 import { formatDateTimeForUser } from "@/lib/userTimezone";
 import { useApprovalQueueAutoRefresh } from "@/hooks/useApprovalQueueAutoRefresh";
+import { usePlatformSettings } from "@/context/PlatformSettingsContext";
 import { isImportReadyWithdrawal } from "@/modules/withdrawal/withdrawalImportReady";
 
 const COLUMN_FILTER_KEYS = [
@@ -260,6 +261,7 @@ export function WithdrawalBankerClient() {
     return () => clearInterval(interval);
   }, [autoRefresh]);
 
+  const { liabilityModuleEnabled } = usePlatformSettings();
   const [payoutSettlementType, setPayoutSettlementType] = useState<"bank" | "person">("bank");
   const [bankId, setBankId] = useState("");
   const [bankAutocompleteDefault, setBankAutocompleteDefault] = useState<AutocompleteOption | null>(null);
@@ -271,6 +273,10 @@ export function WithdrawalBankerClient() {
   useEffect(() => {
     bankIdRef.current = bankId;
   }, [bankId]);
+
+  useEffect(() => {
+    if (!liabilityModuleEnabled) setPayoutSettlementType("bank");
+  }, [liabilityModuleEnabled]);
 
   const withdrawalBankerFetcher = useCallback(async (params: Record<string, unknown>) => {
     const res = await listWithdrawalsNormalized("banker", params);
@@ -875,27 +881,29 @@ export function WithdrawalBankerClient() {
 
             <div className="flex flex-col gap-3">
               <div className="flex gap-3">
-                <div className="flex-1 space-y-1">
-                  <FieldLabel className="mb-1 text-xs text-muted-foreground">Payout settlement *</FieldLabel>
-                  <select
-                    className="w-full h-9 rounded-md border border-[var(--border)] bg-white px-3 py-1.5 text-sm"
-                    value={payoutSettlementType}
-                    onChange={(e) => {
-                      const v = e.target.value === "person" ? "person" : "bank";
-                      setPayoutSettlementType(v);
-                      setErrors((prev) => {
-                        const n = { ...prev };
-                        delete n.bankId;
-                        delete n.liabilityPersonId;
-                        return n;
-                      });
-                    }}
-                    disabled={selectedWithdrawal.status !== "requested" || actionLoading}
-                  >
-                    <option value="bank">Bank</option>
-                    <option value="person">Liability person</option>
-                  </select>
-                </div>
+                {liabilityModuleEnabled ? (
+                  <div className="flex-1 space-y-1">
+                    <FieldLabel className="mb-1 text-xs text-muted-foreground">Payout settlement *</FieldLabel>
+                    <select
+                      className="w-full h-9 rounded-md border border-[var(--border)] bg-white px-3 py-1.5 text-sm"
+                      value={payoutSettlementType}
+                      onChange={(e) => {
+                        const v = e.target.value === "person" ? "person" : "bank";
+                        setPayoutSettlementType(v);
+                        setErrors((prev) => {
+                          const n = { ...prev };
+                          delete n.bankId;
+                          delete n.liabilityPersonId;
+                          return n;
+                        });
+                      }}
+                      disabled={selectedWithdrawal.status !== "requested" || actionLoading}
+                    >
+                      <option value="bank">Bank</option>
+                      <option value="person">Liability person</option>
+                    </select>
+                  </div>
+                ) : null}
                 <div className="flex-1 space-y-1">
                   <FieldLabel className="mb-1 text-xs text-muted-foreground">UTR Reference *</FieldLabel>
                   <Input
@@ -909,7 +917,7 @@ export function WithdrawalBankerClient() {
                 </div>
               </div>
 
-              {payoutSettlementType === "bank" ? (
+              {payoutSettlementType === "bank" || !liabilityModuleEnabled ? (
                 <div className="space-y-1">
                   <FieldLabel className="mb-1 text-xs text-muted-foreground">Company payout bank *</FieldLabel>
                   <AutocompleteField

@@ -5,7 +5,9 @@ import {
   IconArrowDownRight,
   IconArrowUpRight,
   IconCalendar,
-  IconPrinter,
+  IconDownload,
+  IconFileSpreadsheet,
+  IconFileText,
   IconFilter,
   IconInfoCircle,
 } from "@tabler/icons-react";
@@ -13,20 +15,30 @@ import { AutocompleteField, type AutocompleteOption } from "@/components/common/
 import { FieldLabel } from "@/components/common/FieldLabel";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from "@/components/ui/shadcn/dropdown-menu";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { cn } from "@/lib/cn";
 import { DATE_PRESETS } from "@/modules/dashboard/components/DashboardFilterBar";
-import { getExchangeStatement } from "@/services/exchangeService";
+import { exportExchangeStatement, getExchangeStatement } from "@/services/exchangeService";
 import { listExchangeLookupOptions, listPlayerLookupOptions } from "@/services/lookupService";
 import type { ExchangeStatementEntryType, ExchangeStatementResponse } from "@/types/exchange";
 import { useFormatMoney } from "@/hooks/useFormatMoney";
 import { formatScaledMoney } from "@/lib/formatMoney";
 import { formatDateTimeForUser } from "@/lib/userTimezone";
+import { useExport } from "@/hooks/useExport";
 
 export function ExchangeStatementClient() {
   const { platformCurrency } = useFormatMoney();
   const formatAmount = (value: number) => formatScaledMoney(value, platformCurrency, "-");
   const [exchangeId, setExchangeId] = useState("");
+  const [subExchangeId, setSubExchangeId] = useState("");
   const [playerId, setPlayerId] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -41,26 +53,51 @@ export function ExchangeStatementClient() {
       const rows = await listExchangeLookupOptions({ q: query || undefined, limit: 40 });
       return rows.map((item) => ({
         value: item.id,
-        label: `${item.name} - ${item.provider}`,
+        label: item.label || `${item.name} - ${item.provider}`,
       }));
     } catch {
       return [];
     }
   }, []);
 
-  const loadPlayerOptions = useCallback(
+  const loadSubExchangeOptions = useCallback(
     async (query: string): Promise<AutocompleteOption[]> => {
       if (!exchangeId.trim()) return [];
       try {
-        const rows = await listPlayerLookupOptions({ q: query || undefined, limit: 40 });
-        return rows
-          .filter((row) => (row.exchangeId ?? "") === exchangeId.trim())
-          .map((row) => ({ value: row.id, label: `${row.playerId} (${row.phone})` }));
+        const rows = await listExchangeLookupOptions({
+          q: query || undefined,
+          limit: 40,
+          parentId: exchangeId.trim(),
+        });
+        return rows.map((item) => ({
+          value: item.id,
+          label: item.name,
+        }));
       } catch {
         return [];
       }
     },
     [exchangeId],
+  );
+
+  const loadPlayerOptions = useCallback(
+    async (query: string): Promise<AutocompleteOption[]> => {
+      if (!exchangeId.trim()) return [];
+      try {
+        const rows = await listPlayerLookupOptions({ q: query || undefined, limit: 40 });
+        const eid = exchangeId.trim();
+        const sid = subExchangeId.trim();
+        return rows
+          .filter((row) => {
+            if (sid) return (row.subExchangeId ?? row.exchangeId ?? "") === sid;
+            return (row.exchangeId ?? "") === eid || (row.subExchangeId ?? "") === eid;
+          })
+          .map((row) => ({ value: row.id, label: `${row.playerId} (${row.phone})` }));
+      } catch {
+        return [];
+      }
+    },
+    [exchangeId, subExchangeId],
   );
 
   const handlePreset = (preset: (typeof DATE_PRESETS)[0]) => {
@@ -82,6 +119,7 @@ export function ExchangeStatementClient() {
         fromDate: fromDate || undefined,
         toDate: toDate || undefined,
         playerId: playerId || undefined,
+        subExchangeId: subExchangeId || undefined,
         entryType,
       });
       setStatement(data);
@@ -96,6 +134,24 @@ export function ExchangeStatementClient() {
   const handlePrint = () => {
     window.print();
   };
+
+  const { exporting, handleExport } = useExport(
+    (params) => exportExchangeStatement(exchangeId.trim(), params),
+    {
+      fileName: `exchange-statement-${exchangeId || "export"}-${new Date().toISOString().split("T")[0]}.xlsx`,
+    },
+  );
+
+  const onExportClick = useCallback(() => {
+    if (!exchangeId.trim()) return;
+    handleExport({
+      fromDate: fromDate || undefined,
+      toDate: toDate || undefined,
+      playerId: playerId || undefined,
+      subExchangeId: subExchangeId || undefined,
+      entryType,
+    });
+  }, [handleExport, exchangeId, fromDate, toDate, playerId, subExchangeId, entryType]);
 
   return (
     <>
@@ -158,11 +214,26 @@ export function ExchangeStatementClient() {
               value={exchangeId}
               onChange={(value) => {
                 setExchangeId(value);
+                setSubExchangeId("");
                 setPlayerId("");
                 setStatement(null);
               }}
               loadOptions={loadExchangeOptions}
               placeholder="Search exchange..."
+            />
+          </div>
+          <div className="min-w-[220px] flex-1 space-y-1.5">
+            <FieldLabel>Sub Exchange (Optional)</FieldLabel>
+            <AutocompleteField
+              value={subExchangeId}
+              onChange={(value) => {
+                setSubExchangeId(value);
+                setPlayerId("");
+                setStatement(null);
+              }}
+              loadOptions={loadSubExchangeOptions}
+              placeholder={exchangeId ? "All sub exchanges..." : "Select exchange first"}
+              disabled={!exchangeId}
             />
           </div>
           <div className="min-w-[260px] flex-1 space-y-1.5">
@@ -266,15 +337,31 @@ export function ExchangeStatementClient() {
             <div className="flex items-start justify-between gap-3">
               <h2 className="text-2xl font-bold text-slate-900 tracking-tight">{statement.exchange.name}</h2>
               <div className="no-print">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-8 text-xs gap-2"
-                  startIcon={<IconPrinter size={14} />}
-                  onClick={handlePrint}
-                >
-                  Print PDF
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-8 text-xs gap-2"
+                      loading={exporting}
+                      startIcon={<IconDownload size={14} />}
+                    >
+                      Export
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuLabel className="" inset={false}>Choose Format</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={onExportClick} className="cursor-pointer">
+                      <IconFileSpreadsheet className="mr-2 h-4 w-4 text-emerald-600" />
+                      <span>Excel (.xlsx)</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handlePrint} className="cursor-pointer">
+                      <IconFileText className="mr-2 h-4 w-4 text-rose-600" />
+                      <span>PDF Report (.pdf)</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
             <p className="text-slate-600 font-medium text-lg mt-0.5">{statement.exchange.provider}</p>
@@ -346,6 +433,9 @@ export function ExchangeStatementClient() {
                 <tr>
                   <th className="py-3 px-4 w-[160px]">Date & Time</th>
                   <th className="py-3 px-4">Description</th>
+                  {statement.exchange.isGroup ? (
+                    <th className="py-3 px-4 w-[140px]">Sub Exchange</th>
+                  ) : null}
                   <th className="py-3 px-4 w-[180px]">Player / Ref</th>
                   <th className="py-3 px-4 text-right w-[120px]">Credit (CR)</th>
                   <th className="py-3 px-4 text-right w-[120px]">Debit (DR)</th>
@@ -355,7 +445,7 @@ export function ExchangeStatementClient() {
               <tbody className="divide-y divide-slate-100">
                 {statement.rows.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-10 text-center text-slate-500">
+                    <td colSpan={statement.exchange.isGroup ? 7 : 6} className="py-10 text-center text-slate-500">
                       No transactions found for the selected filters.
                     </td>
                   </tr>
@@ -375,6 +465,9 @@ export function ExchangeStatementClient() {
                           </div>
                         ) : null}
                       </td>
+                      {statement.exchange.isGroup ? (
+                        <td className="py-3 px-4 text-slate-600">{row.subExchangeName || "—"}</td>
+                      ) : null}
                       <td className="py-3 px-4 text-slate-700 font-medium">
                         {row.playerId || row.createdByName || "-"}
                       </td>

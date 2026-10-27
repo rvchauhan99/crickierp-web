@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import {
   IconArrowUpRight,
   IconArrowDownRight,
@@ -9,6 +9,8 @@ import {
   IconBuildingStore,
   IconUsers,
   IconCash,
+  IconChevronDown,
+  IconChevronRight,
 } from "@tabler/icons-react";
 import { cn } from "@/lib/cn";
 import { type DashboardSummary } from "./DashboardKPIs";
@@ -22,6 +24,7 @@ interface Props {
 export function DashboardExchangeSummary({ exchangesBreakdown, loading = false }: Props) {
   const { formatMoney } = useFormatMoney();
   const fmt = (value: number) => formatMoney(value, { includeSign: true });
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   if (!exchangesBreakdown || exchangesBreakdown.length === 0) {
     if (!loading) return null;
@@ -53,7 +56,29 @@ export function DashboardExchangeSummary({ exchangesBreakdown, loading = false }
           >
             {/* Header */}
             <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <h3 className="text-sm font-semibold text-slate-800">{ex.name}</h3>
+              <button
+                type="button"
+                className="flex items-center gap-1.5 text-left"
+                onClick={() => {
+                  if (!ex.hasSubExchanges) return;
+                  setExpanded((prev) => ({ ...prev, [ex.exchangeId]: !prev[ex.exchangeId] }));
+                }}
+                disabled={!ex.hasSubExchanges}
+              >
+                {ex.hasSubExchanges ? (
+                  expanded[ex.exchangeId] ? (
+                    <IconChevronDown className="w-4 h-4 text-slate-500" />
+                  ) : (
+                    <IconChevronRight className="w-4 h-4 text-slate-500" />
+                  )
+                ) : null}
+                <h3 className="text-sm font-semibold text-slate-800">{ex.name}</h3>
+                {ex.hasSubExchanges ? (
+                  <span className="text-[10px] text-slate-500">
+                    ({ex.subExchanges?.length ?? 0} sub)
+                  </span>
+                ) : null}
+              </button>
               <div className={cn(
                 "px-2 py-0.5 rounded-full text-xs font-medium border",
                 ex.netPL >= 0 
@@ -137,6 +162,29 @@ export function DashboardExchangeSummary({ exchangesBreakdown, loading = false }
                 </div>
               </div>
             </div>
+
+            {ex.hasSubExchanges && expanded[ex.exchangeId] && Array.isArray(ex.subExchanges) ? (
+              <div className="border-t border-slate-100 bg-slate-50/80 px-4 py-3 space-y-2">
+                <p className="text-[10px] uppercase font-semibold text-slate-500 tracking-wider">
+                  Sub exchanges
+                </p>
+                {ex.subExchanges.map((sub) => (
+                  <div
+                    key={sub.exchangeId}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"
+                  >
+                    <span className="font-medium text-slate-800">{sub.name}</span>
+                    <div className="flex flex-wrap gap-3 text-slate-600">
+                      <span>Dep {fmt(sub.depositVerified)}</span>
+                      <span>Wdr {fmt(sub.withdrawalApproved)}</span>
+                      <span className={sub.netPL >= 0 ? "text-emerald-600" : "text-rose-600"}>
+                        P&L {fmt(sub.netPL)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
         ))}
       </div>

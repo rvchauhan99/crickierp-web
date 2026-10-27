@@ -49,6 +49,8 @@ export type DashboardSummary = {
   exchanges: {
     total: number;
     active: number;
+    subTotal?: number;
+    playersPendingMove?: number;
   };
   users: {
     total: number;
@@ -72,6 +74,20 @@ export type DashboardSummary = {
     netBonus: number;
     periodOpeningBalance?: number;
     periodClosingBalance?: number;
+    hasSubExchanges?: boolean;
+    isSubExchange?: boolean;
+    subExchanges?: Array<{
+      exchangeId: string;
+      name: string;
+      depositVerified: number;
+      withdrawalApproved: number;
+      netPL: number;
+      netBonus: number;
+      newPlayers: number;
+      firstTimeDepositAmount: number;
+      periodOpeningBalance?: number;
+      periodClosingBalance?: number;
+    }>;
   }[];
   banksBreakdown?: {
     bankId: string;
@@ -192,9 +208,11 @@ export function DashboardKPIs({ summary, loading = false }: Props) {
   const ex = summary?.exchanges;
   const us = summary?.users;
   const pm = summary?.periodMetrics;
-  const netBonus = (d?.bonusTotal ?? 0) - (w?.reverseBonusTotal ?? 0);
-  const grossPL = (d?.totalAmount ?? 0) - (w?.totalAmount ?? 0) - netBonus;
-  const netPL = grossPL - (e?.approvedAmount ?? 0);
+  /** Settled cash P&L from API (verified deposits − approved withdrawals); bonus stays on Net Bonus card only. */
+  const grossPLFallback = (d?.verifiedAmount ?? 0) - (w?.approvedAmount ?? 0);
+  const netPLFallback = grossPLFallback - (e?.approvedAmount ?? 0);
+  const grossPL = summary?.pnl?.gross ?? grossPLFallback;
+  const netPL = summary?.pnl?.net ?? netPLFallback;
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -203,7 +221,7 @@ export function DashboardKPIs({ summary, loading = false }: Props) {
         loading={loading}
         title="Total Deposits"
         value={fmt(d?.totalAmount ?? 0)}
-        subtitle={`${formatCount(d?.totalCount ?? 0)} non-rejected entries`}
+        subtitle={`${formatCount(d?.totalCount ?? 0)} non-rejected · cash only (excludes bonus)`}
         icon={<IconArrowUpRight className="w-5 h-5 text-emerald-600" />}
         iconBg="bg-emerald-50"
         badge={
@@ -263,7 +281,7 @@ export function DashboardKPIs({ summary, loading = false }: Props) {
         loading={loading}
         title="Gross P & L"
         value={fmt(grossPL)}
-        subtitle="Total Deposits − Total Withdrawals − Net Bonus"
+        subtitle="Verified Deposits − Approved Withdrawals"
         icon={
           grossPL >= 0
             ? <IconTrendingUp className="w-5 h-5 text-emerald-600" />

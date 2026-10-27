@@ -5,6 +5,7 @@ import { Checkbox } from "@/components/ui/Checkbox";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
+import { usePlatformSettings } from "@/context/PlatformSettingsContext";
 import { PERMISSION_MODULE_ORDER, sortPermissionsInModule } from "@/lib/constants/permissionLayout";
 
 export interface Permission {
@@ -104,7 +105,16 @@ export function PermissionGrid({
   density = "comfortable",
 }: PermissionGridProps) {
   const isCompact = density === "compact";
-  const preparedPermissions = useMemo(() => preprocessPermissionsForGrid(allPermissions), [allPermissions]);
+  const { liabilityModuleEnabled } = usePlatformSettings();
+  const preparedPermissions = useMemo(() => {
+    const rows = preprocessPermissionsForGrid(allPermissions);
+    if (liabilityModuleEnabled) return rows;
+    return rows.filter(
+      (p) =>
+        p.module !== "liability" &&
+        !(p.module === "reports" && (p.action === "liability" || p.key === "liability.report_view")),
+    );
+  }, [allPermissions, liabilityModuleEnabled]);
   // Group permissions by module and sort them
   const groupedPermissions = useMemo(() => {
     const grouped = preparedPermissions.reduce((acc, permission) => {

@@ -19,6 +19,7 @@ export const reportService = {
     fromDate?: string;
     toDate?: string;
     exchangeId?: string;
+    subExchangeId?: string;
     status?: string;
     transactionType?: string;
     playerId?: string;

@@ -37,6 +37,7 @@ import {
 import { listBankLookupOptions, listExpenseTypeLookupOptions } from "@/services/lookupService";
 import { listLiabilityPersonsNormalized } from "@/services/liabilityService";
 import { userService } from "@/services/userService";
+import { usePlatformSettings } from "@/context/PlatformSettingsContext";
 import type { ExpenseRow } from "@/types/expense";
 import { useFormatMoney } from "@/hooks/useFormatMoney";
 import { getApiErrorMessage } from "@/lib/apiError";
@@ -258,6 +259,7 @@ export function ExpenseAuditClient() {
   const [tableKey, setTableKey] = useState(0);
   const [selectedExpense, setSelectedExpense] = useState<ExpenseRow | null>(null);
 
+  const { liabilityModuleEnabled } = usePlatformSettings();
   const [settlementAccountType, setSettlementAccountType] = useState<"bank" | "person">("bank");
   const [bankId, setBankId] = useState("");
   const [liabilityPersonId, setLiabilityPersonId] = useState("");
@@ -267,6 +269,10 @@ export function ExpenseAuditClient() {
   const [actionLoading, setActionLoading] = useState(false);
   const [viewingDocIndex, setViewingDocIndex] = useState<number | null>(null);
   const [errors, setErrors] = useState<{ bankId?: string; liabilityPersonId?: string }>({});
+
+  useEffect(() => {
+    if (!liabilityModuleEnabled) setSettlementAccountType("bank");
+  }, [liabilityModuleEnabled]);
 
   const loadBankOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {
@@ -582,24 +588,26 @@ export function ExpenseAuditClient() {
             />
 
             <div className="space-y-4">
+              {liabilityModuleEnabled ? (
+                <div className="space-y-1.5">
+                  <FieldLabel>Settlement Account Type *</FieldLabel>
+                  <select
+                    className="w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
+                    value={settlementAccountType}
+                    onChange={(e) => {
+                      const nextType = e.target.value === "person" ? "person" : "bank";
+                      setSettlementAccountType(nextType);
+                      setErrors({});
+                    }}
+                    disabled={selectedExpense.status !== "pending_audit" || actionLoading}
+                  >
+                    <option value="bank">Bank</option>
+                    <option value="person">Person</option>
+                  </select>
+                </div>
+              ) : null}
               <div className="space-y-1.5">
-                <FieldLabel>Settlement Account Type *</FieldLabel>
-                <select
-                  className="w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
-                  value={settlementAccountType}
-                  onChange={(e) => {
-                    const nextType = e.target.value === "person" ? "person" : "bank";
-                    setSettlementAccountType(nextType);
-                    setErrors({});
-                  }}
-                  disabled={selectedExpense.status !== "pending_audit" || actionLoading}
-                >
-                  <option value="bank">Bank</option>
-                  <option value="person">Person</option>
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                {settlementAccountType === "bank" ? (
+                {settlementAccountType === "bank" || !liabilityModuleEnabled ? (
                   <>
                     <FieldLabel>Bank account to debit *</FieldLabel>
                     <AutocompleteField

@@ -15,8 +15,15 @@ import { getApiErrorMessage } from "@/lib/apiError";
 
 export default function ProfilePage() {
   const { user } = useAuth();
-  const { settings, isLoading: settingsLoading, isCurrencyLocked, setCurrency, platformCurrency } =
-    usePlatformSettings();
+  const {
+    settings,
+    isLoading: settingsLoading,
+    isCurrencyLocked,
+    setCurrency,
+    platformCurrency,
+    currencyConversionEnabled,
+    liabilityModuleEnabled,
+  } = usePlatformSettings();
   const [currentPass, setCurrentPass] = useState("");
   const [newPass, setNewPass] = useState("");
   const [confirmPass, setConfirmPass] = useState("");
@@ -145,7 +152,11 @@ export default function ProfilePage() {
       <div className="p-4">
         <FormContainer
           title="Platform currency"
-          description="Org-wide currency for all ledgers, statements, and reports. Set once — cannot be changed."
+          description={
+            currencyConversionEnabled
+              ? "Org-wide currency for all ledgers, statements, and reports. Set once — cannot be changed."
+              : "Fixed by deployment (PLATFORM_CURRENCY). Currency conversion is disabled — all amounts use this currency."
+          }
         >
           {currencyMsg.text && (
             <div
@@ -156,6 +167,15 @@ export default function ProfilePage() {
           )}
           {settingsLoading ? (
             <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : !currencyConversionEnabled ? (
+            <div className="space-y-1 text-sm">
+              <p>
+                <span className="font-medium">Platform currency:</span> {platformCurrency ?? "—"}
+              </p>
+              <p className="text-muted-foreground">
+                Conversion is off for this deployment. Change PLATFORM_CURRENCY / CURRENCY_CONVERSION_ENABLED in env to alter this.
+              </p>
+            </div>
           ) : isCurrencyLocked ? (
             <div className="space-y-1 text-sm">
               <p>
@@ -209,6 +229,20 @@ export default function ProfilePage() {
           )}
         </FormContainer>
       </div>
+
+      {!settingsLoading && !liabilityModuleEnabled && (
+        <div className="p-4 pt-0">
+          <FormContainer
+            title="Liability module"
+            description="Deploy-level feature flag (LIABILITY_MODULE_ENABLED)."
+          >
+            <p className="text-sm text-muted-foreground">
+              Liability module is off for this deployment. Person settlement is unavailable; all
+              transactions settle via bank only. Change LIABILITY_MODULE_ENABLED in env to alter this.
+            </p>
+          </FormContainer>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4">
         <div>

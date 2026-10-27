@@ -1,8 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState, useRef } from "react";
+import { Suspense, useCallback, useEffect, useState, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import {
-  IconPrinter,
+  IconDownload,
+  IconFileSpreadsheet,
+  IconFileText,
   IconFilter,
   IconCalendar,
   IconArrowUpRight,
@@ -14,7 +17,16 @@ import { FieldLabel } from "@/components/common/FieldLabel";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from "@/components/ui/shadcn/dropdown-menu";
+import {
   createBankSettlement,
+  exportBankLedger,
   getBankComputedClosing,
   getBankLedger,
   listBanksRaw,
@@ -28,16 +40,25 @@ import { useAuth } from "@/context/AuthContext";
 import { formControlFocus } from "@/lib/formControlClasses";
 import { useFormatMoney } from "@/hooks/useFormatMoney";
 import { formatScaledMoney } from "@/lib/formatMoney";
+import { useExport } from "@/hooks/useExport";
 import {
   currentDateTimeLocalValue,
   dateTimeLocalValueToUtcIso,
   formatDateTimeForUser,
 } from "@/lib/userTimezone";
 
-const ENTRY_TYPES = ["all", "deposit", "withdrawal", "expense", "liability", "settlement"] as const;
+const ENTRY_TYPES = ["all", "deposit", "withdrawal", "expense", "liability", "transfer", "settlement"] as const;
 type EntryTypeFilter = (typeof ENTRY_TYPES)[number];
 
-export default function BankStatementPage() {
+function parseEntryType(value: string | null): EntryTypeFilter {
+  if (value && (ENTRY_TYPES as readonly string[]).includes(value)) {
+    return value as EntryTypeFilter;
+  }
+  return "all";
+}
+
+function BankStatementPageInner() {
+  const searchParams = useSearchParams();
   const { platformCurrency } = useFormatMoney();
   const formatAmount = (value: number) => formatScaledMoney(value, platformCurrency);
   const { user } = useAuth();
@@ -47,6 +68,7 @@ export default function BankStatementPage() {
   const [toDate, setToDate] = useState("");
   const [entryType, setEntryType] = useState<EntryTypeFilter>("all");
   const [activePreset, setActivePreset] = useState<string | null>(null);
+  const appliedUrlRef = useRef(false);
 
   const [systemClosingBalance, setSystemClosingBalance] = useState<number | null>(null);
   const [systemClosingLoading, setSystemClosingLoading] = useState(false);
@@ -61,17 +83,36 @@ export default function BankStatementPage() {
   const [error, setError] = useState<string | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
-  const loadBankOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
+  const formatBankOption = useCallback((b: { _id?: string; id?: string; holderName?: string; bankName?: string; accountNumber?: string | number }) => {
+    const value = String(b._id || b.id || "");
+    const tail = String(b.accountNumber ?? "").slice(-4);
+    return {
+      value,
+      label: `${b.holderName ?? ""} - ${b.bankName ?? ""}${tail ? ` (${tail})` : ""}`.trim(),
+    };
+  }, []);
+
+  const loadBankOptions = useCallback(async (_query: string): Promise<AutocompleteOption[]> => {
     try {
-      const res = await listBanksRaw(1, 40); // passing page and limit manually, simplistic fallback
-      return res.data.map((b: any) => ({
-        value: b._id || b.id,
-        label: `${b.holderName} - ${b.bankName} (${String(b.accountNumber).slice(-4)})`,
-      }));
+      const res = await listBanksRaw(1, 40);
+      return res.data.map((b: any) => formatBankOption(b));
     } catch {
       return [];
     }
-  }, []);
+  }, [formatBankOption]);
+
+  const resolveBankOption = useCallback(
+    async (id: string): Promise<AutocompleteOption | null> => {
+      try {
+        const res = await listBanksRaw(1, 100);
+        const match = res.data.find((b: any) => String(b._id || b.id) === id);
+        return match ? formatBankOption(match) : { value: id, label: id };
+      } catch {
+        return { value: id, label: id };
+      }
+    },
+    [formatBankOption],
+  );
 
   useEffect(() => {
     if (!isSuperadmin || !bankId.trim()) {
@@ -117,6 +158,53 @@ export default function BankStatementPage() {
       setLoading(false);
     }
   }, [bankId, fromDate, toDate, entryType]);
+
+  useEffect(() => {
+    if (appliedUrlRef.current) return;
+    const qBankId = searchParams.get("bankId")?.trim() ?? "";
+    if (!qBankId) {
+      appliedUrlRef.current = true;
+      return;
+    }
+    appliedUrlRef.current = true;
+    const qFrom = searchParams.get("fromDate")?.trim() ?? "";
+    const qTo = searchParams.get("toDate")?.trim() ?? "";
+    const qEntry = parseEntryType(searchParams.get("entryType"));
+    setBankId(qBankId);
+    setFromDate(qFrom);
+    setToDate(qTo);
+    setEntryType(qEntry);
+    if (qFrom && qTo) {
+      const match = DATE_PRESETS.find((p) => {
+        const d = p.fn();
+        return d.date_from === qFrom && d.date_to === qTo;
+      });
+      setActivePreset(match?.label ?? null);
+    }
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    getBankLedger(qBankId, {
+      fromDate: qFrom || undefined,
+      toDate: qTo || undefined,
+      entryType: qEntry,
+    })
+      .then((data) => {
+        if (!cancelled) setLedger(data);
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) {
+          setError(getApiErrorMessage(e, "Failed to load statement"));
+          setLedger(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams]);
 
   const handleSettlementSubmit = async () => {
     if (!bankId.trim()) {
@@ -167,6 +255,22 @@ export default function BankStatementPage() {
   const handlePrint = () => {
     window.print();
   };
+
+  const { exporting, handleExport } = useExport(
+    (params) => exportBankLedger(bankId.trim(), params),
+    {
+      fileName: `bank-statement-${bankId || "export"}-${new Date().toISOString().split("T")[0]}.xlsx`,
+    },
+  );
+
+  const onExportClick = useCallback(() => {
+    if (!bankId.trim()) return;
+    handleExport({
+      fromDate: fromDate || undefined,
+      toDate: toDate || undefined,
+      entryType,
+    });
+  }, [handleExport, bankId, fromDate, toDate, entryType]);
 
   return (
     <>
@@ -238,6 +342,7 @@ export default function BankStatementPage() {
                   setSettlementEffectiveAt(currentDateTimeLocalValue());
                 }}
                 loadOptions={loadBankOptions}
+                resolveOptionByValue={resolveBankOption}
                 placeholder="Search bank..."
               />
             </div>
@@ -414,13 +519,29 @@ export default function BankStatementPage() {
               </div>
             </div>
             <div className="no-print">
-              <Button 
-                onClick={handlePrint} 
-                variant="secondary" 
-                startIcon={<IconPrinter size={18} />}
-              >
-                Print PDF
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="secondary"
+                    loading={exporting}
+                    startIcon={<IconDownload size={18} />}
+                  >
+                    Export
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuLabel className="" inset={false}>Choose Format</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={onExportClick} className="cursor-pointer">
+                    <IconFileSpreadsheet className="mr-2 h-4 w-4 text-emerald-600" />
+                    <span>Excel (.xlsx)</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handlePrint} className="cursor-pointer">
+                    <IconFileText className="mr-2 h-4 w-4 text-rose-600" />
+                    <span>PDF Report (.pdf)</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
@@ -492,7 +613,7 @@ export default function BankStatementPage() {
                         r.kind === "deposit" && "bg-emerald-50/10",
                         r.kind === "withdrawal" && "bg-rose-50/10",
                         r.kind === "settlement" && "bg-amber-50/20",
-                        r.kind === "liability" && "bg-slate-50/40",
+                        (r.kind === "liability" || r.kind === "transfer") && "bg-slate-50/40",
                       )}
                     >
                       <td className="py-3 px-4 whitespace-nowrap text-slate-500">
@@ -558,5 +679,19 @@ export default function BankStatementPage() {
         </div>
       )}
     </>
+  );
+}
+
+export default function BankStatementPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-[40vh] items-center justify-center text-sm text-[var(--text-secondary)]">
+          Loading statement…
+        </div>
+      }
+    >
+      <BankStatementPageInner />
+    </Suspense>
   );
 }

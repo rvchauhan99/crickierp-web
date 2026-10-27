@@ -35,6 +35,7 @@ import { MasterForm } from "./MasterForm";
 import { cn } from "@/lib/cn";
 import type { MasterModelKey } from "@/lib/mastersSchemas";
 import { formatDateTimeForUser } from "@/lib/userTimezone";
+import { usePlatformSettings } from "@/context/PlatformSettingsContext";
 
 const FILTER_KEYS = ["visibility"];
 
@@ -57,6 +58,7 @@ function formatCell(field: MasterField, value: unknown): string {
 }
 
 export function MastersPageClient() {
+  const { currencyConversionEnabled } = usePlatformSettings();
   const listingState = useListingQueryStateReference({
     defaultLimit: 20,
     filterKeys: FILTER_KEYS,
@@ -98,10 +100,14 @@ export function MastersPageClient() {
     fetchMastersRegistry()
       .then((list) => {
         if (!active) return;
-        setMasters(list);
-        if (list.length > 0) {
-          setSelectedMaster((prev) => prev ?? list[0]!);
-        }
+        const visible = currencyConversionEnabled
+          ? list
+          : list.filter((m) => m.modelKey !== "exchangeRate");
+        setMasters(visible);
+        setSelectedMaster((prev) => {
+          if (prev && visible.some((m) => m.modelKey === prev.modelKey)) return prev;
+          return visible[0] ?? null;
+        });
       })
       .catch(() => {
         toast.error("Failed to load masters list.");
@@ -112,7 +118,7 @@ export function MastersPageClient() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [currencyConversionEnabled]);
 
   const setPageRef = useRef(setPage);
   setPageRef.current = setPage;

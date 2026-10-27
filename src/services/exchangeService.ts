@@ -52,6 +52,21 @@ const mockRows: Exchange[] = [
   },
 ];
 
+function normalizeParentExchange(
+  value: Exchange["parentExchange"],
+): { id?: string; name?: string } {
+  if (!value) return {};
+  if (typeof value === "string") return { id: value };
+  if (typeof value === "object") {
+    const idRaw = value.id ?? value._id;
+    return {
+      id: typeof idRaw === "string" ? idRaw : undefined,
+      name: typeof value.name === "string" ? value.name : undefined,
+    };
+  }
+  return {};
+}
+
 function normalizeExchange(row: Partial<Exchange> & { _id?: string; id?: string }): Exchange {
   const id = row.id ?? row._id ?? "";
   const createdByUser = parseAuditUser(row.createdBy);
@@ -62,6 +77,7 @@ function normalizeExchange(row: Partial<Exchange> & { _id?: string; id?: string 
   const updatedByName = toOptionalParam(
     row.updatedByName ?? row["updated_by_name" as keyof typeof row] ?? updatedByUser.name,
   );
+  const parent = normalizeParentExchange(row.parentExchange);
   return {
     id,
     _id: row._id ?? id,
@@ -77,6 +93,11 @@ function normalizeExchange(row: Partial<Exchange> & { _id?: string; id?: string 
     provider: row.provider ?? "",
     status: (row.status ?? "deactive") as Exchange["status"],
     version: row.version,
+    parentExchange: row.parentExchange ?? null,
+    parentExchangeId: row.parentExchangeId ?? parent.id,
+    parentExchangeName: row.parentExchangeName ?? parent.name,
+    subExchangeCount: Number(row.subExchangeCount ?? 0),
+    unassignedPlayerCount: Number(row.unassignedPlayerCount ?? 0),
     createdBy: toOptionalParam(createdByUser.id ?? row.createdBy),
     createdByName,
     updatedBy: toOptionalParam(updatedByUser.id ?? row.updatedBy),
@@ -126,6 +147,8 @@ export async function listExchanges(params: ExchangeListParams = {}): Promise<Ex
     bonus: toOptionalParam(params.bonus),
     bonus_to: toOptionalParam(params.bonusTo),
     bonus_op: toOptionalParam(params.bonusOp),
+    parentExchangeId: toOptionalParam(params.parentExchangeId),
+    topLevelOnly: params.topLevelOnly === true ? true : undefined,
   };
 
   try {
@@ -201,6 +224,14 @@ export async function listExchangesNormalized(
     bonus: str(params, "bonus"),
     bonusTo: str(params, "bonus_to"),
     bonusOp: str(params, "bonus_op") || undefined,
+    parentExchangeId: str(params, "parentExchangeId") || undefined,
+    topLevelOnly:
+      params.topLevelOnly === true ||
+      params.topLevelOnly === "true" ||
+      params.topLevelOnly === 1 ||
+      params.topLevelOnly === "1"
+        ? true
+        : undefined,
   });
 
   return {
@@ -262,11 +293,25 @@ export async function createExchange(input: ExchangeCreateInput): Promise<Exchan
     const response = await apiClient.post("/exchange", input);
     return response.data?.data;
   } catch {
+    const { parentExchangeId, ...rest } = input;
     return {
       id: `EX-${Math.floor(Math.random() * 10000)}`,
-      ...input,
+      ...rest,
+      provider: input.provider ?? "",
+      ...(parentExchangeId ? { parentExchangeId } : {}),
     };
   }
+}
+
+export async function movePlayersToSubExchange(
+  parentExchangeId: string,
+  input: { targetSubExchangeId: string; playerIds?: string[]; all?: boolean },
+): Promise<{ moved: number; targetSubExchangeId: string }> {
+  const res = await apiClient.post<{
+    success: boolean;
+    data: { moved: number; targetSubExchangeId: string };
+  }>(`/exchange/${encodeURIComponent(parentExchangeId)}/move-players`, input);
+  return res.data.data;
 }
 
 export async function getExchangeStatement(
@@ -275,6 +320,7 @@ export async function getExchangeStatement(
     fromDate?: string;
     toDate?: string;
     playerId?: string;
+    subExchangeId?: string;
     entryType?: ExchangeStatementEntryType;
   },
 ): Promise<ExchangeStatementResponse> {
@@ -283,6 +329,23 @@ export async function getExchangeStatement(
     { params: query },
   );
   return res.data.data;
+}
+
+export async function exportExchangeStatement(
+  exchangeId: string,
+  params?: {
+    fromDate?: string;
+    toDate?: string;
+    playerId?: string;
+    subExchangeId?: string;
+    entryType?: ExchangeStatementEntryType;
+  },
+): Promise<Blob> {
+  const response = await apiClient.get(
+    `/exchange/${encodeURIComponent(exchangeId)}/statement/export`,
+    { params, responseType: "blob" },
+  );
+  return response.data as Blob;
 }
 
 export async function createExchangeTopup(input: {

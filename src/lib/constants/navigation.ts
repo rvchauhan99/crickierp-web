@@ -53,13 +53,37 @@ export function filterNavByPermissions(
   return out;
 }
 
+/**
+ * Hides liability module and liability report when the deploy disables liability.
+ */
+export function filterNavByLiabilityModule(
+  nodes: AppNavNode[],
+  liabilityModuleEnabled: boolean
+): AppNavNode[] {
+  if (liabilityModuleEnabled) return nodes;
+  const out: AppNavNode[] = [];
+  for (const node of nodes) {
+    if (node.id === "liability" || node.id === "reports-liability") continue;
+    if (node.children?.length) {
+      const children = filterNavByLiabilityModule(node.children, false);
+      if (children.length === 0 && !node.href) continue;
+      out.push({ ...node, children });
+    } else {
+      out.push({ ...node });
+    }
+  }
+  return out;
+}
+
 export function filterNavForUser(
   nodes: AppNavNode[],
   role: string | undefined,
-  permissions: string[] | undefined
+  permissions: string[] | undefined,
+  options?: { liabilityModuleEnabled?: boolean }
 ): AppNavNode[] {
   const byRole = filterNavByRole(nodes, role);
-  return filterNavByPermissions(byRole, role, permissions);
+  const byPerm = filterNavByPermissions(byRole, role, permissions);
+  return filterNavByLiabilityModule(byPerm, options?.liabilityModuleEnabled !== false);
 }
 
 export const NAV_ITEMS: AppNavNode[] = [
@@ -175,6 +199,20 @@ export const NAV_ITEMS: AppNavNode[] = [
         href: "/bank/list",
         keywords: ["b2b", "expense"],
         requiredPermission: NAV_PERMISSIONS.BANK_LIST,
+      },
+      {
+        id: "bank-transfer",
+        label: "Transfer",
+        href: "/bank/transfer",
+        keywords: ["internal", "bank to bank", "move"],
+        requiredPermission: NAV_PERMISSIONS.BANK_TRANSFER,
+      },
+      {
+        id: "bank-summary",
+        label: "Summary",
+        href: "/bank/summary",
+        keywords: ["bank wise", "balance", "overview"],
+        requiredPermission: NAV_PERMISSIONS.BANK_STATEMENT,
       },
       {
         id: "bank-statement",

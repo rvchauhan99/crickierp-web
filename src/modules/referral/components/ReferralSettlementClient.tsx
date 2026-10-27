@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Input } from "@/components/ui/Input";
 import { getApiErrorMessage } from "@/lib/apiError";
+import { useOperatorEntryForm } from "@/hooks/useOperatorEntryForm";
 import { listPlayerLookupOptions } from "@/services/lookupService";
 import { listReferralAccruals, settleReferralAccruals } from "@/services/referralService";
 import type { ReferralAccrualRow, ReferralAccrualStatus } from "@/types/referral";
@@ -35,6 +36,7 @@ function getDepositUtr(raw: ReferralAccrualRow["sourceDepositId"]): string {
 }
 
 export function ReferralSettlementClient() {
+  const { formRef: entryRef, afterSuccessfulSave } = useOperatorEntryForm();
   const [status, setStatus] = useState<ReferralAccrualStatus | "">("accrued");
   const [referrerPlayerId, setReferrerPlayerId] = useState("");
   const [rows, setRows] = useState<ReferralAccrualRow[]>([]);
@@ -107,6 +109,7 @@ export function ReferralSettlementClient() {
       );
       setRemark("");
       await runSearch();
+      afterSuccessfulSave();
     } catch (error: unknown) {
       toast.error(getApiErrorMessage(error, "Failed to settle referral accruals"));
     } finally {
@@ -116,7 +119,11 @@ export function ReferralSettlementClient() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-5">
-      <FormContainer title="Referral Settlement" description="Review referral accruals and settle manually as bonus deposit entries (without bank impact).">
+      <FormContainer
+        entryRef={entryRef}
+        title="Referral Settlement"
+        description="Review referral accruals and settle manually as bonus deposit entries (without bank impact)."
+      >
         <FormGrid className="md:grid-cols-3">
           <div>
             <FieldLabel>Status</FieldLabel>

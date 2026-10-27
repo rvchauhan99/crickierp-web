@@ -23,6 +23,7 @@ import {
 } from "@/services/depositService";
 import type { DepositImportJobSummary } from "@/types/deposit";
 import { getApiErrorMessage } from "@/lib/apiError";
+import { usePlatformSettings } from "@/context/PlatformSettingsContext";
 import { toast } from "sonner";
 
 type Step = "upload" | "review" | "result";
@@ -340,6 +341,7 @@ function UploadStep({
   onFileChange: (f: File | null) => void;
   onDownloadSample: (format: "csv" | "xlsx") => void;
 }) {
+  const { liabilityModuleEnabled } = usePlatformSettings();
   return (
     <div className="space-y-5">
       {/* Step 1: Download Template */}
@@ -393,9 +395,15 @@ function UploadStep({
         <p className="text-sm font-medium text-gray-700 mb-2">Column guide:</p>
         <div className="text-xs text-gray-600 space-y-1">
           <p><span className="font-medium">Date Time</span> — DD/MM/YYYY HH:mm or DD/MM/YY HH:mm in your profile timezone (optional, defaults to current). Excel formats (seconds, AM/PM) are accepted; leave blank to use current time.</p>
-          <p><span className="font-medium">Settlement Type</span> — Bank or Person (optional, defaults to Bank)</p>
-          <p><span className="font-medium">Bank</span> — Account Number or Holder Name (required if settlement is Bank)</p>
-          <p><span className="font-medium">Liable Person Name</span> — Required if settlement is Person</p>
+          {liabilityModuleEnabled ? (
+            <>
+              <p><span className="font-medium">Settlement Type</span> — Bank or Person (optional, defaults to Bank)</p>
+              <p><span className="font-medium">Bank</span> — Account Number or Holder Name (required if settlement is Bank)</p>
+              <p><span className="font-medium">Liable Person Name</span> — Required if settlement is Person</p>
+            </>
+          ) : (
+            <p><span className="font-medium">Bank</span> — Account Number or Holder Name (required; person settlement is disabled for this deployment)</p>
+          )}
           <p><span className="font-medium">Player Id</span> — Exchange player code (optional); required if Bonus Amount is set</p>
           <p><span className="font-medium">Bonus Amount</span> — Optional whole number, min 0 (defaults to 0 when Player Id is set)</p>
           <p><span className="font-medium">UTR</span> — Required, must be unique (4-120 chars)</p>

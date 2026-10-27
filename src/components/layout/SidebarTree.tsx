@@ -7,6 +7,7 @@ import { NAV_ITEMS, filterNavForUser } from "@/lib/constants/navigation";
 import { AppNavNode } from "@/types/navigation";
 import { cn } from "@/lib/cn";
 import { useAuth } from "@/context/AuthContext";
+import { usePlatformSettings } from "@/context/PlatformSettingsContext";
 import { PLATFORM_NAME } from "@/lib/constants/branding";
 import {
   IconChevronDown,
@@ -334,12 +335,16 @@ export function SidebarTree({
   const pathname = usePathname();
   const router = useRouter();
   const { logout, user } = useAuth();
+  const { liabilityModuleEnabled } = usePlatformSettings();
   const [menuSearch, setMenuSearch] = useState("");
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
   const navItemsForUser = useMemo(
-    () => filterNavForUser(NAV_ITEMS, user?.role, user?.permissions),
-    [user?.role, user?.permissions]
+    () =>
+      filterNavForUser(NAV_ITEMS, user?.role, user?.permissions, {
+        liabilityModuleEnabled,
+      }),
+    [user?.role, user?.permissions, liabilityModuleEnabled]
   );
 
   const flatItems = useMemo(() => flattenNodes(navItemsForUser), [navItemsForUser]);

@@ -18,6 +18,7 @@ export interface DashboardFilters {
   player_id: string;
   bank_id: string;
   exchange_id: string;
+  sub_exchange_id: string;
   amount_from: string;
   amount_to: string;
   search: string;
@@ -75,6 +76,7 @@ export function DashboardFilterPanel({
     if (filters.player_id) count++;
     if (filters.bank_id) count++;
     if (filters.exchange_id) count++;
+    if (filters.sub_exchange_id) count++;
     if (filters.amount_from) count++;
     if (filters.amount_to) count++;
     if (filters.search) count++;
@@ -254,14 +256,67 @@ export function DashboardFilterPanel({
              <label className="mb-1 block text-[11px] font-medium text-slate-500 uppercase tracking-wider">Exchange</label>
              <AutocompleteField
               value={localValues.exchange_id || ""}
-              onChange={(val) => handleChange("exchange_id", val)}
+              onChange={(val) => {
+                handleChange("exchange_id", val);
+                handleChange("sub_exchange_id", "");
+              }}
               placeholder="Search exchange..."
               disabled={loading}
               loadOptions={async (query) => {
-                const res = await apiClient.get("/exchange", { params: { search: query, limit: 20 } });
+                const res = await apiClient.get("/exchange", {
+                  params: { search: query, limit: 20, topLevelOnly: true },
+                });
                 const rows: ExchangeOptionRow[] = Array.isArray(res.data?.data) ? res.data.data : [];
                 return rows.map((e) => ({ value: e._id, label: e.exchangeName || e.name || e._id }));
               }}
+            />
+          </div>
+          <div>
+             <label className="mb-1 block text-[11px] font-medium text-slate-500 uppercase tracking-wider">Sub Exchange</label>
+             <AutocompleteField
+              value={localValues.sub_exchange_id || ""}
+              onChange={(val) => handleChange("sub_exchange_id", val)}
+              placeholder={localValues.exchange_id ? "Search sub exchange..." : "Select exchange first"}
+              disabled={loading || !localValues.exchange_id}
+              loadOptions={async (query) => {
+                if (!localValues.exchange_id) return [];
+                const res = await apiClient.get("/lookup/exchanges", {
+                  params: { q: query, limit: 20, parentId: localValues.exchange_id },
+                });
+                const rows: Array<{ id?: string; _id?: string; name?: string; label?: string }> = Array.isArray(
+                  res.data?.data,
+                )
+                  ? res.data.data
+                  : [];
+                return rows.map((e) => ({
+                  value: String(e.id ?? e._id ?? ""),
+                  label: e.label || e.name || String(e.id ?? e._id ?? ""),
+                }));
+              }}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-medium text-slate-500 uppercase tracking-wider">Amount From</label>
+            <Input
+              type="number"
+              min={0}
+              step="any"
+              placeholder="Min amount"
+              value={localValues.amount_from}
+              onChange={(e) => handleChange("amount_from", e.target.value)}
+              disabled={loading}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-medium text-slate-500 uppercase tracking-wider">Amount To</label>
+            <Input
+              type="number"
+              min={0}
+              step="any"
+              placeholder="Max amount"
+              value={localValues.amount_to}
+              onChange={(e) => handleChange("amount_to", e.target.value)}
+              disabled={loading}
             />
           </div>
 

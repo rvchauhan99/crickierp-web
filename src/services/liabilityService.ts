@@ -297,3 +297,13 @@ export async function exportLiabilityLedger(
   });
   return response.data;
 }
+
+export async function exportLiabilityReport(params?: {
+  viewMode?: LiabilityViewMode;
+}): Promise<Blob> {
+  const response = await apiClient.get("/liability/reports/export", {
+    params: { viewMode: params?.viewMode ?? "platform" },
+    responseType: "blob",
+  });
+  return response.data as Blob;
+}

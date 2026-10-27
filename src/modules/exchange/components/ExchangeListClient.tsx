@@ -9,13 +9,21 @@ import PaginationControlsReference from "@/components/common/PaginationControlsR
 import { TableStatusBadge } from "@/components/common/TableStatusBadge";
 import { useListingQueryStateReference } from "@/hooks/useListingQueryStateReference";
 import { tableColumnPresets } from "@/lib/tableStylePresets";
-import { exportExchanges, listExchangesNormalized } from "@/services/exchangeService";
+import {
+  exportExchanges,
+  listExchanges,
+  listExchangesNormalized,
+  movePlayersToSubExchange,
+} from "@/services/exchangeService";
 import { userService } from "@/services/userService";
 import type { Exchange } from "@/types/exchange";
 import type { AutocompleteOption } from "@/components/common/AutocompleteField";
 import { useExport } from "@/hooks/useExport";
 import { formatDateTimeForUser } from "@/lib/userTimezone";
 import { useFormatMoney } from "@/hooks/useFormatMoney";
+import { Button } from "@/components/ui/Button";
+import { Select } from "@/components/ui/Select";
+import { toast } from "sonner";
 
 const COLUMN_FILTER_KEYS = [
   "name",
@@ -85,6 +93,51 @@ export function ExchangeListClient() {
 
   const [totalCount, setTotalCount] = useState(0);
   const [cachedUsers, setCachedUsers] = useState<Record<string, string>>({});
+  const [moveParent, setMoveParent] = useState<Exchange | null>(null);
+  const [moveSubs, setMoveSubs] = useState<Exchange[]>([]);
+  const [moveTargetId, setMoveTargetId] = useState("");
+  const [moving, setMoving] = useState(false);
+  const [listRefreshKey, setListRefreshKey] = useState(0);
+
+  const openMoveDialog = useCallback(async (row: Exchange) => {
+    setMoveParent(row);
+    setMoveTargetId("");
+    try {
+      const result = await listExchanges({
+        parentExchangeId: row.id,
+        page: 1,
+        limit: 100,
+        sortBy: "name",
+        sortOrder: "asc",
+      });
+      setMoveSubs(result.items);
+      if (result.items.length === 1) setMoveTargetId(result.items[0].id);
+    } catch {
+      setMoveSubs([]);
+      toast.error("Failed to load sub exchanges");
+    }
+  }, []);
+
+  const confirmMoveAll = useCallback(async () => {
+    if (!moveParent || !moveTargetId) {
+      toast.error("Select a target sub exchange");
+      return;
+    }
+    setMoving(true);
+    try {
+      const result = await movePlayersToSubExchange(moveParent.id, {
+        targetSubExchangeId: moveTargetId,
+        all: true,
+      });
+      toast.success(`Moved ${result.moved} player(s)`);
+      setMoveParent(null);
+      setListRefreshKey((k) => k + 1);
+    } catch {
+      toast.error("Failed to move players");
+    } finally {
+      setMoving(false);
+    }
+  }, [moveParent, moveTargetId]);
 
   useEffect(() => {
     let active = true;
@@ -222,6 +275,46 @@ export function ExchangeListClient() {
         defaultFilterOperator: "contains",
       },
       {
+        field: "parentExchangeName",
+        label: "Parent",
+        render: (row: Exchange) => row.parentExchangeName || (row.parentExchangeId ? "—" : ""),
+        sortable: false,
+        minWidth: 140,
+      },
+      {
+        field: "subExchangeCount",
+        label: "Sub Exchanges",
+        render: (row: Exchange) => {
+          const count = Number(row.subExchangeCount ?? 0);
+          if (row.parentExchangeId) return "—";
+          return count > 0 ? String(count) : "0";
+        },
+        sortable: false,
+        minWidth: 120,
+      },
+      {
+        field: "unassignedPlayerCount",
+        label: "Pending Move",
+        render: (row: Exchange) => {
+          const count = Number(row.unassignedPlayerCount ?? 0);
+          const subCount = Number(row.subExchangeCount ?? 0);
+          if (subCount <= 0 || row.parentExchangeId) return "—";
+          if (count <= 0) return "0";
+          return (
+            <Button
+              type="button"
+              variant="secondary"
+              className="h-7 px-2 text-xs"
+              onClick={() => openMoveDialog(row)}
+            >
+              Pending ({count})
+            </Button>
+          );
+        },
+        sortable: false,
+        minWidth: 140,
+      },
+      {
         field: "openingBalance",
         label: "Opening Balance",
         render: (row: Exchange) => fmt(row.openingBalance),
@@ -306,13 +399,13 @@ export function ExchangeListClient() {
         render: (row: Exchange) => <TableStatusBadge status={row.status} />,
       },
     ],
-    [creatorNameById, loadCreatedByOptions, formatMoney],
+    [creatorNameById, loadCreatedByOptions, formatMoney, openMoveDialog],
   );
 
   return (
     <ListingPageContainer
       title="Exchange / List"
-      description="Search, filter and review all exchanges."
+      description="Search, filter and review all exchanges. Use Pending Move to assign players to a sub exchange."
       density="compact"
       fullWidth
       secondaryButtonLabel="Reset filters"
@@ -322,6 +415,7 @@ export function ExchangeListClient() {
       exportDisabled={exporting}
     >
       <PaginatedTableReference
+        key={listRefreshKey}
         columns={columns}
         fetcher={fetcher}
         height="calc(100vh - 200px)"
@@ -366,6 +460,44 @@ export function ExchangeListClient() {
         onRowsPerPageChange={setLimit}
         rowsPerPageOptions={[10, 20, 50, 100, 200]}
       />
+      {moveParent ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md space-y-4 rounded-lg bg-white p-5 shadow-lg">
+            <h3 className="text-lg font-semibold">Move players to sub exchange</h3>
+            <p className="text-sm text-slate-600">
+              Move all players still on <strong>{moveParent.name}</strong> to a sub exchange.
+              History follows the player.
+            </p>
+            <div>
+              <label className="mb-1 block text-sm font-medium">Target sub exchange</label>
+              <Select
+                value={moveTargetId}
+                onChange={(e) => setMoveTargetId(e.target.value)}
+              >
+                <option value="">Select…</option>
+                {moveSubs.map((sub) => (
+                  <option key={sub.id} value={sub.id}>
+                    {sub.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setMoveParent(null)}
+                disabled={moving}
+              >
+                Cancel
+              </Button>
+              <Button type="button" onClick={confirmMoveAll} disabled={moving || !moveTargetId}>
+                {moving ? "Moving…" : "Move all"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </ListingPageContainer>
   );
 }

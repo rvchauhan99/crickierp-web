@@ -43,6 +43,9 @@ import { getApiErrorMessage } from "@/lib/apiError";
 import { useFormatMoney } from "@/hooks/useFormatMoney";
 import { useApprovalQueueAutoRefresh } from "@/hooks/useApprovalQueueAutoRefresh";
 import { DepositImportDialog } from "./DepositImportDialog";
+import { useAuth } from "@/context/AuthContext";
+import { useOperatorEntryForm } from "@/hooks/useOperatorEntryForm";
+import { canEditBusinessEntryDateTime } from "@/lib/roles";
 import { currentDateTimeLocalValue, formatDateTimeForUser } from "@/lib/userTimezone";
 
 const COLUMN_FILTER_KEYS = [
@@ -86,8 +89,11 @@ export function DepositBankerClient() {
   });
   const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setFilter, setSort, clearFilters } =
     listingState;
-  const { platformCurrency } = usePlatformSettings();
+  const { platformCurrency, liabilityModuleEnabled } = usePlatformSettings();
   const { formatWholeMoney } = useFormatMoney();
+  const { user } = useAuth();
+  const canEditEntryAt = canEditBusinessEntryDateTime(user?.role);
+  const { formRef: entryRef, afterSuccessfulSave } = useOperatorEntryForm();
 
   const [settlementAccountType, setSettlementAccountType] = useState<"bank" | "person">("bank");
   const [bankId, setBankId] = useState("");
@@ -142,6 +148,13 @@ export function DepositBankerClient() {
       prev.operatedCurrency ? prev : { ...prev, operatedCurrency: platformCurrency },
     );
   }, [platformCurrency, editDeposit]);
+
+  useEffect(() => {
+    if (!liabilityModuleEnabled) {
+      setSettlementAccountType("bank");
+      setEditSettlementAccountType("bank");
+    }
+  }, [liabilityModuleEnabled]);
 
   useApprovalQueueAutoRefresh({
     module: "deposit",
@@ -235,6 +248,7 @@ export function DepositBankerClient() {
       setEntryAt(currentDateTimeLocalValue());
       setErrors({});
       setTableKey((k) => k + 1);
+      afterSuccessfulSave();
     } catch (error: unknown) {
       toast.error(getApiErrorMessage(error, "Failed to record deposit"));
     } finally {
@@ -505,38 +519,52 @@ export function DepositBankerClient() {
       {/* FormContainer defaults to flex-1; without shrink-0 the table steals height and the add form can disappear above the fold. */}
       <div className="w-full shrink-0">
         <FormContainer
+          entryRef={entryRef}
           className="!flex-none"
           title="Banker deposit"
-          description="Default settlement is bank. Rare cases may settle through a liable person instead; exchange approval posts the liability ledger entry when person is chosen."
+          description={
+            liabilityModuleEnabled
+              ? "Default settlement is bank. Rare cases may settle through a liable person instead; exchange approval posts the liability ledger entry when person is chosen."
+              : "Settlements use company bank only for this deployment."
+          }
           contentOverflow="visible"
         >
         <div className="flex flex-col gap-4 px-5 py-4">
           <div className="flex flex-wrap items-start gap-4">
             <div className="w-[180px]">
               <FieldLabel className="mb-1 text-xs text-muted-foreground">Entry date & time *</FieldLabel>
-              <Input type="datetime-local" className="h-9 text-sm" value={entryAt} onChange={(e) => setEntryAt(e.target.value)} />
+              <Input
+                type="datetime-local"
+                className="h-9 text-sm"
+                value={entryAt}
+                onChange={(e) => setEntryAt(e.target.value)}
+                disabled={!canEditEntryAt}
+                tabIndex={canEditEntryAt ? undefined : -1}
+              />
             </div>
-            <div className="w-[140px] space-y-1.5">
-              <FieldLabel className="mb-1 text-xs text-muted-foreground">Settlement *</FieldLabel>
-              <select
-                className="w-full h-9 rounded-md border border-[var(--border)] bg-white px-3 py-1.5 text-sm"
-                value={settlementAccountType}
-                onChange={(e) => {
-                  const v = e.target.value === "person" ? "person" : "bank";
-                  setSettlementAccountType(v);
-                  setErrors((prev) => {
-                    const n = { ...prev };
-                    delete n.bankId;
-                    delete n.liabilityPersonId;
-                    return n;
-                  });
-                }}
-              >
-                <option value="bank">Bank</option>
-                <option value="person">Liability person</option>
-              </select>
-            </div>
-            {settlementAccountType === "bank" ? (
+            {liabilityModuleEnabled ? (
+              <div className="w-[140px] space-y-1.5">
+                <FieldLabel className="mb-1 text-xs text-muted-foreground">Settlement *</FieldLabel>
+                <select
+                  className="w-full h-9 rounded-md border border-[var(--border)] bg-white px-3 py-1.5 text-sm"
+                  value={settlementAccountType}
+                  onChange={(e) => {
+                    const v = e.target.value === "person" ? "person" : "bank";
+                    setSettlementAccountType(v);
+                    setErrors((prev) => {
+                      const n = { ...prev };
+                      delete n.bankId;
+                      delete n.liabilityPersonId;
+                      return n;
+                    });
+                  }}
+                >
+                  <option value="bank">Bank</option>
+                  <option value="person">Liability person</option>
+                </select>
+              </div>
+            ) : null}
+            {settlementAccountType === "bank" || !liabilityModuleEnabled ? (
               <div className="min-w-[200px] flex-1">
                 <FieldLabel className="mb-1 text-xs text-muted-foreground">Bank *</FieldLabel>
                 <AutocompleteField
@@ -672,32 +700,36 @@ export function DepositBankerClient() {
           <div className="card w-full max-w-lg space-y-4 p-5">
             <h3 className="text-lg font-semibold">Edit pending deposit</h3>
             <p className="text-sm text-muted-foreground">
-              Settlement mode, counterparty, UTR, and amount can be corrected while the deposit is pending.
+              {liabilityModuleEnabled
+                ? "Settlement mode, counterparty, UTR, and amount can be corrected while the deposit is pending."
+                : "Bank, UTR, and amount can be corrected while the deposit is pending."}
             </p>
             <div className="flex flex-col gap-4 pt-2">
               <div className="flex flex-wrap items-start gap-4">
-                <div className="w-[140px] space-y-1">
-                  <FieldLabel className="mb-1 text-xs text-muted-foreground">Settlement *</FieldLabel>
-                  <select
-                    className="w-full max-w-xs rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
-                    value={editSettlementAccountType}
-                    onChange={(e) => {
-                      const v = e.target.value === "person" ? "person" : "bank";
-                      setEditSettlementAccountType(v);
-                      setEditErrors((prev) => {
-                        const n = { ...prev };
-                        delete n.bankId;
-                        delete n.liabilityPersonId;
-                        return n;
-                      });
-                    }}
-                    disabled={editLoading}
-                  >
-                    <option value="bank">Bank</option>
-                    <option value="person">Liability person</option>
-                  </select>
-                </div>
-                {editSettlementAccountType === "bank" ? (
+                {liabilityModuleEnabled ? (
+                  <div className="w-[140px] space-y-1">
+                    <FieldLabel className="mb-1 text-xs text-muted-foreground">Settlement *</FieldLabel>
+                    <select
+                      className="w-full max-w-xs rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
+                      value={editSettlementAccountType}
+                      onChange={(e) => {
+                        const v = e.target.value === "person" ? "person" : "bank";
+                        setEditSettlementAccountType(v);
+                        setEditErrors((prev) => {
+                          const n = { ...prev };
+                          delete n.bankId;
+                          delete n.liabilityPersonId;
+                          return n;
+                        });
+                      }}
+                      disabled={editLoading}
+                    >
+                      <option value="bank">Bank</option>
+                      <option value="person">Liability person</option>
+                    </select>
+                  </div>
+                ) : null}
+                {editSettlementAccountType === "bank" || !liabilityModuleEnabled ? (
                   <div className="min-w-[200px] flex-1">
                     <FieldLabel className="mb-1 text-xs text-muted-foreground">Bank *</FieldLabel>
                     <AutocompleteField

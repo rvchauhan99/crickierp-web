@@ -242,32 +242,84 @@ export function AutocompleteField({
     };
   }, [query, open, disabled, debounceMs, runLoad]);
 
+  const blurCloseTimerRef = useRef<number | null>(null);
+
+  const closeListWithoutCommit = useCallback(() => {
+    setOpen(false);
+    setQuery("");
+    setActiveIndex(-1);
+  }, []);
+
   useEffect(() => {
     const onOutside = (event: MouseEvent) => {
       const t = event.target as Node;
       if (rootRef.current?.contains(t) || dropdownRef.current?.contains(t)) return;
-      setOpen(false);
-      setQuery("");
+      closeListWithoutCommit();
     };
     document.addEventListener("mousedown", onOutside);
     return () => document.removeEventListener("mousedown", onOutside);
+  }, [closeListWithoutCommit]);
+
+  useEffect(() => {
+    return () => {
+      if (blurCloseTimerRef.current) window.clearTimeout(blurCloseTimerRef.current);
+    };
   }, []);
 
+  const committedLabel = useCallback(() => {
+    const v = valueRef.current;
+    if (!v) return "";
+    if (selectedCacheRef.current?.value === v) return selectedCacheRef.current.label;
+    if (selectedOption?.value === v) return selectedOption.label;
+    if (defaultOption?.value === v) return defaultOption.label;
+    return "";
+  }, [selectedOption, defaultOption]);
+
+  /** Index of committed value in current options, or -1. */
+  const committedOptionIndex = useCallback(() => {
+    const v = valueRef.current;
+    if (!v) return -1;
+    return options.findIndex((o) => o.value === v);
+  }, [options]);
+
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    // Tab / Shift+Tab: close list, keep committed value (blank or selected). Never pick highlight.
+    if (event.key === "Tab") {
+      if (open) closeListWithoutCommit();
+      return;
+    }
+
     if (!open && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
       event.preventDefault();
+      // Seed query only when a value is already committed so prior selection stays visible.
+      setQuery(committedLabel());
+      setActiveIndex(-1);
       setOpen(true);
       return;
     }
 
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      setActiveIndex((prev) => (prev + 1 >= options.length ? 0 : prev + 1));
+      setActiveIndex((prev) => {
+        if (options.length === 0) return -1;
+        if (prev < 0) {
+          const committed = committedOptionIndex();
+          return committed >= 0 ? committed : 0;
+        }
+        return prev + 1 >= options.length ? 0 : prev + 1;
+      });
       return;
     }
     if (event.key === "ArrowUp") {
       event.preventDefault();
-      setActiveIndex((prev) => (prev <= 0 ? options.length - 1 : prev - 1));
+      setActiveIndex((prev) => {
+        if (options.length === 0) return -1;
+        if (prev < 0) {
+          const committed = committedOptionIndex();
+          return committed >= 0 ? committed : options.length - 1;
+        }
+        return prev <= 0 ? options.length - 1 : prev - 1;
+      });
       return;
     }
     if (event.key === "Enter" && open && activeIndex >= 0 && options[activeIndex]) {
@@ -278,17 +330,40 @@ export function AutocompleteField({
       onChange(picked.value);
       setOpen(false);
       setQuery("");
+      setActiveIndex(-1);
       return;
     }
     if (event.key === "Escape") {
-      setOpen(false);
-      setQuery("");
+      closeListWithoutCommit();
     }
   };
 
   const displayText = open ? query : selectedOption?.label ?? "";
 
   const showClear = useMemo(() => Boolean(value) && !disabled, [value, disabled]);
+
+  const onFocus = () => {
+    if (blurCloseTimerRef.current) {
+      window.clearTimeout(blurCloseTimerRef.current);
+      blurCloseTimerRef.current = null;
+    }
+    // Blank value: open with empty query (current search-all flow).
+    // Committed value: keep prior label visible until user types or arrows.
+    setQuery(committedLabel());
+    setActiveIndex(-1);
+    setOpen(true);
+  };
+
+  const onBlur = () => {
+    // Delay so option mousedown can commit before close.
+    if (blurCloseTimerRef.current) window.clearTimeout(blurCloseTimerRef.current);
+    blurCloseTimerRef.current = window.setTimeout(() => {
+      blurCloseTimerRef.current = null;
+      const active = document.activeElement;
+      if (rootRef.current?.contains(active) || dropdownRef.current?.contains(active)) return;
+      closeListWithoutCommit();
+    }, 150);
+  };
 
   const dropdownList =
     open && dropdownBox ? (
@@ -318,11 +393,16 @@ export function AutocompleteField({
               onMouseEnter={() => setActiveIndex(index)}
               onMouseDown={(event) => {
                 event.preventDefault();
+                if (blurCloseTimerRef.current) {
+                  window.clearTimeout(blurCloseTimerRef.current);
+                  blurCloseTimerRef.current = null;
+                }
                 selectedCacheRef.current = option;
                 setSelectedOption(option);
                 onChange(option.value);
                 setOpen(false);
                 setQuery("");
+                setActiveIndex(-1);
               }}
             >
               {option.label}
@@ -342,7 +422,8 @@ export function AutocompleteField({
             setQuery(event.target.value);
             setActiveIndex(-1);
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={onFocus}
+          onBlur={onBlur}
           onKeyDown={onKeyDown}
           placeholder={placeholder}
           disabled={disabled}
@@ -351,11 +432,14 @@ export function AutocompleteField({
         {showClear && (
           <button
             type="button"
+            tabIndex={-1}
             onClick={() => {
               selectedCacheRef.current = null;
               setSelectedOption(null);
               setQuery("");
               setOptions([]);
+              setActiveIndex(-1);
+              setOpen(false);
               onChange("");
             }}
             className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
