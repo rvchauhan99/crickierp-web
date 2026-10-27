@@ -64,14 +64,18 @@ export type DashboardSummary = {
     name: string;
     depositTotal: number;
     depositVerified: number;
+    depositVerifiedCount?: number;
     withdrawalTotal: number;
     withdrawalApproved: number;
+    withdrawalApprovedCount?: number;
     bonusGiven: number;
     bonusRecovered: number;
     newPlayers: number;
     firstTimeDepositAmount: number;
     netPL: number;
     netBonus: number;
+    /** Sheet-style Sub Total: deposits − withdrawals + net bonus */
+    grossPL?: number;
     periodOpeningBalance?: number;
     periodClosingBalance?: number;
     hasSubExchanges?: boolean;
@@ -80,9 +84,12 @@ export type DashboardSummary = {
       exchangeId: string;
       name: string;
       depositVerified: number;
+      depositVerifiedCount?: number;
       withdrawalApproved: number;
+      withdrawalApprovedCount?: number;
       netPL: number;
       netBonus: number;
+      grossPL?: number;
       newPlayers: number;
       firstTimeDepositAmount: number;
       periodOpeningBalance?: number;
