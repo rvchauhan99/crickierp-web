@@ -39,6 +39,7 @@ import type { WithdrawalRow } from "@/types/withdrawal";
 import { withdrawalStatusApiParam } from "@/modules/withdrawal/withdrawalListingStatusFilter";
 import { WITHDRAWAL_FINAL_FILTER_KEYS } from "@/modules/withdrawal/withdrawalFinalListConstants";
 import { WithdrawalFinalListFilterPanel } from "@/modules/withdrawal/components/WithdrawalFinalListFilterPanel";
+import { canEditBusinessEntryDateTime } from "@/lib/roles";
 import {
   currentDateTimeLocalValue,
   formatDateTimeForUser,
@@ -104,6 +105,7 @@ export function WithdrawalFinalListClient() {
     return (user.permissions ?? []).includes(NAV_PERMISSIONS.WITHDRAWAL_FINAL_VIEW);
   }, [user]);
   const canDelete = user?.role === "superadmin";
+  const canEditRequestedAt = canEditBusinessEntryDateTime(user?.role);
 
   const fetcher = useCallback(async (params: Record<string, unknown>) => {
     return listWithdrawalsNormalized("final", params);
@@ -608,6 +610,8 @@ export function WithdrawalFinalListClient() {
               type="datetime-local"
               value={amendRequestedAt}
               onChange={(e) => setAmendRequestedAt(e.target.value)}
+              disabled={!canEditRequestedAt}
+              tabIndex={canEditRequestedAt ? undefined : -1}
             />
           </div>
           {amendIsPersonPayout ? (

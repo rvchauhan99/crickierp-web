@@ -147,7 +147,7 @@ export const FormSelect = forwardRef<HTMLDivElement, FormSelectProps>(function F
           {clearable && !disabled && stringValue !== "" && (
             <span
               role="button"
-              tabIndex={0}
+              tabIndex={-1}
               className="absolute inset-y-0 right-7 flex items-center text-muted-foreground hover:text-destructive"
               onClick={(e) => {
                 e.stopPropagation();

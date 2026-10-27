@@ -27,6 +27,8 @@ export type LookupPlayerOption = {
   exchangeId?: string;
   exchangeName: string;
   exchangeProvider: string;
+  subExchangeId?: string;
+  subExchangeName?: string;
 };
 
 export type LookupPlayerBonusProfile = {
@@ -42,6 +44,9 @@ export type LookupExchangeOption = {
   name: string;
   provider: string;
   status: string;
+  parentExchangeId?: string;
+  parentExchangeName?: string;
+  isSubExchange?: boolean;
 };
 
 type LookupListParams = {
@@ -49,20 +54,27 @@ type LookupListParams = {
   limit?: number;
   /** Exact expense type id (24-char hex); resolves audit flags outside list pagination. */
   id?: string;
+  assignableOnly?: boolean;
+  parentId?: string;
 };
 
 type NormalizedLookupQuery = {
   q: string;
   limit: number;
   id?: string;
+  assignableOnly?: boolean;
+  parentId?: string;
 };
 
 function normalizeQueryParams(params?: LookupListParams): NormalizedLookupQuery {
   const idTrim = params?.id?.trim();
+  const parentTrim = params?.parentId?.trim();
   return {
     q: params?.q?.trim() || "",
     limit: Number(params?.limit) > 0 ? Number(params?.limit) : 20,
     ...(idTrim && /^[a-f0-9]{24}$/i.test(idTrim) ? { id: idTrim } : {}),
+    ...(params?.assignableOnly ? { assignableOnly: true } : {}),
+    ...(parentTrim && /^[a-f0-9]{24}$/i.test(parentTrim) ? { parentId: parentTrim } : {}),
   };
 }
 
@@ -106,7 +118,12 @@ export async function listExchangeLookupOptions(
   const res = await apiClient.get<{ success: boolean; data: LookupExchangeOption[] }>(
     "/lookup/exchanges",
     {
-      params: { q: query.q || undefined, limit: query.limit },
+      params: {
+        q: query.q || undefined,
+        limit: query.limit,
+        ...(query.assignableOnly ? { assignableOnly: true } : {}),
+        ...(query.parentId ? { parentId: query.parentId } : {}),
+      },
     },
   );
   return Array.isArray(res.data?.data) ? res.data.data : [];

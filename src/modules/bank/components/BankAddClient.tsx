@@ -16,6 +16,7 @@ import {
   toMoneyFxPayload,
 } from "@/components/common/OperatedMoneyFields";
 import { usePlatformSettings } from "@/context/PlatformSettingsContext";
+import { useOperatorEntryForm } from "@/hooks/useOperatorEntryForm";
 import { createBank } from "@/services/bankService";
 import type { BankCreateInput } from "@/types/bank";
 import { getApiErrorMessage } from "@/lib/apiError";
@@ -31,6 +32,7 @@ const initialState: BankCreateInput = {
 
 export function BankAddClient() {
   const { platformCurrency } = usePlatformSettings();
+  const { formRef: entryRef, afterSuccessfulSave } = useOperatorEntryForm();
   const [form, setForm] = useState<BankCreateInput>(initialState);
   const [openingMoney, setOpeningMoney] = useState(() => defaultOperatedMoneyValue(platformCurrency));
   const [loading, setLoading] = useState(false);
@@ -101,6 +103,7 @@ export function BankAddClient() {
       });
       toast.success("Bank account created successfully.");
       reset();
+      afterSuccessfulSave();
     } catch (error: unknown) {
       toast.error(getApiErrorMessage(error, "Failed to create bank account"));
     } finally {
@@ -111,6 +114,7 @@ export function BankAddClient() {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-6 pb-4">
       <FormContainer
+        entryRef={entryRef}
         title="Add Bank Account"
         description="Create a new bank account with opening balance."
       >

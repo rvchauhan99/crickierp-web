@@ -22,15 +22,19 @@ import {
   streamPlayerImportJobEvents,
 } from "@/services/playerService";
 import { formatImportErrorToast, getApiErrorMessage } from "@/lib/apiError";
+import { useOperatorEntryForm } from "@/hooks/useOperatorEntryForm";
 import type { PlayerImportJobSummary } from "@/types/player";
 
 export function PlayerAddClient() {
+  const { formRef: entryRef, afterSuccessfulSave } = useOperatorEntryForm();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const streamCleanupRef = useRef<(() => void) | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const downloadedErrorCsvJobsRef = useRef<Set<string>>(new Set());
 
   const [exchangeId, setExchangeId] = useState("");
+  const [subExchangeId, setSubExchangeId] = useState("");
+  const [requiresSubExchange, setRequiresSubExchange] = useState(false);
   const [playerId, setPlayerId] = useState("");
   const [phone, setPhone] = useState("");
   const [regularBonusPct, setRegularBonusPct] = useState("0");
@@ -39,6 +43,7 @@ export function PlayerAddClient() {
   const [referralPercentage, setReferralPercentage] = useState("1");
   const [manualErrors, setManualErrors] = useState<{
     exchangeId?: string;
+    subExchangeId?: string;
     playerId?: string;
     phone?: string;
     regularBonusPercentage?: string;
@@ -61,17 +66,56 @@ export function PlayerAddClient() {
   const loadExchangeOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {
       const rows = await listExchangeLookupOptions({ q: query || undefined, limit: 25 });
-      return rows.map((ex) => ({
-        value: ex.id,
-        label: `${ex.name} (${ex.provider})`,
-      }));
+      return rows
+        .filter((ex) => !ex.isSubExchange)
+        .map((ex) => ({
+          value: ex.id,
+          label: `${ex.name} (${ex.provider})`,
+        }));
     } catch {
       return [];
     }
   }, []);
 
+  const loadSubExchangeOptions = useCallback(
+    async (query: string): Promise<AutocompleteOption[]> => {
+      if (!exchangeId.trim()) return [];
+      try {
+        const rows = await listExchangeLookupOptions({
+          q: query || undefined,
+          limit: 40,
+          parentId: exchangeId.trim(),
+        });
+        return rows.map((ex) => ({
+          value: ex.id,
+          label: ex.name,
+        }));
+      } catch {
+        return [];
+      }
+    },
+    [exchangeId],
+  );
+
+  const onExchangeChange = useCallback(async (value: string) => {
+    setExchangeId(value);
+    setSubExchangeId("");
+    if (!value.trim()) {
+      setRequiresSubExchange(false);
+      return;
+    }
+    try {
+      const subs = await listExchangeLookupOptions({ parentId: value.trim(), limit: 5 });
+      setRequiresSubExchange(subs.length > 0);
+    } catch {
+      setRequiresSubExchange(false);
+    }
+  }, []);
+
   const resetManual = () => {
     setExchangeId("");
+    setSubExchangeId("");
+    setRequiresSubExchange(false);
     setPlayerId("");
     setPhone("");
     setRegularBonusPct("0");
@@ -107,6 +151,9 @@ export function PlayerAddClient() {
   const onManualSave = async () => {
     const next: typeof manualErrors = {};
     if (!exchangeId.trim()) next.exchangeId = "Exchange is required.";
+    if (requiresSubExchange && !subExchangeId.trim()) {
+      next.subExchangeId = "Sub exchange is required for this exchange.";
+    }
     if (!playerId.trim()) next.playerId = "Player Id is required.";
     if (!phone.trim()) next.phone = "Phone number is required.";
     const regularBonus = Number(regularBonusPct);
@@ -134,7 +181,7 @@ export function PlayerAddClient() {
     setManualLoading(true);
     try {
       await createPlayer({
-        exchangeId: exchangeId.trim(),
+        exchangeId: requiresSubExchange ? subExchangeId.trim() : exchangeId.trim(),
         playerId: playerId.trim(),
         phone: phone.trim(),
         regularBonusPercentage: regularBonus,
@@ -144,6 +191,7 @@ export function PlayerAddClient() {
       });
       toast.success("Player saved successfully.");
       resetManual();
+      afterSuccessfulSave();
     } catch (error: unknown) {
       toast.error(getApiErrorMessage(error, "Failed to save player"));
     } finally {
@@ -269,6 +317,7 @@ export function PlayerAddClient() {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-6 pb-4">
       <FormContainer
+        entryRef={entryRef}
         title="Add Exchange Player"
         description="Register a single player against an exchange."
         contentOverflow="visible"
@@ -279,12 +328,24 @@ export function PlayerAddClient() {
             <FieldLabel>Exchange *</FieldLabel>
             <AutocompleteField
               value={exchangeId}
-              onChange={setExchangeId}
+              onChange={onExchangeChange}
               loadOptions={loadExchangeOptions}
               placeholder="search..."
             />
             <FieldError message={manualErrors.exchangeId} />
           </div>
+          {requiresSubExchange ? (
+            <div>
+              <FieldLabel>Sub Exchange *</FieldLabel>
+              <AutocompleteField
+                value={subExchangeId}
+                onChange={setSubExchangeId}
+                loadOptions={loadSubExchangeOptions}
+                placeholder="select sub exchange..."
+              />
+              <FieldError message={manualErrors.subExchangeId} />
+            </div>
+          ) : null}
           <div>
             <FieldLabel>Player Id *</FieldLabel>
             <Input placeholder="id" value={playerId} onChange={(e) => setPlayerId(e.target.value)} />

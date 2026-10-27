@@ -47,7 +47,7 @@ export function OperatedMoneyFields({
   idPrefix = "money",
   compact = false,
 }: OperatedMoneyFieldsProps) {
-  const { platformCurrency, settings, isLoading } = usePlatformSettings();
+  const { platformCurrency, settings, isLoading, currencyConversionEnabled } = usePlatformSettings();
   const currencies = settings?.supportedCurrencies?.length
     ? settings.supportedCurrencies
     : platformCurrency
@@ -55,9 +55,12 @@ export function OperatedMoneyFields({
       : [];
 
   const effectivePlatform = platformCurrency ?? "";
-  const operatedCurrency = value.operatedCurrency || effectivePlatform;
-  const sameCurrency = !effectivePlatform || operatedCurrency === effectivePlatform;
-  const operatedDigits = getCurrencyFractionDigits(operatedCurrency);
+  const conversionOff = !currencyConversionEnabled;
+  const operatedCurrency = conversionOff
+    ? effectivePlatform
+    : value.operatedCurrency || effectivePlatform;
+  const sameCurrency = conversionOff || !effectivePlatform || operatedCurrency === effectivePlatform;
+  const operatedDigits = getCurrencyFractionDigits(operatedCurrency || effectivePlatform || "INR");
   const platformDigits = getCurrencyFractionDigits(effectivePlatform);
   const amountStep = operatedDigits === 0 ? 1 : Number((10 ** -operatedDigits).toFixed(operatedDigits));
   const effectiveMin = minAmount ?? 0;
@@ -71,7 +74,24 @@ export function OperatedMoneyFields({
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
+  // Fixed-currency deploy: keep operatedCurrency + rate locked to platform.
   useEffect(() => {
+    if (!conversionOff || !effectivePlatform) return;
+    const current = valueRef.current;
+    if (
+      current.operatedCurrency !== effectivePlatform ||
+      current.exchangeRate !== "1"
+    ) {
+      onChangeRef.current({
+        ...current,
+        operatedCurrency: effectivePlatform,
+        exchangeRate: "1",
+      });
+    }
+  }, [conversionOff, effectivePlatform]);
+
+  useEffect(() => {
+    if (conversionOff) return;
     if (!effectivePlatform || !operatedCurrency) return;
 
     const pair = `${operatedCurrency}>${effectivePlatform}`;
@@ -129,7 +149,7 @@ export function OperatedMoneyFields({
     return () => {
       cancelled = true;
     };
-  }, [operatedCurrency, effectivePlatform]);
+  }, [conversionOff, operatedCurrency, effectivePlatform]);
 
   const operatedNum = Number(value.amount);
   const rateNum = sameCurrency ? 1 : Number(value.exchangeRate);
@@ -187,6 +207,37 @@ export function OperatedMoneyFields({
     return (
       <div className="col-span-full rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
         Platform currency is not configured. Set it once under Profile before creating money transactions.
+      </div>
+    );
+  }
+
+  // Fixed-currency: amount only (no currency select / rate / conversion preview).
+  if (conversionOff) {
+    return (
+      <div className="col-span-1 w-full sm:col-span-2">
+        <FieldLabel className={labelClass}>
+          {amountLabel}
+          {effectivePlatform ? ` (${effectivePlatform})` : ""}
+        </FieldLabel>
+        <Input
+          id={`${idPrefix}-amount`}
+          type="number"
+          inputMode="decimal"
+          min={effectiveMin}
+          step={amountStep}
+          value={value.amount}
+          disabled={disabled || !effectivePlatform}
+          aria-label={amountLabel}
+          className={cn(controlHeight, compact && "text-sm")}
+          onChange={(e) =>
+            onChange({
+              ...value,
+              amount: e.target.value,
+              operatedCurrency: effectivePlatform,
+              exchangeRate: "1",
+            })
+          }
+        />
       </div>
     );
   }

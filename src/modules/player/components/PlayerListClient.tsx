@@ -66,9 +66,23 @@ function createdByIdFromRow(createdBy: unknown): string {
   return String(createdBy);
 }
 
-function formatExchangeLabel(exchange: PlayerRow["exchange"]): string {
+function formatExchangeLabel(exchange: PlayerRow["exchange"], rootExchange?: PlayerRow["rootExchange"]): string {
   if (exchange == null) return "—";
   if (typeof exchange === "string") return exchange;
+  const parentName =
+    exchange.parentExchange && typeof exchange.parentExchange === "object"
+      ? exchange.parentExchange.name?.trim()
+      : typeof rootExchange === "object"
+        ? rootExchange?.name?.trim()
+        : undefined;
+  if (parentName && exchange.parentExchange) {
+    const sub = exchange.name?.trim() || "";
+    const provider =
+      (typeof exchange.parentExchange === "object" ? exchange.parentExchange.provider?.trim() : undefined) ||
+      (typeof rootExchange === "object" ? rootExchange?.provider?.trim() : undefined);
+    const base = sub ? `${parentName} / ${sub}` : parentName;
+    return provider ? `${base} (${provider})` : base;
+  }
   const name = exchange.name?.trim();
   const provider = exchange.provider?.trim();
   if (name && provider) return `${name} (${provider})`;
@@ -194,7 +208,7 @@ export function PlayerListClient() {
       {
         field: "exchange",
         label: "Exchange",
-        render: (row: PlayerRow) => formatExchangeLabel(row.exchange),
+        render: (row: PlayerRow) => formatExchangeLabel(row.exchange, row.rootExchange),
         ...tableColumnPresets.nameCol,
         sortable: false,
         filterType: "text" as const,

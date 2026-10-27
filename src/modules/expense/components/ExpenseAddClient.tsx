@@ -16,6 +16,7 @@ import {
   toMoneyFxPayload,
 } from "@/components/common/OperatedMoneyFields";
 import { usePlatformSettings } from "@/context/PlatformSettingsContext";
+import { useOperatorEntryForm } from "@/hooks/useOperatorEntryForm";
 import { ListingPageContainer } from "@/components/common/ListingPageContainer";
 import PaginatedTableReference, {
   type PaginatedTableReferenceColumn,
@@ -34,6 +35,8 @@ import { listBankLookupOptions, listExpenseTypeLookupOptions } from "@/services/
 import { listLiabilityPersonsNormalized } from "@/services/liabilityService";
 import { userService } from "@/services/userService";
 import { getApiErrorMessage } from "@/lib/apiError";
+import { useAuth } from "@/context/AuthContext";
+import { canEditBusinessEntryDateTime } from "@/lib/roles";
 import type { ExpenseRow } from "@/types/expense";
 import { todayYmdInUserTz } from "@/lib/userTimezone";
 
@@ -90,7 +93,10 @@ export function ExpenseAddClient() {
   });
   const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setFilter, setSort, clearFilters } =
     listingState;
-  const { platformCurrency } = usePlatformSettings();
+  const { platformCurrency, liabilityModuleEnabled } = usePlatformSettings();
+  const { user } = useAuth();
+  const canEditExpenseDate = canEditBusinessEntryDateTime(user?.role);
+  const { formRef: entryRef, afterSuccessfulSave } = useOperatorEntryForm();
 
   const expenseListFetcher = useCallback(async (params: Record<string, unknown>) => {
     return listExpensesNormalized(params);
@@ -152,6 +158,11 @@ export function ExpenseAddClient() {
   const [bankId, setBankId] = useState("");
   const [settlementAccountType, setSettlementAccountType] = useState<"bank" | "person">("bank");
   const [liabilityPersonId, setLiabilityPersonId] = useState("");
+
+  useEffect(() => {
+    if (!liabilityModuleEnabled) setSettlementAccountType("bank");
+  }, [liabilityModuleEnabled]);
+
   const [loading, setLoading] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [errors, setErrors] = useState<{
@@ -415,8 +426,10 @@ export function ExpenseAddClient() {
           );
         }
       }
+      const wasCreate = !editingId;
       resetForm();
       setTableKey((k) => k + 1);
+      if (wasCreate) afterSuccessfulSave();
     } catch (error: unknown) {
       const msg = editingId ? "Failed to update expense" : "Failed to create expense";
       toast.error(getApiErrorMessage(error, msg));
@@ -545,6 +558,7 @@ export function ExpenseAddClient() {
     <div className="flex min-h-0 flex-1 flex-col gap-6 pb-4">
       <div className="w-full shrink-0">
         <FormContainer
+          entryRef={entryRef}
           className="!flex-none"
           contentOverflow="visible"
           title={editingId ? "Update pending expense" : "Add new expense"}
@@ -580,7 +594,13 @@ export function ExpenseAddClient() {
             ) : null}
             <div className="space-y-1.5">
               <FieldLabel>Expense date *</FieldLabel>
-              <Input type="date" value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} />
+              <Input
+                type="date"
+                value={expenseDate}
+                onChange={(e) => setExpenseDate(e.target.value)}
+                disabled={!canEditExpenseDate}
+                tabIndex={canEditExpenseDate ? undefined : -1}
+              />
               <FieldError message={errors.expenseDate} />
             </div>
             <div className="space-y-1.5">
@@ -681,30 +701,34 @@ export function ExpenseAddClient() {
                 <div className="space-y-0.5">
                   <FieldLabel>Settlement *</FieldLabel>
                   <p className="text-[10px] text-muted-foreground">
-                    This type is approved on save — choose bank or person settlement (same as audit approval).
+                    {liabilityModuleEnabled
+                      ? "This type is approved on save — choose bank or person settlement (same as audit approval)."
+                      : "This type is approved on save — settle via bank account."}
                   </p>
                 </div>
-                <div className="space-y-1.5">
-                  <FieldLabel>Settlement account type *</FieldLabel>
-                  <select
-                    className="w-full max-w-xs rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
-                    value={settlementAccountType}
-                    onChange={(e) => {
-                      const v = e.target.value === "person" ? "person" : "bank";
-                      setSettlementAccountType(v);
-                      setErrors((prev) => {
-                        const n = { ...prev };
-                        delete n.bankId;
-                        delete n.liabilityPersonId;
-                        return n;
-                      });
-                    }}
-                  >
-                    <option value="bank">Bank</option>
-                    <option value="person">Person</option>
-                  </select>
-                </div>
-                {settlementAccountType === "bank" ? (
+                {liabilityModuleEnabled ? (
+                  <div className="space-y-1.5">
+                    <FieldLabel>Settlement account type *</FieldLabel>
+                    <select
+                      className="w-full max-w-xs rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
+                      value={settlementAccountType}
+                      onChange={(e) => {
+                        const v = e.target.value === "person" ? "person" : "bank";
+                        setSettlementAccountType(v);
+                        setErrors((prev) => {
+                          const n = { ...prev };
+                          delete n.bankId;
+                          delete n.liabilityPersonId;
+                          return n;
+                        });
+                      }}
+                    >
+                      <option value="bank">Bank</option>
+                      <option value="person">Person</option>
+                    </select>
+                  </div>
+                ) : null}
+                {settlementAccountType === "bank" || !liabilityModuleEnabled ? (
                   <div className="space-y-1.5">
                     <FieldLabel>Bank account to debit *</FieldLabel>
                     <AutocompleteField

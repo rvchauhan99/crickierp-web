@@ -106,9 +106,22 @@ export function PlayerEditClient() {
       try {
         const row = await getPlayerById(id);
         setSelectedPlayerOption({ value: id, label: `${row.playerId} · ${row.phone}` });
-        const exchangeText =
-          row.exchange && typeof row.exchange === "object"
-            ? `${row.exchange.name ?? ""}${row.exchange.provider ? ` (${row.exchange.provider})` : ""}`.trim()
+        const exchangeObj = row.exchange && typeof row.exchange === "object" ? row.exchange : null;
+        const parent =
+          exchangeObj &&
+          "parentExchange" in exchangeObj &&
+          exchangeObj.parentExchange &&
+          typeof exchangeObj.parentExchange === "object"
+            ? exchangeObj.parentExchange
+            : null;
+        const root =
+          row.rootExchange && typeof row.rootExchange === "object" ? row.rootExchange : null;
+        const exchangeText = parent
+          ? `${parent.name ?? root?.name ?? ""} / ${exchangeObj?.name ?? ""}${
+              parent.provider || root?.provider ? ` (${parent.provider ?? root?.provider})` : ""
+            }`.trim()
+          : exchangeObj
+            ? `${exchangeObj.name ?? ""}${exchangeObj.provider ? ` (${exchangeObj.provider})` : ""}`.trim()
             : String(row.exchange ?? "");
         setExchangeLabel(exchangeText);
         setPlayerIdLabel(row.playerId);

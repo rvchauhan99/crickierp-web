@@ -25,6 +25,9 @@ import { createLiabilityEntry, exportLiabilityEntries, listLiabilityEntriesNorma
 import { useExport } from "@/hooks/useExport";
 import { listBankLookupOptions } from "@/services/lookupService";
 import { getApiErrorMessage } from "@/lib/apiError";
+import { useAuth } from "@/context/AuthContext";
+import { useOperatorEntryForm } from "@/hooks/useOperatorEntryForm";
+import { canEditBusinessEntryDateTime } from "@/lib/roles";
 import type { LiabilityAccountType, LiabilityEntryRow, LiabilityEntryType } from "@/types/liability";
 import { todayYmdInUserTz } from "@/lib/userTimezone";
 
@@ -43,6 +46,9 @@ export function LiabilityEntryClient() {
   });
   const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setSort, clearFilters } = listingState;
   const { platformCurrency } = usePlatformSettings();
+  const { user } = useAuth();
+  const canEditEntryDate = canEditBusinessEntryDateTime(user?.role);
+  const { formRef: entryRef, afterSuccessfulSave } = useOperatorEntryForm();
 
   const [entryDate, setEntryDate] = useState(() => todayYmdInUserTz());
   const [entryType, setEntryType] = useState<LiabilityEntryType>("journal");
@@ -160,6 +166,7 @@ export function LiabilityEntryClient() {
       });
       toast.success("Liability entry posted.");
       resetForm();
+      afterSuccessfulSave();
       setTableKey((k) => k + 1);
     } catch (error: unknown) {
       toast.error(getApiErrorMessage(error, "Failed to post liability entry"));
@@ -183,11 +190,21 @@ export function LiabilityEntryClient() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-5">
-      <FormContainer title="Post Liability Entry" description="Transfer between bank/person accounts for receivable/payable movements.">
+      <FormContainer
+        entryRef={entryRef}
+        title="Post Liability Entry"
+        description="Transfer between bank/person accounts for receivable/payable movements."
+      >
         <FormGrid className="md:grid-cols-4">
           <div className="space-y-1.5">
             <FieldLabel>Date *</FieldLabel>
-            <Input type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} />
+            <Input
+              type="date"
+              value={entryDate}
+              onChange={(e) => setEntryDate(e.target.value)}
+              disabled={!canEditEntryDate}
+              tabIndex={canEditEntryDate ? undefined : -1}
+            />
           </div>
           <div className="space-y-1.5">
             <FieldLabel>Entry Type *</FieldLabel>

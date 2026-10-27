@@ -45,6 +45,9 @@ import {
   withdrawalStatusColumnSelectValue,
 } from "@/modules/withdrawal/withdrawalListingStatusFilter";
 import { useApprovalQueueAutoRefresh } from "@/hooks/useApprovalQueueAutoRefresh";
+import { useAuth } from "@/context/AuthContext";
+import { useOperatorEntryForm } from "@/hooks/useOperatorEntryForm";
+import { canEditBusinessEntryDateTime } from "@/lib/roles";
 import { currentDateTimeLocalValue, formatDateTimeForUser } from "@/lib/userTimezone";
 import { WithdrawalImportDialog } from "./WithdrawalImportDialog";
 
@@ -128,6 +131,9 @@ export function WithdrawalExchangeClient() {
   const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setFilter, setSort, clearFilters } =
     listingState;
   const { platformCurrency } = usePlatformSettings();
+  const { user } = useAuth();
+  const canEditRequestedAt = canEditBusinessEntryDateTime(user?.role);
+  const { formRef: entryRef, afterSuccessfulSave } = useOperatorEntryForm();
 
   const [playerId, setPlayerId] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
@@ -139,6 +145,8 @@ export function WithdrawalExchangeClient() {
   const [requestedAt, setRequestedAt] = useState(currentDateTimeLocalValue());
   const [savedPreset, setSavedPreset] = useState("");
   const [savedRows, setSavedRows] = useState<SavedWithdrawalAccount[]>([]);
+  /** Saved quick-select account → bank detail fields are locked (manual entry stays editable). */
+  const bankFieldsLocked = Boolean(savedPreset);
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
@@ -295,6 +303,7 @@ export function WithdrawalExchangeClient() {
         });
         toast.success("Withdrawal requested successfully.");
       }
+      const wasCreate = !editingId;
       setEditingId(null);
       setAccountNumber("");
       setAccountHolderName("");
@@ -306,6 +315,7 @@ export function WithdrawalExchangeClient() {
       setSavedPreset("");
       setErrors({});
       setTableKey((k) => k + 1);
+      if (wasCreate) afterSuccessfulSave();
     } catch (error: unknown) {
       toast.error(getApiErrorMessage(error, editingId ? "Failed to update withdrawal" : "Failed to create withdrawal"));
     } finally {
@@ -556,6 +566,7 @@ export function WithdrawalExchangeClient() {
     <div className="flex min-h-0 flex-1 flex-col gap-6 pb-4">
       <div className="w-full shrink-0">
         <FormContainer
+          entryRef={entryRef}
           className="!flex-none"
           title={editingId ? "Edit withdrawal" : "Exchange withdrawal"}
           description={
@@ -567,7 +578,13 @@ export function WithdrawalExchangeClient() {
           <FormGrid cols={4} compact>
             <div className="lg:col-span-1">
               <FieldLabel>Request date & time *</FieldLabel>
-              <Input type="datetime-local" value={requestedAt} onChange={(e) => setRequestedAt(e.target.value)} />
+              <Input
+                type="datetime-local"
+                value={requestedAt}
+                onChange={(e) => setRequestedAt(e.target.value)}
+                disabled={!canEditRequestedAt}
+                tabIndex={canEditRequestedAt ? undefined : -1}
+              />
             </div>
             <div
               className={cn(
@@ -625,6 +642,8 @@ export function WithdrawalExchangeClient() {
                 value={accountHolderName}
                 onChange={(e) => setAccountHolderName(e.target.value)}
                 placeholder="Holder name"
+                readOnly={bankFieldsLocked}
+                className={bankFieldsLocked ? "bg-slate-50" : undefined}
               />
               <FieldError message={errors.accountHolderName} />
             </div>
@@ -634,17 +653,31 @@ export function WithdrawalExchangeClient() {
                 value={accountNumber}
                 onChange={(e) => setAccountNumber(e.target.value)}
                 placeholder="Account number"
+                readOnly={bankFieldsLocked}
+                className={bankFieldsLocked ? "bg-slate-50" : undefined}
               />
               <FieldError message={errors.accountNumber} />
             </div>
             <div>
               <FieldLabel>Bank name *</FieldLabel>
-              <Input value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="Bank name" />
+              <Input
+                value={bankName}
+                onChange={(e) => setBankName(e.target.value)}
+                placeholder="Bank name"
+                readOnly={bankFieldsLocked}
+                className={bankFieldsLocked ? "bg-slate-50" : undefined}
+              />
               <FieldError message={errors.bankName} />
             </div>
             <div>
               <FieldLabel>IFSC *</FieldLabel>
-              <Input value={ifsc} onChange={(e) => setIfsc(e.target.value)} placeholder="IFSC" />
+              <Input
+                value={ifsc}
+                onChange={(e) => setIfsc(e.target.value)}
+                placeholder="IFSC"
+                readOnly={bankFieldsLocked}
+                className={bankFieldsLocked ? "bg-slate-50" : undefined}
+              />
               <FieldError message={errors.ifsc} />
             </div>
             <OperatedMoneyFields
@@ -678,7 +711,7 @@ export function WithdrawalExchangeClient() {
               <Input readOnly value={formatWholeMoney(payablePreview)} className="bg-slate-50" />
             </div>
           </FormGrid>
-          <FormActions className="justify-between px-5 py-4">
+          <FormActions className={cn("px-5 py-4", editingId ? "justify-between" : "justify-start")}>
             <Button
               type="button"
               variant="success"
@@ -688,9 +721,11 @@ export function WithdrawalExchangeClient() {
             >
               {loading ? "Saving…" : editingId ? "Update" : "Save"}
             </Button>
-            <Button type="button" variant="danger" startIcon={<IconX size={18} />} onClick={reset} disabled={loading}>
-              {editingId ? "Cancel" : "Clear"}
-            </Button>
+            {editingId ? (
+              <Button type="button" variant="danger" startIcon={<IconX size={18} />} onClick={reset} disabled={loading}>
+                Cancel
+              </Button>
+            ) : null}
           </FormActions>
         </FormContainer>
       </div>

@@ -9,6 +9,9 @@ type PlatformSettingsContextValue = {
   isLoading: boolean;
   platformCurrency: string | null;
   isCurrencyLocked: boolean;
+  currencyConversionEnabled: boolean;
+  /** Default true while loading so liability nav does not flash-hide on enabled deploys. */
+  liabilityModuleEnabled: boolean;
   refresh: () => Promise<void>;
   setCurrency: (currency: string) => Promise<PlatformSettings>;
 };
@@ -53,6 +56,10 @@ export function PlatformSettingsProvider({ children }: { children: ReactNode }) 
       isLoading,
       platformCurrency: settings?.platformCurrency ?? null,
       isCurrencyLocked: Boolean(settings?.isLocked),
+      // Default false when settings not loaded yet (matches API default).
+      currencyConversionEnabled: settings?.currencyConversionEnabled === true,
+      // Default true until loaded (matches API default) to avoid flash-hiding liability nav.
+      liabilityModuleEnabled: settings == null ? true : settings.liabilityModuleEnabled !== false,
       refresh,
       setCurrency,
     }),

@@ -9,6 +9,7 @@ import PaginatedTableReference, {
 } from "@/components/common/PaginatedTableReference";
 import PaginationControlsReference from "@/components/common/PaginationControlsReference";
 import { FormContainer, FormActions } from "@/components/common/FormContainer";
+import { useOperatorEntryForm } from "@/hooks/useOperatorEntryForm";
 import { FormGrid } from "@/components/common/FormGrid";
 import { FieldLabel } from "@/components/common/FieldLabel";
 import { Input } from "@/components/ui/Input";
@@ -47,6 +48,7 @@ export function LiabilityPersonClient() {
   const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setSort, clearFilters } = listingState;
   const { platformCurrency } = usePlatformSettings();
   const fmtLiability = (value: number) => formatLiabilityMoneyAbs(value, platformCurrency);
+  const { formRef: entryRef, afterSuccessfulSave } = useOperatorEntryForm();
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -144,6 +146,7 @@ export function LiabilityPersonClient() {
         ...(fx.amount > 0 ? { openingKind } : {}),
         isActive,
       };
+      const wasCreate = !editingId;
       if (editingId) {
         await updateLiabilityPerson(editingId, payload);
         toast.success("Liability person updated.");
@@ -153,6 +156,7 @@ export function LiabilityPersonClient() {
       }
       resetForm();
       setTableKey((k) => k + 1);
+      if (wasCreate) afterSuccessfulSave();
     } catch (error: unknown) {
       toast.error(getApiErrorMessage(error, "Failed to save liability person"));
     } finally {
@@ -255,6 +259,7 @@ export function LiabilityPersonClient() {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-5">
       <FormContainer
+        entryRef={entryRef}
         title={editingId ? "Update Liability Person" : "Add Liability Person"}
         description="Create non-login debtor/creditor account records for payable/receivable tracking."
       >

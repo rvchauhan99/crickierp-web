@@ -1,4 +1,12 @@
-import { Children, isValidElement, PropsWithChildren, ReactNode } from "react";
+import {
+  Children,
+  cloneElement,
+  isValidElement,
+  PropsWithChildren,
+  ReactElement,
+  ReactNode,
+  type Ref,
+} from "react";
 import { cn } from "@/lib/cn";
 
 // ─────────── FormActions ───────────
@@ -7,13 +15,42 @@ type FormActionsProps = {
   children: ReactNode;
   className?: string;
   align?: "left" | "center" | "right";
+  /**
+   * CR/operator mode (default true): Clear/Reset/Cancel (non-primary, non-success)
+   * stay out of Tab order so Tab from the last field lands on Save.
+   */
+  operatorMode?: boolean;
 };
+
+const PRIMARY_TAB_VARIANTS = new Set(["primary", "success"]);
+
+function withOperatorTabOrder(children: ReactNode, operatorMode: boolean): ReactNode {
+  if (!operatorMode) return children;
+  return Children.map(children, (child) => {
+    if (!isValidElement(child)) return child;
+    const props = child.props as {
+      variant?: string | null;
+      tabIndex?: number;
+      skipTab?: boolean;
+    };
+    // Caller already set tab order — respect it.
+    if (props.tabIndex != null || props.skipTab != null) return child;
+    const variant = props.variant ?? "primary";
+    if (PRIMARY_TAB_VARIANTS.has(String(variant))) return child;
+    return cloneElement(child as ReactElement<{ tabIndex?: number }>, { tabIndex: -1 });
+  });
+}
 
 /**
  * Footer action row for forms. Use as a direct child of `FormContainer` so it stays
  * below the scrollable body (sticky card footer). Default padding matches form content (`px-5`).
  */
-export function FormActions({ children, className, align = "right" }: FormActionsProps) {
+export function FormActions({
+  children,
+  className,
+  align = "right",
+  operatorMode = true,
+}: FormActionsProps) {
   return (
     <div
       className={cn(
@@ -24,7 +61,7 @@ export function FormActions({ children, className, align = "right" }: FormAction
         className
       )}
     >
-      {children}
+      {withOperatorTabOrder(children, operatorMode)}
     </div>
   );
 }
@@ -40,6 +77,8 @@ type FormContainerProps = PropsWithChildren<{
   maxHeight?: string;
   contentOverflow?: "auto" | "visible";
   className?: string;
+  /** Continuous-entry root for operator focus after save. */
+  entryRef?: Ref<HTMLDivElement | null>;
 }>;
 
 export function FormContainer({
@@ -49,6 +88,7 @@ export function FormContainer({
   maxHeight,
   contentOverflow = "auto",
   className,
+  entryRef,
   children,
 }: FormContainerProps) {
   const formActions: ReactNode[] = [];
@@ -70,6 +110,7 @@ export function FormContainer({
 
   return (
     <div
+      ref={entryRef}
       className={cn(
         "flex flex-col min-h-0 flex-1 rounded-lg border border-[var(--border)] bg-white shadow-sm",
         contentOverflow === "auto" ? "overflow-hidden" : "overflow-visible",

@@ -45,6 +45,8 @@ export interface ButtonProps
   loading?: boolean;
   startIcon?: ReactNode;
   endIcon?: ReactNode;
+  /** Exclude from Tab order (Clear/Reset). Mouse still works. */
+  skipTab?: boolean;
 }
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -59,6 +61,8 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       disabled,
       startIcon,
       endIcon,
+      skipTab = false,
+      tabIndex,
       children,
       ...props
     },
@@ -71,6 +75,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         className={cn(buttonVariants({ variant, size, fullWidth, className }))}
         ref={ref}
         disabled={disabled || loading}
+        tabIndex={skipTab ? -1 : tabIndex}
         {...props}
       >
         {loading && (

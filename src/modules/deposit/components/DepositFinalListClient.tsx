@@ -39,6 +39,7 @@ import type { DepositRow } from "@/types/deposit";
 import { userService } from "@/services/userService";
 import { DEPOSIT_FINAL_FILTER_KEYS } from "@/modules/deposit/depositFinalListConstants";
 import { DepositFinalListFilterPanel } from "@/modules/deposit/components/DepositFinalListFilterPanel";
+import { canEditBusinessEntryDateTime } from "@/lib/roles";
 import {
   currentDateTimeLocalValue,
   formatDateTimeForUser,
@@ -127,6 +128,7 @@ export function DepositFinalListClient() {
     return (user.permissions ?? []).includes(NAV_PERMISSIONS.DEPOSIT_FINAL_VIEW);
   }, [user]);
   const canDelete = user?.role === "superadmin";
+  const canEditEntryAt = canEditBusinessEntryDateTime(user?.role);
 
   useEffect(() => {
     let active = true;
@@ -716,6 +718,8 @@ export function DepositFinalListClient() {
               type="datetime-local"
               value={amendEntryAt}
               onChange={(e) => setAmendEntryAt(e.target.value)}
+              disabled={!canEditEntryAt}
+              tabIndex={canEditEntryAt ? undefined : -1}
             />
           </div>
           <div className="sm:col-span-2">

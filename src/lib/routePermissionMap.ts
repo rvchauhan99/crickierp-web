@@ -25,6 +25,8 @@ const PREFIX_RULES: { prefix: string; access: RouteAccess }[] = [
   { prefix: "/player/edit", access: { kind: "permission", permission: NAV_PERMISSIONS.PLAYER_EDIT } },
   { prefix: "/bank/add", access: { kind: "permission", permission: NAV_PERMISSIONS.BANK_ADD } },
   { prefix: "/bank/list", access: { kind: "permission", permission: NAV_PERMISSIONS.BANK_LIST } },
+  { prefix: "/bank/transfer", access: { kind: "permission", permission: NAV_PERMISSIONS.BANK_TRANSFER } },
+  { prefix: "/bank/summary", access: { kind: "permission", permission: NAV_PERMISSIONS.BANK_STATEMENT } },
   { prefix: "/bank/statement", access: { kind: "permission", permission: NAV_PERMISSIONS.BANK_STATEMENT } },
   { prefix: "/deposit/banker", access: { kind: "permission", permission: NAV_PERMISSIONS.DEPOSIT_BANKER } },
   { prefix: "/deposit/exchange", access: { kind: "permission", permission: NAV_PERMISSIONS.DEPOSIT_EXCHANGE } },

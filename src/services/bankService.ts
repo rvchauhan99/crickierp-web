@@ -177,7 +177,7 @@ export async function listBanksRaw(page = 1, pageSize = 20) {
 }
 
 export type BankLedgerRow = {
-  kind: "deposit" | "withdrawal" | "expense" | "liability" | "settlement";
+  kind: "deposit" | "withdrawal" | "expense" | "liability" | "transfer" | "settlement";
   refId: string;
   at: string;
   label: string;
@@ -188,6 +188,32 @@ export type BankLedgerRow = {
   direction: "credit" | "debit";
   balanceAfter: number;
   bonusMemo?: number;
+};
+
+export type BankTransferRow = {
+  id: string;
+  _id?: string;
+  entryDate: string;
+  amount: number;
+  fromBankId: string;
+  toBankId: string;
+  fromBankName: string;
+  toBankName: string;
+  referenceNo?: string;
+  remark?: string;
+  createdAt?: string;
+};
+
+export type BankTransferCreateInput = {
+  fromBankId: string;
+  toBankId: string;
+  amount: number;
+  entryDate: string;
+  referenceNo?: string;
+  remark?: string;
+  operatedCurrency?: string;
+  operatedAmount?: number;
+  exchangeRate?: number;
 };
 
 export type BankLedgerResponse = {
@@ -224,12 +250,93 @@ export type BankSettlementRecord = {
   createdAt?: string;
 };
 
+export type BankSummaryRow = {
+  bankId: string;
+  name: string;
+  holderName: string;
+  bankName: string;
+  openingBalance: number;
+  entries: number;
+  depositCount: number;
+  withdrawalCount: number;
+  expenseCount: number;
+  transferOutCount: number;
+  transferInCount: number;
+  deposit: number;
+  withdrawal: number;
+  expenses: number;
+  transferOut: number;
+  transferIn: number;
+  closingBalance: number;
+};
+
+export type BankSummaryResponse = {
+  banksBreakdown: BankSummaryRow[];
+  meta: {
+    fromDate: string;
+    toDate: string;
+    exchangeId: string | null;
+    status: string;
+    transactionType: string;
+    scopedPlayerCount: number | null;
+    todayYmdIst: string;
+  };
+};
+
+export type BankSummaryQuery = {
+  fromDate?: string;
+  toDate?: string;
+  exchangeId?: string;
+  status?: string;
+  transactionType?: string;
+  playerId?: string;
+  bankId?: string;
+  amountFrom?: string | number;
+  amountTo?: string | number;
+  search?: string;
+};
+
+export async function getBankSummary(query?: BankSummaryQuery): Promise<BankSummaryResponse> {
+  const res = await apiClient.get<{ success: boolean; data: BankSummaryResponse }>("/bank/summary", {
+    params: query,
+  });
+  const data = res.data.data;
+  const rows = Array.isArray(data?.banksBreakdown) ? data.banksBreakdown : [];
+  return {
+    banksBreakdown: rows.map((row) => ({
+      ...row,
+      depositCount: Number(row.depositCount ?? 0),
+      withdrawalCount: Number(row.withdrawalCount ?? 0),
+      expenseCount: Number(row.expenseCount ?? 0),
+      transferOutCount: Number(row.transferOutCount ?? 0),
+      transferInCount: Number(row.transferInCount ?? 0),
+      entries: Number(row.entries ?? 0),
+      openingBalance: Number(row.openingBalance ?? 0),
+      deposit: Number(row.deposit ?? 0),
+      withdrawal: Number(row.withdrawal ?? 0),
+      expenses: Number(row.expenses ?? 0),
+      transferOut: Number(row.transferOut ?? 0),
+      transferIn: Number(row.transferIn ?? 0),
+      closingBalance: Number(row.closingBalance ?? 0),
+    })),
+    meta: data?.meta ?? {
+      fromDate: query?.fromDate ?? "",
+      toDate: query?.toDate ?? "",
+      exchangeId: null,
+      status: "all",
+      transactionType: "all",
+      scopedPlayerCount: null,
+      todayYmdIst: "",
+    },
+  };
+}
+
 export async function getBankLedger(
   bankId: string,
   query?: {
     fromDate?: string;
     toDate?: string;
-    entryType?: "all" | "deposit" | "withdrawal" | "expense" | "liability" | "settlement";
+    entryType?: "all" | "deposit" | "withdrawal" | "expense" | "liability" | "transfer" | "settlement";
   },
 ): Promise<BankLedgerResponse> {
   const res = await apiClient.get<{ success: boolean; data: BankLedgerResponse }>(
@@ -237,6 +344,72 @@ export async function getBankLedger(
     { params: query },
   );
   return res.data.data;
+}
+
+export async function exportBankLedger(
+  bankId: string,
+  params?: {
+    fromDate?: string;
+    toDate?: string;
+    entryType?: "all" | "deposit" | "withdrawal" | "expense" | "liability" | "transfer" | "settlement";
+  },
+): Promise<Blob> {
+  const response = await apiClient.get(`/bank/${bankId}/ledger/export`, {
+    params,
+    responseType: "blob",
+  });
+  return response.data as Blob;
+}
+
+export async function createBankTransfer(input: BankTransferCreateInput): Promise<unknown> {
+  const res = await apiClient.post<{ success: boolean; data: unknown }>("/bank/transfers", input);
+  return res.data?.data;
+}
+
+export async function listBankTransfersNormalized(params: Record<string, unknown>): Promise<{
+  data: BankTransferRow[];
+  meta: { total: number; page: number; pageSize: number };
+}> {
+  const page = Number(params.page) || 1;
+  const limit = Number(params.limit) || 20;
+  const sortBy = (str(params, "sortBy") || "createdAt") as "createdAt" | "entryDate" | "amount";
+  const sortOrder = str(params, "sortOrder") === "asc" ? "asc" : "desc";
+  const res = await apiClient.get<{
+    success: boolean;
+    data: Record<string, unknown>[];
+    meta: { total: number; page: number; pageSize: number };
+  }>("/bank/transfers", {
+    params: {
+      page,
+      pageSize: limit,
+      sortBy,
+      sortOrder,
+      search: toOptionalParam(str(params, "q")) || undefined,
+      bankId: toOptionalParam(str(params, "bankId")),
+      entryDate_from: toOptionalParam(str(params, "entryDate_from")),
+      entryDate_to: toOptionalParam(str(params, "entryDate_to")),
+    },
+  });
+  const rows = Array.isArray(res.data.data) ? res.data.data : [];
+  return {
+    data: rows.map((row) => {
+      const id = String(row._id ?? row.id ?? "");
+      return {
+        id,
+        _id: id,
+        entryDate: String(row.entryDate ?? ""),
+        amount: Number(row.amount ?? 0),
+        fromBankId: String(row.fromBankId ?? row.fromAccountId ?? ""),
+        toBankId: String(row.toBankId ?? row.toAccountId ?? ""),
+        fromBankName: String(row.fromBankName ?? ""),
+        toBankName: String(row.toBankName ?? ""),
+        referenceNo: toOptionalParam(row.referenceNo),
+        remark: toOptionalParam(row.remark),
+        createdAt: row.createdAt != null ? String(row.createdAt) : undefined,
+      };
+    }),
+    meta: res.data.meta ?? { total: rows.length, page, pageSize: limit },
+  };
 }
 
 export async function getBankComputedClosing(bankId: string): Promise<BankComputedClosingResponse> {

@@ -24,7 +24,7 @@ export const PERMISSION_MODULE_ORDER: string[] = [
 export const PERMISSION_ACTION_ORDER: Partial<Record<string, string[]>> = {
   exchange: ["add", "list", "statement", "topup_add", "topup_list"],
   player: ["add", "list", "edit"],
-  bank: ["add", "list", "statement"],
+  bank: ["add", "list", "transfer", "statement"],
   deposit: ["banker", "exchange", "final_view"],
   withdrawal: ["exchange", "banker", "final_view"],
   reports: ["transaction_history", "expense_analysis", "liability"],

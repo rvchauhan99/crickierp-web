@@ -1,7 +1,15 @@
 export type PlayerRow = {
   _id: string;
   id?: string;
-  exchange: string | { _id?: string; name?: string; provider?: string };
+  exchange:
+    | string
+    | {
+        _id?: string;
+        name?: string;
+        provider?: string;
+        parentExchange?: { _id?: string; name?: string; provider?: string } | null;
+      };
+  rootExchange?: string | { _id?: string; name?: string; provider?: string };
   playerId: string;
   phone: string;
   regularBonusPercentage: number;
@@ -37,6 +45,7 @@ export type PlayerUpdateInput = {
 export type PlayerDetail = Pick<
   PlayerRow,
   | "exchange"
+  | "rootExchange"
   | "playerId"
   | "phone"
   | "regularBonusPercentage"

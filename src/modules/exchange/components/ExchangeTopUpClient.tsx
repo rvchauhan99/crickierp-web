@@ -23,7 +23,8 @@ import {
 import { usePlatformSettings } from "@/context/PlatformSettingsContext";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { cn } from "@/lib/cn";
-import { createExchangeTopup, listExchanges, listExchangeTopups, exportExchangeTopups } from "@/services/exchangeService";
+import { createExchangeTopup, listExchangeTopups, exportExchangeTopups } from "@/services/exchangeService";
+import { listExchangeLookupOptions } from "@/services/lookupService";
 import { useExport } from "@/hooks/useExport";
 import type { ExchangeTopupRow } from "@/types/exchange";
 import { useFormatMoney } from "@/hooks/useFormatMoney";
@@ -56,10 +57,14 @@ export function ExchangeTopUpClient() {
 
   const loadExchangeOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {
-      const res = await listExchanges({ page: 1, limit: 40, q: query || undefined, sortBy: "name", sortOrder: "asc" });
-      return res.items.map((item) => ({
-        value: item._id ?? item.id,
-        label: `${item.name} (${item.provider})`,
+      const rows = await listExchangeLookupOptions({
+        q: query || undefined,
+        limit: 40,
+        assignableOnly: true,
+      });
+      return rows.map((item) => ({
+        value: item.id,
+        label: item.label || `${item.name} (${item.provider})`,
       }));
     } catch {
       return [];

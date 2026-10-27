@@ -1,12 +1,21 @@
 "use client";
 
+import Link from "next/link";
 import { IconBuildingBank } from "@tabler/icons-react";
 import { useFormatMoney } from "@/hooks/useFormatMoney";
 import { type DashboardSummary } from "./DashboardKPIs";
+import { cn } from "@/lib/cn";
+
+export type BankBreakdownRow = NonNullable<DashboardSummary["banksBreakdown"]>[number];
 
 interface Props {
   banksBreakdown: DashboardSummary["banksBreakdown"];
   loading?: boolean;
+  /** When set, bank name and metric cells link into Statement with filters. */
+  getStatementHref?: (bankId: string, entryType?: string) => string;
+  /** Standalone page: show empty state instead of returning null. */
+  showEmptyState?: boolean;
+  title?: string;
 }
 
 function formatCount(value: number) {
@@ -32,18 +41,58 @@ function AmountWithTxnCount({
   );
 }
 
-export function DashboardBankSummary({ banksBreakdown, loading = false }: Props) {
+function CellLink({
+  href,
+  className,
+  children,
+}: {
+  href?: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  if (!href) {
+    return <div className={className}>{children}</div>;
+  }
+  return (
+    <Link
+      href={href}
+      className={cn(
+        className,
+        "block rounded-md transition-colors hover:bg-slate-100/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]/40",
+      )}
+    >
+      {children}
+    </Link>
+  );
+}
+
+export function DashboardBankSummary({
+  banksBreakdown,
+  loading = false,
+  getStatementHref,
+  showEmptyState = false,
+  title = "Bank Wise Summary",
+}: Props) {
   const { formatMoney } = useFormatMoney();
   const fmt = (value: number) => formatMoney(value, { includeSign: true });
 
   if (!banksBreakdown || banksBreakdown.length === 0) {
-    if (!loading) return null;
-    return (
-      <div className="mt-8 space-y-3">
-        <div className="h-6 w-52 bg-slate-200 rounded animate-pulse" />
-        <div className="h-52 bg-slate-100 rounded-xl animate-pulse" />
-      </div>
-    );
+    if (loading) {
+      return (
+        <div className="mt-4 space-y-3">
+          <div className="h-6 w-52 bg-slate-200 rounded animate-pulse" />
+          <div className="h-52 bg-slate-100 rounded-xl animate-pulse" />
+        </div>
+      );
+    }
+    if (showEmptyState) {
+      return (
+        <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-white px-6 py-12 text-center text-sm text-slate-500">
+          No bank activity for the selected filters.
+        </div>
+      );
+    }
+    return null;
   }
 
   const totals = banksBreakdown.reduce(
@@ -62,14 +111,28 @@ export function DashboardBankSummary({ banksBreakdown, loading = false }: Props)
       entries: acc.entries + Number(bank.entries ?? 0),
       closingBalance: acc.closingBalance + Number(bank.closingBalance ?? 0),
     }),
-    { openingBalance: 0, deposit: 0, depositCount: 0, withdrawal: 0, withdrawalCount: 0, expenses: 0, expenseCount: 0, transferOut: 0, transferOutCount: 0, transferIn: 0, transferInCount: 0, entries: 0, closingBalance: 0 }
+    {
+      openingBalance: 0,
+      deposit: 0,
+      depositCount: 0,
+      withdrawal: 0,
+      withdrawalCount: 0,
+      expenses: 0,
+      expenseCount: 0,
+      transferOut: 0,
+      transferOutCount: 0,
+      transferIn: 0,
+      transferInCount: 0,
+      entries: 0,
+      closingBalance: 0,
+    },
   );
 
   return (
-    <div className="mt-8 space-y-4">
+    <div className="mt-4 space-y-4">
       <div className="flex items-center gap-2">
         <IconBuildingBank className="w-5 h-5 text-slate-700" />
-        <h2 className="text-base font-semibold text-slate-900 tracking-tight">Bank Wise Summary</h2>
+        <h2 className="text-base font-semibold text-slate-900 tracking-tight">{title}</h2>
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
@@ -104,60 +167,87 @@ export function DashboardBankSummary({ banksBreakdown, loading = false }: Props)
               </tr>
             </thead>
             <tbody>
-              {banksBreakdown.map((bank) => (
-                <tr key={bank.bankId} className="border-t border-slate-100 hover:bg-slate-50/60">
-                  <td className="px-3 py-2.5 whitespace-nowrap font-medium text-slate-800">{bank.name}</td>
-                  <td className="px-3 py-2.5 text-right whitespace-nowrap text-slate-700">
-                    {fmt(bank.openingBalance)}
-                  </td>
-                  <td className="px-3 py-2.5 text-right whitespace-nowrap">
-                    <AmountWithTxnCount
-                      amount={bank.deposit}
-                      count={bank.depositCount}
-                      amountClass="text-emerald-700"
-                      formatMoney={fmt}
-                    />
-                  </td>
-                  <td className="px-3 py-2.5 text-right whitespace-nowrap">
-                    <AmountWithTxnCount
-                      amount={bank.withdrawal}
-                      count={bank.withdrawalCount}
-                      amountClass="text-rose-700"
-                      formatMoney={fmt}
-                    />
-                  </td>
-                  <td className="px-3 py-2.5 text-right whitespace-nowrap">
-                    <AmountWithTxnCount
-                      amount={bank.expenses}
-                      count={bank.expenseCount}
-                      amountClass="text-amber-700"
-                      formatMoney={fmt}
-                    />
-                  </td>
-                  <td className="px-3 py-2.5 text-right whitespace-nowrap">
-                    <AmountWithTxnCount
-                      amount={bank.transferOut}
-                      count={bank.transferOutCount}
-                      amountClass="text-rose-700"
-                      formatMoney={fmt}
-                    />
-                  </td>
-                  <td className="px-3 py-2.5 text-right whitespace-nowrap">
-                    <AmountWithTxnCount
-                      amount={bank.transferIn}
-                      count={bank.transferInCount}
-                      amountClass="text-emerald-700"
-                      formatMoney={fmt}
-                    />
-                  </td>
-                  <td className="px-3 py-2.5 text-right whitespace-nowrap text-slate-700">
-                    {formatCount(bank.entries)}
-                  </td>
-                  <td className="px-3 py-2.5 text-right whitespace-nowrap font-semibold text-slate-900">
-                    {fmt(bank.closingBalance)}
-                  </td>
-                </tr>
-              ))}
+              {banksBreakdown.map((bank) => {
+                const hrefAll = getStatementHref?.(bank.bankId);
+                const hrefDeposit = getStatementHref?.(bank.bankId, "deposit");
+                const hrefWithdrawal = getStatementHref?.(bank.bankId, "withdrawal");
+                const hrefExpense = getStatementHref?.(bank.bankId, "expense");
+                const hrefTransfer = getStatementHref?.(bank.bankId, "transfer");
+                return (
+                  <tr key={bank.bankId} className="border-t border-slate-100 hover:bg-slate-50/60">
+                    <td className="px-3 py-2.5 whitespace-nowrap font-medium text-slate-800">
+                      <CellLink href={hrefAll} className="px-1 py-0.5 text-[var(--brand-primary)] hover:underline">
+                        {bank.name}
+                      </CellLink>
+                    </td>
+                    <td className="px-3 py-2.5 text-right whitespace-nowrap text-slate-700">
+                      <CellLink href={hrefAll} className="px-1 py-0.5">
+                        {fmt(bank.openingBalance)}
+                      </CellLink>
+                    </td>
+                    <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                      <CellLink href={hrefDeposit} className="px-1 py-0.5">
+                        <AmountWithTxnCount
+                          amount={bank.deposit}
+                          count={bank.depositCount}
+                          amountClass="text-emerald-700"
+                          formatMoney={fmt}
+                        />
+                      </CellLink>
+                    </td>
+                    <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                      <CellLink href={hrefWithdrawal} className="px-1 py-0.5">
+                        <AmountWithTxnCount
+                          amount={bank.withdrawal}
+                          count={bank.withdrawalCount}
+                          amountClass="text-rose-700"
+                          formatMoney={fmt}
+                        />
+                      </CellLink>
+                    </td>
+                    <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                      <CellLink href={hrefExpense} className="px-1 py-0.5">
+                        <AmountWithTxnCount
+                          amount={bank.expenses}
+                          count={bank.expenseCount}
+                          amountClass="text-amber-700"
+                          formatMoney={fmt}
+                        />
+                      </CellLink>
+                    </td>
+                    <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                      <CellLink href={hrefTransfer} className="px-1 py-0.5">
+                        <AmountWithTxnCount
+                          amount={bank.transferOut}
+                          count={bank.transferOutCount}
+                          amountClass="text-rose-700"
+                          formatMoney={fmt}
+                        />
+                      </CellLink>
+                    </td>
+                    <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                      <CellLink href={hrefTransfer} className="px-1 py-0.5">
+                        <AmountWithTxnCount
+                          amount={bank.transferIn}
+                          count={bank.transferInCount}
+                          amountClass="text-emerald-700"
+                          formatMoney={fmt}
+                        />
+                      </CellLink>
+                    </td>
+                    <td className="px-3 py-2.5 text-right whitespace-nowrap text-slate-700">
+                      <CellLink href={hrefAll} className="px-1 py-0.5">
+                        {formatCount(bank.entries)}
+                      </CellLink>
+                    </td>
+                    <td className="px-3 py-2.5 text-right whitespace-nowrap font-semibold text-slate-900">
+                      <CellLink href={hrefAll} className="px-1 py-0.5">
+                        {fmt(bank.closingBalance)}
+                      </CellLink>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
             <tfoot className="bg-slate-50 border-t-2 border-slate-200">
               <tr>
