@@ -323,7 +323,11 @@ export function DashboardContent() {
       />
 
       {/* ───── Exchange Breakdowns ───── */}
-      <DashboardExchangeSummary exchangesBreakdown={summary?.exchangesBreakdown} loading={loading} />
+      <DashboardExchangeSummary
+        exchangesBreakdown={summary?.exchangesBreakdown}
+        loading={loading}
+        isToday={todayBoth}
+      />
 
       {/* ───── Bank Wise Summary ───── */}
       <DashboardBankSummary banksBreakdown={summary?.banksBreakdown} loading={loading} />
