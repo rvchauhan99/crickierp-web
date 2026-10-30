@@ -143,12 +143,16 @@ export function BankTransferClient() {
   );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-5">
-      <FormContainer
-        entryRef={entryRef}
-        title="Bank Transfer"
-        description="Move funds from one bank account to another. Person accounts are not available here."
-      >
+    <div className="flex min-h-0 flex-1 flex-col gap-5 pb-4">
+      {/* FormContainer defaults to flex-1; without shrink-0 the listing table steals height and the entry form collapses to zero height. */}
+      <div className="w-full shrink-0">
+        <FormContainer
+          entryRef={entryRef}
+          className="!flex-none"
+          contentOverflow="visible"
+          title="Bank Transfer"
+          description="Move funds from one bank account to another. Person accounts are not available here."
+        >
         <FormGrid className="md:grid-cols-4">
           <div className="space-y-1.5">
             <FieldLabel>Date *</FieldLabel>
@@ -204,9 +208,11 @@ export function BankTransferClient() {
             {saving ? "Posting..." : "Post Transfer"}
           </Button>
         </FormActions>
-      </FormContainer>
+        </FormContainer>
+      </div>
 
-      <ListingPageContainer
+      <div className="flex min-h-0 flex-1 flex-col">
+        <ListingPageContainer
         title="Recent bank transfers"
         description="Internal bank-to-bank movements only."
         fullWidth
@@ -236,7 +242,8 @@ export function BankTransferClient() {
           onPageChange={(zeroBased) => setPage(zeroBased + 1)}
           onRowsPerPageChange={setLimit}
         />
-      </ListingPageContainer>
+        </ListingPageContainer>
+      </div>
     </div>
   );
 }

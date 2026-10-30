@@ -257,12 +257,16 @@ export function LiabilityPersonClient() {
   );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-5">
-      <FormContainer
-        entryRef={entryRef}
-        title={editingId ? "Update Liability Person" : "Add Liability Person"}
-        description="Create non-login debtor/creditor account records for payable/receivable tracking."
-      >
+    <div className="flex min-h-0 flex-1 flex-col gap-5 pb-4">
+      {/* FormContainer defaults to flex-1; without shrink-0 the listing table steals height and the entry form collapses to zero height. */}
+      <div className="w-full shrink-0">
+        <FormContainer
+          entryRef={entryRef}
+          className="!flex-none"
+          contentOverflow="visible"
+          title={editingId ? "Update Liability Person" : "Add Liability Person"}
+          description="Create non-login debtor/creditor account records for payable/receivable tracking."
+        >
         <FormGrid className="md:grid-cols-3">
           <div className="space-y-1.5">
             <FieldLabel>Name *</FieldLabel>
@@ -328,7 +332,9 @@ export function LiabilityPersonClient() {
           )}
         </FormActions>
       </FormContainer>
+      </div>
 
+      <div className="flex min-h-0 flex-1 flex-col">
       <ListingPageContainer
         title="Liability Persons"
         description="Debtor/Creditor master records. Closing balance uses platform perspective (same as Liability Ledger → Platform)."
@@ -365,7 +371,8 @@ export function LiabilityPersonClient() {
           onRowsPerPageChange={setLimit}
           rowsPerPageOptions={[10, 20, 50, 100]}
         />
-      </ListingPageContainer>
+        </ListingPageContainer>
+      </div>
     </div>
   );
 }
