@@ -40,11 +40,24 @@ export type DashboardSummary = {
     totalAmount: number;
     totalCount: number;
     pendingCount: number;
+    pendingAmount?: number;
     approvedAmount: number;
+    cancelledCount?: number;
+    cancelledAmount?: number;
   };
   pnl: {
+    /** Approved-only ("settled cash") P&L — rendered as the small footer figure. */
     gross: number;
     net: number;
+    /** All non-rejected P&L — card headline, same basis as the three flow cards. */
+    grossAll?: number;
+    netAll?: number;
+    /** Headline − approved: the still-unapproved portion of each P&L figure. */
+    pendingGrossAmount?: number;
+    pendingNetAmount?: number;
+    pendingDepositAmount?: number;
+    pendingWithdrawalAmount?: number;
+    pendingExpenseAmount?: number;
   };
   exchanges: {
     total: number;
@@ -215,11 +228,19 @@ export function DashboardKPIs({ summary, loading = false }: Props) {
   const ex = summary?.exchanges;
   const us = summary?.users;
   const pm = summary?.periodMetrics;
-  /** Settled cash P&L from API (verified deposits − approved withdrawals); bonus stays on Net Bonus card only. */
-  const grossPLFallback = (d?.verifiedAmount ?? 0) - (w?.approvedAmount ?? 0);
-  const netPLFallback = grossPLFallback - (e?.approvedAmount ?? 0);
-  const grossPL = summary?.pnl?.gross ?? grossPLFallback;
-  const netPL = summary?.pnl?.net ?? netPLFallback;
+  /** Approved-only ("settled cash") P&L — the small footer figure, mirrors the `Verified:` / `Approved:` chips above. */
+  const grossPLApprovedFallback = (d?.verifiedAmount ?? 0) - (w?.approvedAmount ?? 0);
+  const netPLApprovedFallback = grossPLApprovedFallback - (e?.approvedAmount ?? 0);
+  const grossPLApproved = summary?.pnl?.gross ?? grossPLApprovedFallback;
+  const netPLApproved = summary?.pnl?.net ?? netPLApprovedFallback;
+  /** Headline P&L — same "all non-rejected" basis as the Total Deposits / Withdrawals / Expenses cards. */
+  const grossPLAllFallback = (d?.totalAmount ?? 0) - (w?.totalAmount ?? 0);
+  const netPLAllFallback = grossPLAllFallback - (e?.totalAmount ?? 0);
+  const grossPL = summary?.pnl?.grossAll ?? grossPLAllFallback;
+  const netPL = summary?.pnl?.netAll ?? netPLAllFallback;
+  /** Still-unapproved portion of each P&L figure (pending deposits − pending withdrawals [− pending expenses]). */
+  const grossPLPending = summary?.pnl?.pendingGrossAmount ?? grossPL - grossPLApproved;
+  const netPLPending = summary?.pnl?.pendingNetAmount ?? netPL - netPLApproved;
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -288,7 +309,7 @@ export function DashboardKPIs({ summary, loading = false }: Props) {
         loading={loading}
         title="Gross P & L"
         value={fmt(grossPL)}
-        subtitle="Verified Deposits − Approved Withdrawals"
+        subtitle="All Deposits − All Withdrawals (non-rejected)"
         icon={
           grossPL >= 0
             ? <IconTrendingUp className="w-5 h-5 text-emerald-600" />
@@ -296,6 +317,12 @@ export function DashboardKPIs({ summary, loading = false }: Props) {
         }
         iconBg={grossPL >= 0 ? "bg-emerald-50" : "bg-rose-50"}
         valueColor={grossPL >= 0 ? "text-emerald-700" : "text-rose-700"}
+        footer={
+          <div className="flex items-center justify-between">
+            <span>Approved: <strong className="text-slate-600">{fmt(grossPLApproved)}</strong></span>
+            <span>Pending: <strong className="text-amber-500">{fmt(grossPLPending)}</strong></span>
+          </div>
+        }
       />
 
       {/* 5. Total Expenses */}
@@ -315,6 +342,7 @@ export function DashboardKPIs({ summary, loading = false }: Props) {
         footer={
           <div className="flex items-center justify-between">
             <span>Approved: <strong className="text-slate-600">{fmt(e?.approvedAmount ?? 0)}</strong></span>
+            <span>Cancelled: <strong className="text-red-400">{e?.cancelledCount ?? 0}</strong></span>
           </div>
         }
       />
@@ -324,7 +352,7 @@ export function DashboardKPIs({ summary, loading = false }: Props) {
         loading={loading}
         title="Net P & L"
         value={fmt(netPL)}
-        subtitle="Gross P&L − Approved Expenses"
+        subtitle="Gross P&L − All Expenses (non-rejected)"
         icon={
           netPL >= 0
             ? <IconTrendingUp className="w-5 h-5 text-blue-600" />
@@ -332,6 +360,12 @@ export function DashboardKPIs({ summary, loading = false }: Props) {
         }
         iconBg={netPL >= 0 ? "bg-blue-50" : "bg-rose-50"}
         valueColor={netPL >= 0 ? "text-blue-700" : "text-rose-700"}
+        footer={
+          <div className="flex items-center justify-between">
+            <span>Approved: <strong className="text-slate-600">{fmt(netPLApproved)}</strong></span>
+            <span>Pending: <strong className="text-amber-500">{fmt(netPLPending)}</strong></span>
+          </div>
+        }
       />
 
       {/* 7. Active Exchanges */}

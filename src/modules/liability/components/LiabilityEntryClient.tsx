@@ -189,12 +189,16 @@ export function LiabilityEntryClient() {
   );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-5">
-      <FormContainer
-        entryRef={entryRef}
-        title="Post Liability Entry"
-        description="Transfer between bank/person accounts for receivable/payable movements."
-      >
+    <div className="flex min-h-0 flex-1 flex-col gap-5 pb-4">
+      {/* FormContainer defaults to flex-1; without shrink-0 the listing table steals height and the entry form collapses to zero height. */}
+      <div className="w-full shrink-0">
+        <FormContainer
+          entryRef={entryRef}
+          className="!flex-none"
+          contentOverflow="visible"
+          title="Post Liability Entry"
+          description="Transfer between bank/person accounts for receivable/payable movements."
+        >
         <FormGrid className="md:grid-cols-4">
           <div className="space-y-1.5">
             <FieldLabel>Date *</FieldLabel>
@@ -289,7 +293,9 @@ export function LiabilityEntryClient() {
           </Button>
         </FormActions>
       </FormContainer>
+      </div>
 
+      <div className="flex min-h-0 flex-1 flex-col">
       <ListingPageContainer
         title="Liability Entries"
         description="Posted transfer entries between bank and person accounts."
@@ -326,7 +332,8 @@ export function LiabilityEntryClient() {
           onRowsPerPageChange={setLimit}
           rowsPerPageOptions={[10, 20, 50, 100]}
         />
-      </ListingPageContainer>
+        </ListingPageContainer>
+      </div>
     </div>
   );
 }
