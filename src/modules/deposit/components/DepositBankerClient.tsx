@@ -177,7 +177,6 @@ export function DepositBankerClient() {
   const loadLiabilityPersonOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {
       const res = await listLiabilityPersonsNormalized({
-        page: 1,
         limit: 25,
         q: query || undefined,
         sortBy: "name",
@@ -365,8 +364,6 @@ export function DepositBankerClient() {
 
   const onExportClick = useCallback(() => {
     handleExport({
-      page: 1,
-      limit: 10000,
       sortBy: sortBy || "createdAt",
       sortOrder: sortOrder || "desc",
       utr: toOptionalFilterValue(filters.utr || ""),

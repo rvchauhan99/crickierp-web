@@ -63,6 +63,18 @@ export function ConfirmSensitiveActionDialog(props: ConfirmSensitiveActionDialog
     };
   }, [open, masterProps?.reasonType]);
 
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      onCancel();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open, onCancel]);
+
   if (!open) return null;
 
   const canConfirm = masterProps
@@ -70,7 +82,12 @@ export function ConfirmSensitiveActionDialog(props: ConfirmSensitiveActionDialog
     : Boolean((props as FreeTextProps).reason.trim());
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 p-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+    >
       <div className="card w-full max-w-md space-y-4 p-4">
         <h3 className="text-lg font-semibold">{title}</h3>
 

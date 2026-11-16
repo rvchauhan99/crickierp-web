@@ -1,6 +1,6 @@
 "use client";
 
-import { PropsWithChildren } from "react";
+import { PropsWithChildren, useEffect } from "react";
 import { cn } from "@/lib/cn";
 import { IconX } from "@tabler/icons-react";
 
@@ -24,6 +24,18 @@ export function DetailsSidebar({
   width = "420px",
   children,
 }: Props) {
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open, onClose]);
+
   return (
     <>
       {/* Backdrop */}
@@ -42,6 +54,8 @@ export function DetailsSidebar({
           open ? "translate-x-0" : "translate-x-full"
         )}
         style={{ width }}
+        role="dialog"
+        aria-modal="true"
         aria-label={title}
       >
         {/* Header */}

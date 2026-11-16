@@ -26,7 +26,7 @@ import { cn } from "@/lib/cn";
 import { createExchangeTopup, listExchangeTopups, exportExchangeTopups } from "@/services/exchangeService";
 import { listExchangeLookupOptions } from "@/services/lookupService";
 import { useExport } from "@/hooks/useExport";
-import type { ExchangeTopupRow } from "@/types/exchange";
+import type { ExchangeTopupEntryType, ExchangeTopupRow } from "@/types/exchange";
 import { useFormatMoney } from "@/hooks/useFormatMoney";
 import { formatDateTimeForUser } from "@/lib/userTimezone";
 
@@ -35,11 +35,16 @@ function createdByLabel(createdBy: ExchangeTopupRow["createdBy"]): string {
   return createdBy.fullName?.trim() || createdBy.username?.trim() || "";
 }
 
+function rowEntryType(row: ExchangeTopupRow): ExchangeTopupEntryType {
+  return row.entryType === "debit" ? "debit" : "credit";
+}
+
 export function ExchangeTopUpClient() {
   const { platformCurrency } = usePlatformSettings();
   const { formatMoney } = useFormatMoney();
   const formatAmount = (value: number) => formatMoney(Number(value || 0));
   const [exchangeId, setExchangeId] = useState("");
+  const [entryType, setEntryType] = useState<ExchangeTopupEntryType>("credit");
   const [money, setMoney] = useState(() => defaultOperatedMoneyValue(platformCurrency));
   const [remark, setRemark] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -84,7 +89,7 @@ export function ExchangeTopUpClient() {
       setRows(res.items);
       setCurrentBalance(res.items[0]?.exchangeId?.currentBalance ?? null);
     } catch (e: unknown) {
-      setError(getApiErrorMessage(e, "Failed to load top up history"));
+      setError(getApiErrorMessage(e, "Failed to load top up / debit history"));
       setRows([]);
     } finally {
       setLoading(false);
@@ -129,6 +134,7 @@ export function ExchangeTopUpClient() {
     try {
       const created = await createExchangeTopup({
         exchangeId: exchangeId.trim(),
+        entryType,
         amount: fx.amount,
         operatedCurrency: fx.operatedCurrency,
         operatedAmount: fx.operatedAmount,
@@ -140,20 +146,43 @@ export function ExchangeTopUpClient() {
       setCurrentBalance(created.currentBalance ?? null);
       await refreshTopups();
     } catch (e: unknown) {
-      setError(getApiErrorMessage(e, "Failed to create top up"));
+      setError(getApiErrorMessage(e, entryType === "debit" ? "Failed to create debit" : "Failed to create top up"));
     } finally {
       setSubmitting(false);
     }
   };
 
+  const isDebit = entryType === "debit";
+
   return (
     <div className="space-y-4 pb-8 max-w-[1200px] mx-auto">
       <div>
         <h1 className="text-xl font-bold tracking-tight text-slate-900 leading-tight">Exchange Top Up</h1>
-        <p className="text-xs text-slate-400 mt-0.5">Direct credit into exchange balance (no bank transaction).</p>
+        <p className="text-xs text-slate-400 mt-0.5">
+          {isDebit
+            ? "Direct debit from exchange balance (reverse of top up)."
+            : "Direct credit into exchange balance (no bank transaction)."}
+        </p>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-4">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] uppercase font-semibold tracking-wider text-slate-500">Type:</span>
+          {(["credit", "debit"] as const).map((type) => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => setEntryType(type)}
+              className={cn(
+                "text-[11px] px-2.5 py-1 rounded-md transition-all capitalize font-medium",
+                entryType === type ? "bg-slate-200 text-slate-800" : "text-slate-500 hover:bg-slate-100",
+              )}
+            >
+              {type}
+            </button>
+          ))}
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div className="md:col-span-2 space-y-1.5">
             <FieldLabel>Exchange</FieldLabel>
@@ -171,7 +200,7 @@ export function ExchangeTopUpClient() {
           <OperatedMoneyFields
             value={money}
             onChange={setMoney}
-            amountLabel="Top Up Amount"
+            amountLabel={isDebit ? "Debit Amount" : "Top Up Amount"}
             roundMode="decimal"
             minAmount={0.01}
             idPrefix="exchange-topup"
@@ -188,7 +217,7 @@ export function ExchangeTopUpClient() {
             loading={submitting}
             startIcon={<IconCheck size={18} />}
           >
-            Post Top Up
+            {isDebit ? "Post Debit" : "Post Top Up"}
           </Button>
           <Button 
             variant="outline" 
@@ -234,7 +263,7 @@ export function ExchangeTopUpClient() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2 text-sm font-medium text-slate-700">
           <IconFilter className="w-4 h-4" />
-          Top Up History
+          Top Up / Debit History
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
@@ -242,6 +271,7 @@ export function ExchangeTopUpClient() {
               <tr>
                 <th className="text-left px-4 py-3">Date</th>
                 <th className="text-left px-4 py-3">Exchange</th>
+                <th className="text-left px-4 py-3">Type</th>
                 <th className="text-right px-4 py-3">Amount</th>
                 <th className="text-left px-4 py-3">Remark</th>
                 <th className="text-left px-4 py-3">Created By</th>
@@ -250,24 +280,45 @@ export function ExchangeTopUpClient() {
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
-                    {loading ? "Loading..." : "No top up entries found."}
+                  <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                    {loading ? "Loading..." : "No top up / debit entries found."}
                   </td>
                 </tr>
               ) : (
-                rows.map((row) => (
-                  <tr key={row._id} className="border-t border-slate-100">
-                    <td className="px-4 py-3 text-slate-600">
-                      {formatDateTimeForUser(row.createdAt)}
-                    </td>
-                    <td className="px-4 py-3 text-slate-700">
-                      {row.exchangeId?.name} ({row.exchangeId?.provider})
-                    </td>
-                    <td className="px-4 py-3 text-right font-semibold text-emerald-700">{formatAmount(row.amount)}</td>
-                    <td className="px-4 py-3 text-slate-600">{row.remark || "-"}</td>
-                    <td className="px-4 py-3 text-slate-600">{createdByLabel(row.createdBy) || "-"}</td>
-                  </tr>
-                ))
+                rows.map((row) => {
+                  const type = rowEntryType(row);
+                  const debit = type === "debit";
+                  return (
+                    <tr key={row._id} className="border-t border-slate-100">
+                      <td className="px-4 py-3 text-slate-600">
+                        {formatDateTimeForUser(row.createdAt)}
+                      </td>
+                      <td className="px-4 py-3 text-slate-700">
+                        {row.exchangeId?.name} ({row.exchangeId?.provider})
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={cn(
+                            "inline-flex rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                            debit ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700",
+                          )}
+                        >
+                          {debit ? "Debit" : "Credit"}
+                        </span>
+                      </td>
+                      <td
+                        className={cn(
+                          "px-4 py-3 text-right font-semibold",
+                          debit ? "text-rose-700" : "text-emerald-700",
+                        )}
+                      >
+                        {formatAmount(row.amount)}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">{row.remark || "-"}</td>
+                      <td className="px-4 py-3 text-slate-600">{createdByLabel(row.createdBy) || "-"}</td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

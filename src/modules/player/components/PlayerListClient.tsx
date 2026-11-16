@@ -104,7 +104,6 @@ export function PlayerListClient() {
     let active = true;
     userService
       .list({
-        page: 1,
         limit: 500,
         sortBy: "fullName",
         sortOrder: "asc",
@@ -134,7 +133,6 @@ export function PlayerListClient() {
       try {
         const response = await userService.list({
           q: query || undefined,
-          page: 1,
           limit: 20,
           sortBy: "fullName",
           sortOrder: "asc",
@@ -183,8 +181,6 @@ export function PlayerListClient() {
 
   const onExportClick = useCallback(() => {
     handleExport({
-      page: 1,
-      limit: 10000,
       sortBy: (sortBy || "createdAt") as "createdAt" | "playerId" | "phone" | "bonusPercentage",
       sortOrder: (sortOrder === "asc" ? "asc" : "desc") as "asc" | "desc",
       playerId: toOptionalFilterValue(filters.playerId || ""),

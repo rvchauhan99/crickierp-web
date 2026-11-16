@@ -84,14 +84,12 @@ export function buildCreatedAtApiParams(fromStr: string, toStr: string): Created
   return { createdAt_from: "", createdAt_to: t, createdAt_op: "" };
 }
 
-export function fixedTextOperatorsForApply(utr: string, bankName: string, playerName: string): {
+export function fixedTextOperatorsForApply(utr: string, playerName: string): {
   utr_op: string;
-  bankName_op: string;
   playerName_op: string;
 } {
   return {
     utr_op: utr.trim() ? CONTAINS : "",
-    bankName_op: bankName.trim() ? CONTAINS : "",
     playerName_op: playerName.trim() ? CONTAINS : "",
   };
 }

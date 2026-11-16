@@ -20,7 +20,7 @@ function getPlayerLabel(
 ): string {
   if (!raw) return "-";
   if (typeof raw === "string") return raw;
-  return raw.phone ? `${raw.playerId ?? "-"} · ${raw.phone}` : raw.playerId ?? "-";
+  return raw.playerId ?? "-";
 }
 
 function getExchangeLabel(raw: ReferralAccrualRow["exchangeId"]): string {
@@ -48,7 +48,7 @@ export function ReferralSettlementClient() {
   const loadPlayerOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {
       const players = await listPlayerLookupOptions({ q: query || undefined, limit: 25 });
-      return players.map((p) => ({ value: p.id, label: `${p.playerId} · ${p.phone} · ${p.exchangeName}` }));
+      return players.map((p) => ({ value: p.id, label: String(p.playerId ?? "") }));
     } catch {
       return [];
     }

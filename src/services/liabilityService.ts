@@ -272,17 +272,21 @@ export async function getLiabilityPersonWiseReportByMode(viewMode: LiabilityView
 }
 
 export async function exportLiabilityPersons(params: Record<string, unknown>): Promise<Blob> {
+  const { page: _page, pageSize: _pageSize, limit: _limit, cursor: _cursor, ...rest } = params;
   const response = await apiClient.get("/liability/persons/export", {
-    params,
+    params: rest,
     responseType: "blob",
+    timeout: 60_000,
   });
   return response.data;
 }
 
 export async function exportLiabilityEntries(params: Record<string, unknown>): Promise<Blob> {
+  const { page: _page, pageSize: _pageSize, limit: _limit, cursor: _cursor, ...rest } = params;
   const response = await apiClient.get("/liability/entries/export", {
-    params,
+    params: rest,
     responseType: "blob",
+    timeout: 60_000,
   });
   return response.data;
 }
@@ -291,9 +295,11 @@ export async function exportLiabilityLedger(
   personId: string,
   params: Record<string, unknown>,
 ): Promise<Blob> {
+  const { page: _page, pageSize: _pageSize, limit: _limit, cursor: _cursor, ...rest } = params;
   const response = await apiClient.get(`/liability/persons/${personId}/ledger/export`, {
-    params,
+    params: rest,
     responseType: "blob",
+    timeout: 60_000,
   });
   return response.data;
 }
@@ -304,6 +310,7 @@ export async function exportLiabilityReport(params?: {
   const response = await apiClient.get("/liability/reports/export", {
     params: { viewMode: params?.viewMode ?? "platform" },
     responseType: "blob",
+    timeout: 60_000,
   });
   return response.data as Blob;
 }

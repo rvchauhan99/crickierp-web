@@ -1,20 +1,25 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { ListingPageContainer } from "@/components/common/ListingPageContainer";
 import PaginatedTableReference, {
   type PaginatedTableReferenceColumn,
 } from "@/components/common/PaginatedTableReference";
 import PaginationControlsReference from "@/components/common/PaginationControlsReference";
 import { TableStatusBadge } from "@/components/common/TableStatusBadge";
+import { Button } from "@/components/ui/Button";
 import { useListingQueryStateReference } from "@/hooks/useListingQueryStateReference";
 import { useExport } from "@/hooks/useExport";
+import { useAuth } from "@/context/AuthContext";
+import { getApiErrorMessage } from "@/lib/apiError";
 import { tableColumnPresets } from "@/lib/tableStylePresets";
-import { exportBanks, listBanksNormalized } from "@/services/bankService";
+import { exportBanks, listBanksNormalized, updateBankStatus } from "@/services/bankService";
 import { userService } from "@/services/userService";
 import type { BankRow } from "@/types/bank";
 import type { AutocompleteOption } from "@/components/common/AutocompleteField";
 import { formatDateTimeForUser } from "@/lib/userTimezone";
+import { NAV_PERMISSIONS } from "@/lib/constants/navPermissions";
 
 const COLUMN_FILTER_KEYS = [
   "holderName",
@@ -71,14 +76,27 @@ function createdByIdFromRow(createdBy: unknown): string {
 }
 
 export function BankListClient() {
+  const { user } = useAuth();
+  const canChangeStatus =
+    user?.role === "superadmin" || Boolean(user?.permissions?.includes(NAV_PERMISSIONS.BANK_ADD));
   const listingState = useListingQueryStateReference({
     defaultLimit: 20,
     filterKeys: COLUMN_FILTER_KEYS,
   });
-  const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setFilter, setSort, clearFilters } =
+  const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setFilter, setFilters, setSort } =
     listingState;
   const [totalCount, setTotalCount] = useState(0);
   const [cachedUsers, setCachedUsers] = useState<Record<string, string>>({});
+  const [tableKey, setTableKey] = useState(0);
+  const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
+
+  // Default hide deactive banks (Active filter in URL).
+  useEffect(() => {
+    if (!filters.status) {
+      setFilter("status", "active");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seed once when URL lacks status
+  }, []);
 
   const { exporting, handleExport } = useExport(exportBanks, {
     fileName: `banks-${new Date().toISOString().split("T")[0]}.xlsx`,
@@ -86,8 +104,6 @@ export function BankListClient() {
 
   const onExportClick = useCallback(() => {
     handleExport({
-      page: 1,
-      limit: 10000,
       sortBy: (sortBy || "createdAt") as string,
       sortOrder: (sortOrder === "asc" ? "asc" : "desc") as "asc" | "desc",
       holderName: toOptionalFilterValue(filters.holderName || ""),
@@ -101,13 +117,42 @@ export function BankListClient() {
       openingBalance: toOptionalFilterValue(filters.openingBalance || ""),
       openingBalance_to: toOptionalFilterValue(filters.openingBalance_to || ""),
       openingBalance_op: toOptionalFilterValue(filters.openingBalance_op || ""),
-      status: toOptionalFilterValue(filters.status || ""),
+      status: toOptionalFilterValue(filters.status || "") || "active",
       createdBy: toOptionalFilterValue(filters.createdBy || ""),
       createdAt_from: toOptionalFilterValue(filters.createdAt_from || ""),
       createdAt_to: toOptionalFilterValue(filters.createdAt_to || ""),
       createdAt_op: toOptionalFilterValue(filters.createdAt_op || ""),
     });
   }, [handleExport, filters, sortBy, sortOrder]);
+
+  const resetFilters = useCallback(() => {
+    const next: Record<string, string> = {};
+    for (const key of COLUMN_FILTER_KEYS) {
+      next[key] = key === "status" ? "active" : "";
+    }
+    setFilters(next);
+  }, [setFilters]);
+
+  const onToggleStatus = useCallback(
+    async (row: BankRow) => {
+      const nextStatus = row.status === "active" ? "deactive" : "active";
+      const label = nextStatus === "deactive" ? "deactivate" : "activate";
+      if (!window.confirm(`Are you sure you want to ${label} bank "${row.holderName} — ${row.bankName}"?`)) {
+        return;
+      }
+      setStatusBusyId(row.id);
+      try {
+        await updateBankStatus(row.id, nextStatus);
+        toast.success(nextStatus === "deactive" ? "Bank deactivated." : "Bank activated.");
+        setTableKey((k) => k + 1);
+      } catch (error) {
+        toast.error(getApiErrorMessage(error, `Failed to ${label} bank`));
+      } finally {
+        setStatusBusyId(null);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     let active = true;
@@ -138,7 +183,6 @@ export function BankListClient() {
       try {
         const response = await userService.list({
           q: query || undefined,
-          page: 1,
           limit: 20,
           sortBy: "fullName",
           sortOrder: "asc",
@@ -172,7 +216,7 @@ export function BankListClient() {
   const handleColumnFilterChange = useCallback(
     (key: string, value: string) => {
       if (key === "status" && value === "") {
-        setFilter("status", "all");
+        setFilter("status", "active");
         return;
       }
       setFilter(key, value);
@@ -256,6 +300,7 @@ export function BankListClient() {
         filterOptions: [
           { label: "Active", value: "active" },
           { label: "Inactive", value: "deactive" },
+          { label: "All", value: "all" },
         ],
         ...tableColumnPresets.statusCol,
         render: (row: BankRow) => <TableStatusBadge status={row.status} />,
@@ -290,8 +335,28 @@ export function BankListClient() {
         ...tableColumnPresets.dateCol,
         render: (row: BankRow) => formatDateTimeForUser(row.createdAt),
       },
+      ...(canChangeStatus
+        ? [
+            {
+              field: "actions",
+              label: "Actions",
+              isActionColumn: true,
+              ...tableColumnPresets.actionsCol,
+              render: (row: BankRow) => (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={statusBusyId === row.id}
+                  onClick={() => void onToggleStatus(row)}
+                >
+                  {row.status === "active" ? "Deactivate" : "Activate"}
+                </Button>
+              ),
+            } satisfies PaginatedTableReferenceColumn,
+          ]
+        : []),
     ],
-    [creatorNameById, loadCreatedByOptions],
+    [canChangeStatus, creatorNameById, loadCreatedByOptions, onToggleStatus, statusBusyId],
   );
 
   return (
@@ -301,12 +366,13 @@ export function BankListClient() {
       density="compact"
       fullWidth
       secondaryButtonLabel="Reset filters"
-      onSecondaryClick={() => clearFilters({ keepQuickSearch: true })}
+      onSecondaryClick={resetFilters}
       exportButtonLabel="Export"
       onExportClick={onExportClick}
       exportDisabled={exporting}
     >
       <PaginatedTableReference
+        key={tableKey}
         columns={columns}
         fetcher={fetcher}
         height="calc(100vh - 200px)"
@@ -327,7 +393,7 @@ export function BankListClient() {
           openingBalance: toOptionalFilterValue(filters.openingBalance || ""),
           openingBalance_to: toOptionalFilterValue(filters.openingBalance_to || ""),
           openingBalance_op: toOptionalFilterValue(filters.openingBalance_op || ""),
-          status: toOptionalFilterValue(filters.status || ""),
+          status: toOptionalFilterValue(filters.status || "") || "active",
           createdBy: toOptionalFilterValue(filters.createdBy || ""),
           createdAt_from: toOptionalFilterValue(filters.createdAt_from || ""),
           createdAt_to: toOptionalFilterValue(filters.createdAt_to || ""),

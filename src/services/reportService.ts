@@ -21,6 +21,7 @@ export const reportService = {
     exchangeId?: string;
     subExchangeId?: string;
     status?: string;
+    bankStatus?: "active" | "deactive" | "all";
     transactionType?: string;
     playerId?: string;
     bankId?: string;
@@ -46,9 +47,11 @@ export const reportService = {
   },
 
   exportDashboardSummary: async (params?: Record<string, unknown>) => {
+    const { page: _page, pageSize: _pageSize, limit: _limit, cursor: _cursor, ...rest } = params ?? {};
     const res = await apiClient.get("/reports/dashboard-summary/export", {
-      params,
+      params: rest,
       responseType: "blob",
+      timeout: 60_000,
     });
     return res.data;
   },
@@ -115,14 +118,17 @@ export const reportService = {
     const res = await apiClient.get("/reports/expense-analysis/export", {
       params: buildExpenseAnalysisQueryParams(params),
       responseType: "blob",
+      timeout: 60_000,
     });
     return res.data;
   },
 
   exportTransactionHistory: async (params?: Record<string, unknown>) => {
+    const { page: _page, pageSize: _pageSize, limit: _limit, cursor: _cursor, ...rest } = params ?? {};
     const res = await apiClient.get("/reports/transaction-history/export", {
-      params,
+      params: rest,
       responseType: "blob",
+      timeout: 60_000,
     });
     return res.data;
   },

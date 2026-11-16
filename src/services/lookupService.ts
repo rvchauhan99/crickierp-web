@@ -23,7 +23,6 @@ export type LookupPlayerOption = {
   id: string;
   label: string;
   playerId: string;
-  phone: string;
   exchangeId?: string;
   exchangeName: string;
   exchangeProvider: string;

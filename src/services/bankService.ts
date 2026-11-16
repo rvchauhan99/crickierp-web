@@ -120,8 +120,6 @@ export async function listBanksNormalized(params: Record<string, unknown>): Prom
 }
 
 export async function exportBanks(params: Record<string, unknown>): Promise<Blob> {
-  const page = Number(params.page) || 1;
-  const limit = Number(params.limit) || 20;
   const sortBy =
     (str(params, "sortBy") || "createdAt") as
       | "createdAt"
@@ -135,8 +133,6 @@ export async function exportBanks(params: Record<string, unknown>): Promise<Blob
 
   const response = await apiClient.get("/bank/export", {
     params: {
-      page,
-      pageSize: limit,
       sortBy,
       sortOrder,
       search: toOptionalParam(str(params, "q")) || undefined,
@@ -158,6 +154,7 @@ export async function exportBanks(params: Record<string, unknown>): Promise<Blob
       createdAt_op: toOptionalParam(str(params, "createdAt_op")),
     },
     responseType: "blob",
+    timeout: 60_000,
   });
   return response.data as Blob;
 }
@@ -167,9 +164,34 @@ export async function createBank(input: BankCreateInput): Promise<unknown> {
   return response.data?.data;
 }
 
+export async function updateBankStatus(
+  bankId: string,
+  status: "active" | "deactive",
+): Promise<unknown> {
+  const response = await apiClient.patch<{ success: boolean; data: unknown }>(
+    `/bank/${encodeURIComponent(bankId)}/status`,
+    { status },
+  );
+  return response.data?.data;
+}
+
 /** Raw list response `{ success, data, meta }` — for legacy callers (e.g. statement page). */
-export async function listBanksRaw(page = 1, pageSize = 20) {
-  return (await apiClient.get("/bank", { params: { page, pageSize } })).data as {
+export async function listBanksRaw(
+  page = 1,
+  pageSize = 20,
+  options?: { status?: "active" | "deactive" | "all"; search?: string },
+) {
+  return (
+    await apiClient.get("/bank", {
+      params: {
+        page,
+        pageSize,
+        // Statement / history pickers need inactive banks too.
+        status: options?.status ?? "all",
+        search: options?.search || undefined,
+      },
+    })
+  ).data as {
     success: boolean;
     data: Record<string, unknown>[];
     meta: { total: number; page: number; pageSize: number };
@@ -188,6 +210,8 @@ export type BankLedgerRow = {
   direction: "credit" | "debit";
   balanceAfter: number;
   bonusMemo?: number;
+  /** Deposit status when kind=deposit (pending shown on statement). */
+  status?: string;
 };
 
 export type BankTransferRow = {
@@ -288,6 +312,8 @@ export type BankSummaryQuery = {
   toDate?: string;
   exchangeId?: string;
   status?: string;
+  /** Which banks appear in breakdown rows. Default active on API when omitted. */
+  bankStatus?: "active" | "deactive" | "all";
   transactionType?: string;
   playerId?: string;
   bankId?: string;
@@ -357,6 +383,7 @@ export async function exportBankLedger(
   const response = await apiClient.get(`/bank/${bankId}/ledger/export`, {
     params,
     responseType: "blob",
+    timeout: 60_000,
   });
   return response.data as Blob;
 }

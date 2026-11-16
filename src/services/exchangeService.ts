@@ -249,14 +249,10 @@ export async function listExchangesNormalized(
  * Pagination fields are accepted by the API but ignored for export row selection.
  */
 export async function exportExchanges(params: ExchangeListParams = {}): Promise<Blob> {
-  const page = params.page ?? 1;
-  const limit = params.limit ?? params.pageSize ?? 20;
   const textSearch = params.q ?? params.search ?? "";
   const sortBy = params.sortBy ?? "createdAt";
   const sortOrder = params.sortOrder ?? "desc";
   const requestParams = {
-    page,
-    pageSize: limit,
     search: textSearch || undefined,
     sortBy,
     sortOrder,
@@ -284,6 +280,7 @@ export async function exportExchanges(params: ExchangeListParams = {}): Promise<
   const response = await apiClient.get("/exchange/export", {
     params: requestParams,
     responseType: "blob",
+    timeout: 60_000,
   });
   return response.data as Blob;
 }
@@ -343,13 +340,14 @@ export async function exportExchangeStatement(
 ): Promise<Blob> {
   const response = await apiClient.get(
     `/exchange/${encodeURIComponent(exchangeId)}/statement/export`,
-    { params, responseType: "blob" },
+    { params, responseType: "blob", timeout: 60_000 },
   );
   return response.data as Blob;
 }
 
 export async function createExchangeTopup(input: {
   exchangeId: string;
+  entryType?: "credit" | "debit";
   amount: number;
   operatedCurrency?: string;
   operatedAmount?: number;
@@ -365,6 +363,7 @@ export async function createExchangeTopup(input: {
 
 export async function listExchangeTopups(params?: {
   exchangeId?: string;
+  entryType?: "credit" | "debit";
   page?: number;
   pageSize?: number;
   sortOrder?: "asc" | "desc";
@@ -376,6 +375,7 @@ export async function listExchangeTopups(params?: {
   }>("/exchange-topup", {
     params: {
       exchangeId: params?.exchangeId,
+      entryType: params?.entryType,
       page: params?.page ?? 1,
       pageSize: params?.pageSize ?? 20,
       sortOrder: params?.sortOrder ?? "desc",
@@ -389,14 +389,17 @@ export async function listExchangeTopups(params?: {
 
 export async function exportExchangeTopups(params?: {
   exchangeId?: string;
+  entryType?: "credit" | "debit";
   sortOrder?: "asc" | "desc";
 }): Promise<Blob> {
   const response = await apiClient.get("/exchange-topup/export", {
     params: {
       exchangeId: params?.exchangeId,
+      entryType: params?.entryType,
       sortOrder: params?.sortOrder ?? "desc",
     },
     responseType: "blob",
+    timeout: 60_000,
   });
   return response.data;
 }

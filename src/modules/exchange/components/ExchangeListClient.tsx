@@ -105,7 +105,6 @@ export function ExchangeListClient() {
     try {
       const result = await listExchanges({
         parentExchangeId: row.id,
-        page: 1,
         limit: 100,
         sortBy: "name",
         sortOrder: "asc",
@@ -143,7 +142,6 @@ export function ExchangeListClient() {
     let active = true;
     userService
       .list({
-        page: 1,
         limit: 500,
         sortBy: "fullName",
         sortOrder: "asc",
@@ -173,7 +171,6 @@ export function ExchangeListClient() {
       try {
         const response = await userService.list({
           q: query || undefined,
-          page: 1,
           limit: 20,
           sortBy: "fullName",
           sortOrder: "asc",
@@ -225,8 +222,6 @@ export function ExchangeListClient() {
     const status =
       statusRaw === "active" || statusRaw === "deactive" ? statusRaw : undefined;
     handleExport({
-      page: 1,
-      limit: 10000,
       sortBy: (sortBy || "createdAt") as "createdAt" | "name" | "provider",
       sortOrder: (sortOrder === "asc" ? "asc" : "desc") as "asc" | "desc",
       name: toOptionalFilterValue(filters.name || ""),

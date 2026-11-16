@@ -14,6 +14,8 @@ export interface DashboardFilters {
   date_from: string;
   date_to: string;
   status: string;
+  /** Bank master status for banksBreakdown rows (not txn status). */
+  bank_status: string;
   transaction_type: string;
   player_id: string;
   bank_id: string;
@@ -72,6 +74,7 @@ export function DashboardFilterPanel({
   const activeCount = useMemo(() => {
     let count = 0;
     if (filters.status && filters.status !== "all") count++;
+    if (filters.bank_status && filters.bank_status !== "active") count++;
     if (filters.transaction_type && filters.transaction_type !== "all") count++;
     if (filters.player_id) count++;
     if (filters.bank_id) count++;
@@ -197,7 +200,7 @@ export function DashboardFilterPanel({
             />
           </div>
           <div>
-            <label className="mb-1 block text-[11px] font-medium text-slate-500 uppercase tracking-wider">Status</label>
+            <label className="mb-1 block text-[11px] font-medium text-slate-500 uppercase tracking-wider">Txn Status</label>
             <Select 
               value={localValues.status} 
               onChange={(e) => handleChange("status", e.target.value)}
@@ -207,6 +210,18 @@ export function DashboardFilterPanel({
               <option value="pending">Pending</option>
               <option value="approved">Approved</option>
               <option value="rejected">Rejected</option>
+            </Select>
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-medium text-slate-500 uppercase tracking-wider">Bank Status</label>
+            <Select
+              value={localValues.bank_status || "active"}
+              onChange={(e) => handleChange("bank_status", e.target.value)}
+              disabled={loading}
+            >
+              <option value="active">Active</option>
+              <option value="deactive">Inactive</option>
+              <option value="all">All</option>
             </Select>
           </div>
 
@@ -246,7 +261,13 @@ export function DashboardFilterPanel({
               placeholder="Search bank..."
               disabled={loading}
               loadOptions={async (query) => {
-                const res = await apiClient.get("/bank", { params: { search: query, limit: 20 } });
+                const bankStatus =
+                  localValues.bank_status === "deactive" || localValues.bank_status === "all"
+                    ? localValues.bank_status
+                    : "active";
+                const res = await apiClient.get("/bank", {
+                  params: { search: query, limit: 20, pageSize: 20, status: bankStatus },
+                });
                 const rows: BankOptionRow[] = Array.isArray(res.data?.data) ? res.data.data : [];
                 return rows.map((b) => ({ value: b._id, label: b.bankName || b.holderName || b._id }));
               }}

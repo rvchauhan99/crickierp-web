@@ -92,7 +92,7 @@ export function ExchangeStatementClient() {
             if (sid) return (row.subExchangeId ?? row.exchangeId ?? "") === sid;
             return (row.exchangeId ?? "") === eid || (row.subExchangeId ?? "") === eid;
           })
-          .map((row) => ({ value: row.id, label: `${row.playerId} (${row.phone})` }));
+          .map((row) => ({ value: row.id, label: String(row.playerId ?? "") }));
       } catch {
         return [];
       }
@@ -418,6 +418,11 @@ export function ExchangeStatementClient() {
                 <IconArrowDownRight className="w-3 h-3" /> Total Debits
               </span>
               <span className="text-xl font-bold text-rose-700">{formatAmount(statement.totalDebits)}</span>
+              {(statement.totalTopUpDebits ?? 0) > 0 ? (
+                <div className="text-[10px] text-rose-600 mt-1">
+                  Top Up Debits: {formatAmount(statement.totalTopUpDebits ?? 0)}
+                </div>
+              ) : null}
             </div>
             <div className="p-4 bg-slate-50/50">
               <span className="text-[10px] uppercase font-semibold tracking-widest text-slate-600 mb-1 block">
