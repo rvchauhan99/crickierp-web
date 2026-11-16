@@ -50,7 +50,10 @@ export function PlayerEditClient() {
   const loadReferrerOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {
       const rows = await listPlayerLookupOptions({ q: query || undefined, limit: 25 });
-      return rows.map((p) => ({ value: p.id, label: `${p.playerId} · ${p.phone} · ${p.exchangeName}` }));
+      return rows.map((p) => ({
+        value: p.id,
+        label: p.exchangeName ? `${p.playerId} · ${p.exchangeName}` : String(p.playerId ?? ""),
+      }));
     } catch {
       return [];
     }

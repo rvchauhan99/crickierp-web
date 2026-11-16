@@ -50,14 +50,13 @@ import { useOperatorEntryForm } from "@/hooks/useOperatorEntryForm";
 import { canEditBusinessEntryDateTime } from "@/lib/roles";
 import { currentDateTimeLocalValue, formatDateTimeForUser } from "@/lib/userTimezone";
 import { WithdrawalImportDialog } from "./WithdrawalImportDialog";
+import { WithdrawalBeneficiaryCell } from "./WithdrawalBeneficiaryCell";
 
 const COLUMN_FILTER_KEYS = [
   "utr",
   "utr_op",
   "playerName",
   "playerName_op",
-  "bankName",
-  "bankName_op",
   "status",
   "amount",
   "amount_to",
@@ -165,7 +164,6 @@ export function WithdrawalExchangeClient() {
     try {
       const response = await userService.list({
         q: query || undefined,
-        page: 1,
         limit: 20,
         sortBy: "fullName",
         sortOrder: "asc",
@@ -197,7 +195,7 @@ export function WithdrawalExchangeClient() {
       const rows = await listPlayerLookupOptions({ q: query || undefined, limit: 25 });
       return rows.map((p) => ({
         value: String(p.id || "").trim(),
-        label: `${p.playerId} · ${p.phone}`,
+        label: String(p.playerId ?? ""),
       }));
     } catch {
       return [];
@@ -251,7 +249,6 @@ export function WithdrawalExchangeClient() {
     if (!playerId.trim()) next.playerId = "Player is required.";
     if (!accountNumber.trim()) next.accountNumber = "Account number is required.";
     if (!accountHolderName.trim()) next.accountHolderName = "Account holder name is required.";
-    if (!bankName.trim()) next.bankName = "Bank name is required.";
     if (!ifsc.trim()) next.ifsc = "IFSC is required.";
     const amt = Number(money.amount);
     const minUnit = getCurrencyMinUnit(money.operatedCurrency || platformCurrency);
@@ -278,7 +275,7 @@ export function WithdrawalExchangeClient() {
         await updateWithdrawal(editingId, {
           accountNumber: accountNumber.trim(),
           accountHolderName: accountHolderName.trim(),
-          bankName: bankName.trim(),
+          bankName: bankName.trim() || "—",
           ifsc: ifsc.trim(),
           amount: fx.amount,
           operatedCurrency: fx.operatedCurrency,
@@ -292,7 +289,7 @@ export function WithdrawalExchangeClient() {
           playerId: playerId.trim(),
           accountNumber: accountNumber.trim(),
           accountHolderName: accountHolderName.trim(),
-          bankName: bankName.trim(),
+          bankName: bankName.trim() || "—",
           ifsc: ifsc.trim(),
           amount: fx.amount,
           operatedCurrency: fx.operatedCurrency,
@@ -305,6 +302,10 @@ export function WithdrawalExchangeClient() {
       }
       const wasCreate = !editingId;
       setEditingId(null);
+      if (wasCreate) {
+        setPlayerId("");
+        setSavedRows([]);
+      }
       setAccountNumber("");
       setAccountHolderName("");
       setBankName("");
@@ -385,16 +386,12 @@ export function WithdrawalExchangeClient() {
   const onExportClick = useCallback(() => {
     handleExport({
       view: "exchange",
-      page: 1,
-      limit: 10000,
       sortBy: sortBy || "createdAt",
       sortOrder: sortOrder || "desc",
       utr: toOptionalFilterValue(filters.utr || ""),
       utr_op: toOptionalFilterValue(filters.utr_op || ""),
       playerName: toOptionalFilterValue(filters.playerName || ""),
       playerName_op: toOptionalFilterValue(filters.playerName_op || ""),
-      bankName: toOptionalFilterValue(filters.bankName || ""),
-      bankName_op: toOptionalFilterValue(filters.bankName_op || ""),
       status: withdrawalStatusApiParam(filters.status),
       amount: toOptionalFilterValue(filters.amount || ""),
       amount_to: toOptionalFilterValue(filters.amount_to || ""),
@@ -427,27 +424,11 @@ export function WithdrawalExchangeClient() {
         defaultFilterOperator: "contains",
       },
       {
-        field: "account",
-        label: "Account / Bank",
-        minWidth: 200,
+        field: "beneficiary",
+        label: "Beneficiary",
+        minWidth: 220,
         sortable: false,
-        render: (row: WithdrawalRow) => (
-          <div className="text-sm">
-            <div>{row.accountNumber || "—"}</div>
-            <div className="text-xs text-gray-500">{row.bankName}</div>
-          </div>
-        ),
-      },
-      {
-        field: "bankName",
-        label: "Bank name",
-        ...tableColumnPresets.nameCol,
-        sortable: true,
-        filterType: "text" as const,
-        filterKey: "bankName",
-        operatorKey: "bankName_op",
-        defaultFilterOperator: "contains",
-        render: (row: WithdrawalRow) => row.bankName,
+        render: (row: WithdrawalRow) => <WithdrawalBeneficiaryCell row={row} />,
       },
       {
         field: "amount",
@@ -630,7 +611,7 @@ export function WithdrawalExchangeClient() {
                   <option value="">Manual entry only</option>
                   {savedRows.map((r, i) => (
                     <option key={`${r.accountNumber}-${r.ifsc}-${i}`} value={String(i)}>
-                      {r.accountNumber} · {r.bankName} ({r.ifsc})
+                      {r.accountNumber} · {r.ifsc}
                     </option>
                   ))}
                 </Select>
@@ -657,17 +638,6 @@ export function WithdrawalExchangeClient() {
                 className={bankFieldsLocked ? "bg-slate-50" : undefined}
               />
               <FieldError message={errors.accountNumber} />
-            </div>
-            <div>
-              <FieldLabel>Bank name *</FieldLabel>
-              <Input
-                value={bankName}
-                onChange={(e) => setBankName(e.target.value)}
-                placeholder="Bank name"
-                readOnly={bankFieldsLocked}
-                className={bankFieldsLocked ? "bg-slate-50" : undefined}
-              />
-              <FieldError message={errors.bankName} />
             </div>
             <div>
               <FieldLabel>IFSC *</FieldLabel>
@@ -759,10 +729,8 @@ export function WithdrawalExchangeClient() {
               utr_op: toOptionalFilterValue(filters.utr_op || ""),
               playerName: toOptionalFilterValue(filters.playerName || ""),
               playerName_op: toOptionalFilterValue(filters.playerName_op || ""),
-              bankName: toOptionalFilterValue(filters.bankName || ""),
-              bankName_op: toOptionalFilterValue(filters.bankName_op || ""),
               status: withdrawalStatusApiParam(filters.status),
-               amount: toOptionalFilterValue(filters.amount || ""),
+              amount: toOptionalFilterValue(filters.amount || ""),
               amount_to: toOptionalFilterValue(filters.amount_to || ""),
               amount_op: toOptionalFilterValue(filters.amount_op || ""),
               createdBy: toOptionalFilterValue(filters.createdBy || ""),

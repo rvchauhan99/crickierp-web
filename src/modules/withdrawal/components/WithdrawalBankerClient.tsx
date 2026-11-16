@@ -6,8 +6,6 @@ import {
   IconCheck,
   IconX,
   IconUser,
-  IconCreditCard,
-  IconFileText,
   IconCurrencyRupee,
   IconClock,
   IconRefresh,
@@ -50,14 +48,14 @@ import { formatDateTimeForUser } from "@/lib/userTimezone";
 import { useApprovalQueueAutoRefresh } from "@/hooks/useApprovalQueueAutoRefresh";
 import { usePlatformSettings } from "@/context/PlatformSettingsContext";
 import { isImportReadyWithdrawal } from "@/modules/withdrawal/withdrawalImportReady";
+import { WithdrawalBeneficiaryCell } from "./WithdrawalBeneficiaryCell";
+import { WithdrawalBeneficiaryBankBlock } from "./WithdrawalBeneficiaryBankBlock";
 
 const COLUMN_FILTER_KEYS = [
   "utr",
   "utr_op",
   "playerName",
   "playerName_op",
-  "bankName",
-  "bankName_op",
   "amount",
   "amount_to",
   "amount_op",
@@ -112,16 +110,6 @@ function WithdrawalDetailCard({ withdrawal }: { withdrawal: WithdrawalRow }) {
       value: withdrawal.playerName || "—",
     },
     {
-      icon: <IconCreditCard className="size-4 shrink-0 text-[var(--brand-primary)]" />,
-      label: "Acc No (Dest)",
-      value: withdrawal.accountNumber || "—",
-    },
-    {
-      icon: <IconFileText className="size-4 shrink-0 text-[var(--brand-primary)]" />,
-      label: "Bank (Dest)",
-      value: withdrawal.bankName || "—",
-    },
-    {
       icon: <IconCurrencyRupee className="size-4 shrink-0 text-[var(--brand-primary)]" />,
       label: "Payable amount",
       value: withdrawal.payableAmount != null ? formatWholeMoney(withdrawal.payableAmount) : "—",
@@ -144,22 +132,25 @@ function WithdrawalDetailCard({ withdrawal }: { withdrawal: WithdrawalRow }) {
   ];
 
   return (
-    <div className="rounded-lg border border-[var(--border)] bg-slate-50 p-3">
-      <div className="mb-3 flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Withdrawal Info</p>
-        <TableStatusBadge status={withdrawal.status} />
-      </div>
-      <dl className="space-y-2.5">
-        {items.map((item) => (
-          <div key={item.label} className="flex items-start gap-2.5">
-            <span className="mt-0.5">{item.icon}</span>
-            <div className="min-w-0 flex-1">
-              <dt className="text-[11px] font-medium uppercase tracking-wide text-gray-400">{item.label}</dt>
-              <dd className="mt-0.5 text-sm font-medium text-gray-800 truncate">{item.value}</dd>
+    <div className="space-y-3">
+      <div className="rounded-lg border border-[var(--border)] bg-slate-50 p-3">
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Withdrawal Info</p>
+          <TableStatusBadge status={withdrawal.status} />
+        </div>
+        <dl className="space-y-2.5">
+          {items.map((item) => (
+            <div key={item.label} className="flex items-start gap-2.5">
+              <span className="mt-0.5">{item.icon}</span>
+              <div className="min-w-0 flex-1">
+                <dt className="text-[11px] font-medium uppercase tracking-wide text-gray-400">{item.label}</dt>
+                <dd className="mt-0.5 text-sm font-medium text-gray-800 truncate">{item.value}</dd>
+              </div>
             </div>
-          </div>
-        ))}
-      </dl>
+          ))}
+        </dl>
+      </div>
+      <WithdrawalBeneficiaryBankBlock row={withdrawal} title="Dest. beneficiary bank" />
     </div>
   );
 }
@@ -183,8 +174,6 @@ export function WithdrawalBankerClient() {
       utr_op: toOptionalFilterValue(filters.utr_op || ""),
       playerName: toOptionalFilterValue(filters.playerName || ""),
       playerName_op: toOptionalFilterValue(filters.playerName_op || ""),
-      bankName: toOptionalFilterValue(filters.bankName || ""),
-      bankName_op: toOptionalFilterValue(filters.bankName_op || ""),
       status: toOptionalFilterValue(filters.status || ""),
       amount: toOptionalFilterValue(filters.amount || ""),
       amount_to: toOptionalFilterValue(filters.amount_to || ""),
@@ -212,16 +201,12 @@ export function WithdrawalBankerClient() {
   const onExportClick = useCallback(() => {
     handleExport({
       view: "banker",
-      page: 1,
-      limit: 10000,
       sortBy: sortBy || "createdAt",
       sortOrder: sortOrder || "desc",
       utr: toOptionalFilterValue(filters.utr || ""),
       utr_op: toOptionalFilterValue(filters.utr_op || ""),
       playerName: toOptionalFilterValue(filters.playerName || ""),
       playerName_op: toOptionalFilterValue(filters.playerName_op || ""),
-      bankName: toOptionalFilterValue(filters.bankName || ""),
-      bankName_op: toOptionalFilterValue(filters.bankName_op || ""),
       status: toOptionalFilterValue(filters.status || ""),
       amount: toOptionalFilterValue(filters.amount || ""),
       amount_to: toOptionalFilterValue(filters.amount_to || ""),
@@ -302,7 +287,6 @@ export function WithdrawalBankerClient() {
     try {
       const response = await userService.list({
         q: query || undefined,
-        page: 1,
         limit: 20,
         sortBy: "fullName",
         sortOrder: "asc",
@@ -334,7 +318,6 @@ export function WithdrawalBankerClient() {
   const loadLiabilityPersonOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {
       const res = await listLiabilityPersonsNormalized({
-        page: 1,
         limit: 25,
         q: query || undefined,
         sortBy: "name",
@@ -639,20 +622,11 @@ export function WithdrawalBankerClient() {
         operatorKey: "playerName_op",
       },
       {
-        field: "account",
-        label: "Destination Account",
-        minWidth: 200,
+        field: "beneficiary",
+        label: "Dest. account",
+        minWidth: 220,
         sortable: false,
-        filterType: "text" as const,
-        filterKey: "bankName",
-        operatorKey: "bankName_op",
-        filterPlaceholder: "Search bank...",
-        render: (row: WithdrawalRow) => (
-          <div className="text-sm">
-            <div className="font-mono text-xs">{row.accountNumber || "—"}</div>
-            <div className="text-xs text-gray-500">{row.bankName}</div>
-          </div>
-        ),
+        render: (row: WithdrawalRow) => <WithdrawalBeneficiaryCell row={row} />,
       },
       {
         field: "payableAmount",

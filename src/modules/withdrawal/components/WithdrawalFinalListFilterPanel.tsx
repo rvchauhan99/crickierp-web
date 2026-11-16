@@ -71,7 +71,6 @@ const HAS_AMENDMENT_OPTIONS = [
 const CHIP_LABELS: Partial<Record<WithdrawalFinalFilterKey | "q", string>> = {
   q: "Search",
   utr: "UTR",
-  bankName: "Bank name",
   playerName: "Player name",
   status: "Status",
   hasAmendment: "Amendments",
@@ -88,7 +87,6 @@ const SKIP_CHIP_KEYS = new Set<WithdrawalFinalFilterKey>([
   "payableAmount_to",
   "createdAt_to",
   "utr_op",
-  "bankName_op",
   "playerName_op",
   "amount_op",
   "payableAmount_op",
@@ -211,11 +209,10 @@ export function WithdrawalFinalListFilterPanel({
   const handleApply = useCallback(() => {
     if (debounceQRef.current) clearTimeout(debounceQRef.current);
     debounceQRef.current = null;
-    const textOps = fixedTextOperatorsForApply(local.utr, local.bankName, local.playerName);
+    const textOps = fixedTextOperatorsForApply(local.utr, local.playerName);
     const next = {
       ...emptyWithdrawalFinalFilters(),
       utr: local.utr,
-      bankName: local.bankName,
       playerName: local.playerName,
       ...textOps,
       status: local.status,
@@ -363,16 +360,6 @@ export function WithdrawalFinalListFilterPanel({
               placeholder="UTR reference"
               value={local.utr}
               onChange={(e: ChangeEvent<HTMLInputElement>) => handleChange("utr", e.target.value)}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs text-slate-600">Bank name (contains)</Label>
-            <Input
-              className="h-9 w-full text-sm"
-              placeholder="Bank label"
-              value={local.bankName}
-              onChange={(e: ChangeEvent<HTMLInputElement>) => handleChange("bankName", e.target.value)}
             />
           </div>
 

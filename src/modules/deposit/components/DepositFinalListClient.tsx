@@ -189,8 +189,6 @@ export function DepositFinalListClient() {
 
   const onExportClick = useCallback(() => {
     handleExport({
-      page: 1,
-      limit: 10000,
       sortBy: sortBy || "createdAt",
       sortOrder: sortOrder || "desc",
       q: toOptionalFilterValue(q || ""),
@@ -232,7 +230,7 @@ export function DepositFinalListClient() {
       const rows = await listPlayerLookupOptions({ q: query || undefined, limit: 20 });
       return rows.map((p) => ({
         value: p.id,
-        label: `${p.playerId}${p.phone ? ` · ${p.phone}` : ""}`,
+        label: String(p.playerId ?? ""),
       }));
     } catch {
       return [];

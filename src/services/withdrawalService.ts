@@ -176,12 +176,14 @@ export async function updateWithdrawal(id: string, input: Partial<WithdrawalCrea
 }
 
 export async function exportWithdrawals(params: Record<string, unknown>): Promise<Blob> {
+  const { page: _page, pageSize: _pageSize, limit: _limit, cursor: _cursor, ...rest } = params;
   const response = await apiClient.get("/withdrawal/export", {
     params: {
-      ...params,
+      ...rest,
       hasAmendment: toOptionalParam(str(params, "hasAmendment")) as "yes" | "no" | undefined,
     },
     responseType: "blob",
+    timeout: 60_000,
   });
   return response.data;
 }

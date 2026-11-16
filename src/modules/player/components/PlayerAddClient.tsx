@@ -130,7 +130,9 @@ export function PlayerAddClient() {
       const rows = await listPlayerLookupOptions({ q: query || undefined, limit: 25 });
       return rows.map((player) => ({
         value: player.id,
-        label: `${player.playerId} · ${player.phone} · ${player.exchangeName}`,
+        label: player.exchangeName
+          ? `${player.playerId} · ${player.exchangeName}`
+          : String(player.playerId ?? ""),
       }));
     } catch {
       return [];

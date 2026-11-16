@@ -620,7 +620,14 @@ function BankStatementPageInner() {
                         {formatDateTimeForUser(r.at)}
                       </td>
                       <td className="py-3 px-4">
-                        <div className="font-medium text-slate-800">{r.label}</div>
+                        <div className="font-medium text-slate-800 flex items-center gap-2 flex-wrap">
+                          <span>{r.label}</span>
+                          {r.kind === "deposit" && r.status && r.status !== "verified" && r.status !== "finalized" ? (
+                            <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                              {r.status === "not_settled" ? "Not settled" : r.status}
+                            </span>
+                          ) : null}
+                        </div>
                         {r.utr && <div className="text-[10px] text-slate-400 font-mono mt-0.5">UTR: {r.utr}</div>}
                         {r.bonusMemo && r.bonusMemo > 0 && (r.kind === "deposit" || r.kind === "withdrawal") && (
                           <div className="mt-1 text-[10px] text-amber-600 italic bg-amber-50 px-1.5 py-0.5 rounded inline-block">

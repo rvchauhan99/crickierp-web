@@ -39,6 +39,8 @@ import type { WithdrawalRow } from "@/types/withdrawal";
 import { withdrawalStatusApiParam } from "@/modules/withdrawal/withdrawalListingStatusFilter";
 import { WITHDRAWAL_FINAL_FILTER_KEYS } from "@/modules/withdrawal/withdrawalFinalListConstants";
 import { WithdrawalFinalListFilterPanel } from "@/modules/withdrawal/components/WithdrawalFinalListFilterPanel";
+import { WithdrawalBeneficiaryCell } from "@/modules/withdrawal/components/WithdrawalBeneficiaryCell";
+import { WithdrawalBeneficiaryBankBlock } from "@/modules/withdrawal/components/WithdrawalBeneficiaryBankBlock";
 import { canEditBusinessEntryDateTime } from "@/lib/roles";
 import {
   currentDateTimeLocalValue,
@@ -118,8 +120,6 @@ export function WithdrawalFinalListClient() {
       utr_op: toOptionalFilterValue(filters.utr_op || ""),
       playerName: toOptionalFilterValue(filters.playerName || ""),
       playerName_op: toOptionalFilterValue(filters.playerName_op || ""),
-      bankName: toOptionalFilterValue(filters.bankName || ""),
-      bankName_op: toOptionalFilterValue(filters.bankName_op || ""),
       status: withdrawalStatusApiParam(filters.status),
       hasAmendment: toOptionalFilterValue(filters.hasAmendment || ""),
       amount: toOptionalFilterValue(filters.amount || ""),
@@ -144,8 +144,6 @@ export function WithdrawalFinalListClient() {
   const onExportClick = useCallback(() => {
     handleExport({
       view: "final",
-      page: 1,
-      limit: 10000,
       sortBy: sortBy || "createdAt",
       sortOrder: sortOrder || "desc",
       q: toOptionalFilterValue(q || ""),
@@ -153,8 +151,6 @@ export function WithdrawalFinalListClient() {
       utr_op: toOptionalFilterValue(filters.utr_op || ""),
       playerName: toOptionalFilterValue(filters.playerName || ""),
       playerName_op: toOptionalFilterValue(filters.playerName_op || ""),
-      bankName: toOptionalFilterValue(filters.bankName || ""),
-      bankName_op: toOptionalFilterValue(filters.bankName_op || ""),
       status: withdrawalStatusApiParam(filters.status),
       hasAmendment: toOptionalFilterValue(filters.hasAmendment || ""),
       amount: toOptionalFilterValue(filters.amount || ""),
@@ -303,16 +299,11 @@ export function WithdrawalFinalListClient() {
         sortable: true,
       },
       {
-        field: "account",
-        label: "Origin Bank",
-        minWidth: 200,
+        field: "beneficiary",
+        label: "Beneficiary",
+        minWidth: 220,
         sortable: false,
-        render: (row: WithdrawalRow) => (
-          <div className="text-sm">
-            <div>{row.accountNumber || "—"}</div>
-            <div className="text-xs text-gray-500">{row.bankName}</div>
-          </div>
-        ),
+        render: (row: WithdrawalRow) => <WithdrawalBeneficiaryCell row={row} />,
       },
       {
         field: "payoutBankOrLp",
@@ -505,6 +496,8 @@ export function WithdrawalFinalListClient() {
                 )}
               </dl>
             </div>
+
+            <WithdrawalBeneficiaryBankBlock row={selectedWithdrawal} />
 
             {canAmend && selectedWithdrawal.status === "approved" && (
               <Button

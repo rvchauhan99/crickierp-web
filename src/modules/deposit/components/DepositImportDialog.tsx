@@ -55,8 +55,6 @@ export function DepositImportDialog({ open, onClose, onSuccess }: Props) {
     };
   }, []);
 
-  if (!open) return null;
-
   function reset() {
     setStep("upload");
     setFile(null);
@@ -77,6 +75,20 @@ export function DepositImportDialog({ open, onClose, onSuccess }: Props) {
     reset();
     onClose();
   }
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      handleClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open]);
+
+  if (!open) return null;
 
   async function handleDownloadSample(format: "csv" | "xlsx") {
     try {
@@ -240,7 +252,7 @@ export function DepositImportDialog({ open, onClose, onSuccess }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" role="dialog" aria-modal="true" aria-label="Import deposits">
       <div className="card w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col bg-white rounded-xl shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b px-6 py-4">

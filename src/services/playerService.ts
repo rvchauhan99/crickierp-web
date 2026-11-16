@@ -343,15 +343,11 @@ export async function listPlayersNormalized(params: Record<string, unknown>): Pr
 }
 
 export async function exportPlayers(params: Record<string, unknown>): Promise<Blob> {
-  const page = Number(params.page) || 1;
-  const limit = Number(params.limit) || 20;
   const sortBy = (str(params, "sortBy") || "createdAt") as "createdAt" | "playerId" | "phone" | "bonusPercentage";
   const sortOrder = str(params, "sortOrder") === "asc" ? "asc" : "desc";
 
   const response = await apiClient.get("/players/export", {
     params: {
-      page,
-      pageSize: limit,
       sortBy,
       sortOrder,
       search: toOptionalParam(str(params, "q")) || undefined,
@@ -371,6 +367,7 @@ export async function exportPlayers(params: Record<string, unknown>): Promise<Bl
       bonusPercentage_op: toOptionalParam(str(params, "bonusPercentage_op")),
     },
     responseType: "blob",
+    timeout: 60_000,
   });
   return response.data as Blob;
 }

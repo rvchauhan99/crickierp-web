@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FormContainer } from "@/components/common/FormContainer";
 import { FormGrid } from "@/components/common/FormGrid";
@@ -22,7 +22,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  
+
   // 2FA state
   const [requires2Fa, setRequires2Fa] = useState(false);
   const [tempToken, setTempToken] = useState("");
@@ -75,68 +75,98 @@ export default function LoginPage() {
     }
   }
 
+  function handleFormSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void onSubmit();
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
         <FormContainer title="Sign in" description={BRANDING.loginDescription}>
           {error && <div className="mb-4 text-sm text-red-500 font-medium">{error}</div>}
-          
-          {!requires2Fa ? (
-            <FormGrid>
-              <div className="md:col-span-2">
-                <FieldLabel>Username / Email</FieldLabel>
-                <Input placeholder="Enter username" value={username} onChange={(event) => setUsername(event.target.value)} disabled={loading} />
-              </div>
-              <div className="md:col-span-2">
-                <div className="flex justify-between">
-                  <FieldLabel>Password</FieldLabel>
-                  <Link href="/forgot-password" className="text-xs text-blue-600 hover:text-blue-800">
-                    Forgot password?
-                  </Link>
-                </div>
-                <div className="relative">
-                  <Input
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Enter password"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    disabled={loading}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {showPassword ? <IconEyeOff size={18} /> : <IconEye size={18} />}
-                  </button>
-                </div>
-              </div>
-            </FormGrid>
-          ) : (
-            <FormGrid>
-              <div className="md:col-span-2">
-                <FieldLabel>Two-Factor Authentication Code</FieldLabel>
-                <Input
-                  placeholder="Enter 6-digit code"
-                  value={code}
-                  maxLength={6}
-                  onChange={(event) => setCode(event.target.value)}
-                  disabled={loading}
-                />
-              </div>
-            </FormGrid>
-          )}
 
-          <div className="pt-4">
-            <Button className="w-full" onClick={onSubmit} disabled={loading || (!requires2Fa && (!username.trim() || !password.trim()))}>
-              {loading ? "Please wait..." : (requires2Fa ? "Verify Code" : "Login")}
-            </Button>
-            {requires2Fa && (
-              <Button variant="outline" className="w-full mt-2" onClick={() => setRequires2Fa(false)} disabled={loading}>
-                Back
-              </Button>
+          <form onSubmit={handleFormSubmit}>
+            {!requires2Fa ? (
+              <FormGrid>
+                <div className="md:col-span-2">
+                  <FieldLabel>Username / Email</FieldLabel>
+                  <Input
+                    placeholder="Enter username"
+                    value={username}
+                    onChange={(event) => setUsername(event.target.value)}
+                    disabled={loading}
+                    autoFocus
+                    autoComplete="username"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <div className="flex justify-between">
+                    <FieldLabel>Password</FieldLabel>
+                    <Link href="/forgot-password" className="text-xs text-blue-600 hover:text-blue-800">
+                      Forgot password?
+                    </Link>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Enter password"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      disabled={loading}
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <IconEyeOff size={18} /> : <IconEye size={18} />}
+                    </button>
+                  </div>
+                </div>
+              </FormGrid>
+            ) : (
+              <FormGrid>
+                <div className="md:col-span-2">
+                  <FieldLabel>Two-Factor Authentication Code</FieldLabel>
+                  <Input
+                    placeholder="Enter 6-digit code"
+                    value={code}
+                    maxLength={6}
+                    onChange={(event) => setCode(event.target.value)}
+                    disabled={loading}
+                    autoFocus
+                    autoComplete="one-time-code"
+                    inputMode="numeric"
+                  />
+                </div>
+              </FormGrid>
             )}
-          </div>
+
+            <div className="pt-4">
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={loading || (!requires2Fa && (!username.trim() || !password.trim()))}
+              >
+                {loading ? "Please wait..." : requires2Fa ? "Verify Code" : "Login"}
+              </Button>
+              {requires2Fa && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full mt-2"
+                  onClick={() => setRequires2Fa(false)}
+                  disabled={loading}
+                >
+                  Back
+                </Button>
+              )}
+            </div>
+          </form>
         </FormContainer>
         <p className="mt-8 text-center text-[13px] text-muted-foreground/80">
           {BRANDING.poweredByText} <br />

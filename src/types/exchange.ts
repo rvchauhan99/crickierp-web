@@ -113,8 +113,11 @@ export type ExchangeStatementResponse = {
   totalDepositOutflow: number;
   totalWithdrawalInflow: number;
   totalTopUpCredits: number;
+  totalTopUpDebits?: number;
   rows: ExchangeStatementRow[];
 };
+
+export type ExchangeTopupEntryType = "credit" | "debit";
 
 export type ExchangeTopupRow = {
   _id: string;
@@ -125,6 +128,7 @@ export type ExchangeTopupRow = {
     currentBalance?: number;
     openingBalance?: number;
   };
+  entryType?: ExchangeTopupEntryType;
   amount: number;
   operatedCurrency?: string;
   operatedAmount?: number;

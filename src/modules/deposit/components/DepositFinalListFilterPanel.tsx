@@ -193,7 +193,7 @@ export function DepositFinalListFilterPanel({
     const rows = await listPlayerLookupOptions({ q: query || undefined, limit: 20 });
     return rows.map((row) => ({
       value: row.id,
-      label: `${row.playerId}${row.phone ? ` · ${row.phone}` : ""}`,
+      label: String(row.playerId ?? ""),
     }));
   }, []);
 

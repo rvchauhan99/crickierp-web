@@ -33,6 +33,7 @@ function getInitialFilters(): DashboardFilters {
     date_from: dates.date_from || "", 
     date_to: dates.date_to || "",
     status: "all",
+    bank_status: "active",
     transaction_type: "all",
     player_id: "",
     bank_id: "",
@@ -69,7 +70,10 @@ export function DashboardContent() {
   const [recentActivity, setRecentActivity] = useState<RecentActivityItem[]>([]);
   const abortRef = useRef<AbortController | null>(null);
   const appliedFilterChips = [
-    filters.status !== "all" ? `Status: ${filters.status}` : "",
+    filters.status !== "all" ? `Txn: ${filters.status}` : "",
+    filters.bank_status && filters.bank_status !== "active"
+      ? `Banks: ${filters.bank_status === "deactive" ? "Inactive" : "All"}`
+      : "",
     filters.transaction_type !== "all" ? `Type: ${filters.transaction_type}` : "",
     filters.player_id ? "Player" : "",
     filters.bank_id ? "Bank" : "",
@@ -101,6 +105,7 @@ export function DashboardContent() {
         exchangeId: filters.exchange_id || undefined,
         subExchangeId: filters.sub_exchange_id || undefined,
         status: filters.status,
+        bankStatus: (filters.bank_status as "active" | "deactive" | "all") || "active",
         transactionType: filters.transaction_type,
         playerId: filters.player_id || undefined,
         bankId: filters.bank_id || undefined,
@@ -200,6 +205,7 @@ export function DashboardContent() {
       exchangeId: filters.exchange_id || undefined,
       subExchangeId: filters.sub_exchange_id || undefined,
       status: filters.status,
+      bankStatus: (filters.bank_status as "active" | "deactive" | "all") || "active",
       transactionType: filters.transaction_type,
       playerId: filters.player_id || undefined,
       bankId: filters.bank_id || undefined,

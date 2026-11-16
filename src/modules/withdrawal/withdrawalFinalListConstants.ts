@@ -2,8 +2,6 @@
 export const WITHDRAWAL_FINAL_FILTER_KEYS = [
   "utr",
   "utr_op",
-  "bankName",
-  "bankName_op",
   "playerName",
   "playerName_op",
   "status",

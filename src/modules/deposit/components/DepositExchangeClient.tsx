@@ -269,7 +269,7 @@ export function DepositExchangeClient() {
       return rows
         .map((p) => ({
           value: String(p.id || "").trim(),
-          label: `${p.playerId} · ${p.phone}`,
+          label: String(p.playerId ?? ""),
         }))
         .filter((o): o is AutocompleteOption => o.value.length > 0);
     } catch {
@@ -282,7 +282,6 @@ export function DepositExchangeClient() {
       try {
         const response = await userService.list({
           q: query || undefined,
-          page: 1,
           limit: 20,
           sortBy: "fullName",
           sortOrder: "asc",
@@ -346,8 +345,6 @@ export function DepositExchangeClient() {
 
   const onExportClick = useCallback(() => {
     handleExport({
-      page: 1,
-      limit: 10000,
       sortBy: sortBy || "createdAt",
       sortOrder: sortOrder || "desc",
       utr: toOptionalFilterValue(filters.utr || ""),
@@ -660,7 +657,6 @@ export function DepositExchangeClient() {
     void Promise.all([
       getPlayerBonusProfile(pid),
       listDepositsNormalized("exchange", {
-        page: 1,
         limit: 1,
         player: pid,
         status: "all",

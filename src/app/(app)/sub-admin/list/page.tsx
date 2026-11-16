@@ -12,6 +12,7 @@ import { userService } from "@/services/userService";
 import { tableColumnPresets } from "@/lib/tableStylePresets";
 import { useListingQueryStateReference } from "@/hooks/useListingQueryStateReference";
 import { formatDateTimeForUser } from "@/lib/userTimezone";
+import { useExport } from "@/hooks/useExport";
 
 const FILTER_KEYS = ["fullName", "fullName_op", "username", "username_op", "email", "email_op", "role", "status"];
 
@@ -27,7 +28,6 @@ export default function SubAdminListPage() {
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
-  const [exporting, setExporting] = useState(false);
 
   const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
 
@@ -41,30 +41,20 @@ export default function SubAdminListPage() {
     setSelectedRecord(null);
   }, []);
 
-  const handleExport = useCallback(async () => {
-    setExporting(true);
-    try {
-      const blob = await userService.exportUsers({
-        status: filters.status,
-        role: filters.role,
-        fullName: filters.fullName,
-        email: filters.email,
-        username: filters.username,
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `sub-admins-${new Date().toISOString().split("T")[0]}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch {
-      alert("Failed to export users");
-    } finally {
-      setExporting(false);
-    }
-  }, [filters]);
+  const { exporting, handleExport } = useExport(
+    (params) => userService.exportUsers(params),
+    { fileName: `sub-admins-${new Date().toISOString().split("T")[0]}.xlsx` },
+  );
+
+  const onExportClick = useCallback(() => {
+    handleExport({
+      status: filters.status,
+      role: filters.role,
+      fullName: filters.fullName,
+      email: filters.email,
+      username: filters.username,
+    });
+  }, [handleExport, filters]);
 
   const fetcher = useCallback(
     async (params: Record<string, unknown>) => {
@@ -173,7 +163,7 @@ export default function SubAdminListPage() {
         secondaryButtonLabel="Reset filters"
         onSecondaryClick={() => clearFilters()}
         exportButtonLabel="Export"
-        onExportClick={handleExport}
+        onExportClick={onExportClick}
         exportDisabled={exporting}
       >
         <PaginatedTableReference

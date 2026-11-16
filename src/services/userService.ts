@@ -25,9 +25,11 @@ export const userService = {
     return res.data;
   },
   exportUsers: async (params?: Record<string, any>) => {
+    const { page: _page, pageSize: _pageSize, limit: _limit, cursor: _cursor, ...rest } = params ?? {};
     const res = await apiClient.get("/users/export", {
-      params,
+      params: rest,
       responseType: "blob",
+      timeout: 60_000,
     });
     return res.data;
   },
