@@ -81,6 +81,10 @@ export type WithdrawalRow = {
   createdByName?: string;
   approvedBy?: string;
   approvedByName?: string;
+  /** Banker approve time (when status → approved). */
+  approvedAt?: string;
+  /** First close time (approved/rejected/finalized) for due-time freeze. */
+  resolvedAt?: string;
   amendmentCount?: number;
   lastAmendedAt?: string;
   lastAmendedBy?: unknown;
@@ -134,4 +138,52 @@ export type WithdrawalBulkApproveJobSummary = {
     failedRows: number;
   };
   errorSample: Array<{ withdrawalId: string; error: string }>;
+};
+
+export type BankerUtrUploadValidRow = {
+  withdrawalId: string;
+  utr: string;
+  payoutBankId: string;
+  row: number;
+};
+
+export type BankerUtrUploadSkippedRow = {
+  row: number;
+  withdrawalId: string;
+  status: string;
+  reason: string;
+};
+
+export type BankerUtrUploadInvalidRow = {
+  row: number;
+  withdrawalId: string;
+  utr: string;
+  payoutBank: string;
+  errors: string[];
+};
+
+export type BankerUtrUploadValidationResult = {
+  summary: { total: number; valid: number; skipped: number; invalid: number };
+  validRows: BankerUtrUploadValidRow[];
+  skippedRows: BankerUtrUploadSkippedRow[];
+  invalidRows: BankerUtrUploadInvalidRow[];
+};
+
+export type WithdrawalBankerUtrUploadJobSummary = {
+  id: string;
+  status: "queued" | "processing" | "completed" | "failed" | "cancelled";
+  createdBy: string;
+  createdAt: string;
+  startedAt?: string;
+  finishedAt?: string;
+  failureReason?: string;
+  progress: {
+    totalRows: number;
+    processedRows: number;
+    successRows: number;
+    failedRows: number;
+    skippedRows: number;
+  };
+  errorSample: Array<{ withdrawalId: string; error: string }>;
+  errorCsvAvailable: boolean;
 };

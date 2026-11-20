@@ -32,6 +32,7 @@ import {
   listWithdrawalsNormalized,
   updateWithdrawal,
   exportWithdrawals,
+  validateWithdrawalPlayerAccount,
 } from "@/services/withdrawalService";
 import { useExport } from "@/hooks/useExport";
 import { listPlayerLookupOptions } from "@/services/lookupService";
@@ -49,6 +50,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useOperatorEntryForm } from "@/hooks/useOperatorEntryForm";
 import { canEditBusinessEntryDateTime } from "@/lib/roles";
 import { currentDateTimeLocalValue, formatDateTimeForUser } from "@/lib/userTimezone";
+import { withdrawalDueTime } from "@/lib/formatDueTime";
 import { WithdrawalImportDialog } from "./WithdrawalImportDialog";
 import { WithdrawalBeneficiaryCell } from "./WithdrawalBeneficiaryCell";
 
@@ -107,20 +109,6 @@ function buildUserLabel(row: UserRow): string {
   return name || "";
 }
 
-function formatRelative(iso?: string): string {
-  if (!iso) return "—";
-  const t = new Date(iso).getTime();
-  if (Number.isNaN(t)) return "—";
-  const sec = Math.floor((Date.now() - t) / 1000);
-  if (sec < 60) return "Just now";
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min} min ago`;
-  const h = Math.floor(min / 60);
-  if (h < 48) return `${h} h ago`;
-  const days = Math.floor(h / 24);
-  return `${days} day${days === 1 ? "" : "s"} ago`;
-}
-
 export function WithdrawalExchangeClient() {
   const { formatWholeMoney } = useFormatMoney();
   const listingState = useListingQueryStateReference({
@@ -129,10 +117,12 @@ export function WithdrawalExchangeClient() {
   });
   const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setFilter, setSort, clearFilters } =
     listingState;
-  const { platformCurrency } = usePlatformSettings();
+  const { platformCurrency, withdrawalPlayerAccountLockMode } = usePlatformSettings();
   const { user } = useAuth();
   const canEditRequestedAt = canEditBusinessEntryDateTime(user?.role);
   const { formRef: entryRef, afterSuccessfulSave } = useOperatorEntryForm();
+  const strictPlayerAccountLock = withdrawalPlayerAccountLockMode === "strict_1to1";
+  const playerAccountLockEnabled = withdrawalPlayerAccountLockMode !== "off";
 
   const [playerId, setPlayerId] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
@@ -144,10 +134,12 @@ export function WithdrawalExchangeClient() {
   const [requestedAt, setRequestedAt] = useState(currentDateTimeLocalValue());
   const [savedPreset, setSavedPreset] = useState("");
   const [savedRows, setSavedRows] = useState<SavedWithdrawalAccount[]>([]);
-  /** Saved quick-select account → bank detail fields are locked (manual entry stays editable). */
-  const bankFieldsLocked = Boolean(savedPreset);
+  /** Strict 1:1 — player already has a locked non-rejected account. */
+  const [strictAccountLocked, setStrictAccountLocked] = useState(false);
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  /** Saved quick-select / strict lock → bank detail fields are locked (manual entry stays editable). */
+  const bankFieldsLocked = Boolean(savedPreset) || (strictAccountLocked && !editingId);
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
   const [totalCount, setTotalCount] = useState(0);
   const [tableKey, setTableKey] = useState(0);
@@ -206,20 +198,35 @@ export function WithdrawalExchangeClient() {
     if (!playerId) {
       setSavedRows([]);
       setSavedPreset("");
+      setStrictAccountLocked(false);
       return;
     }
     let cancelled = false;
     listSavedAccountsForPlayer(playerId)
       .then((rows) => {
-        if (!cancelled) setSavedRows(rows);
+        if (cancelled) return;
+        setSavedRows(rows);
+        if (strictPlayerAccountLock && rows.length > 0 && !editingId) {
+          const locked = rows[0];
+          setAccountNumber(locked.accountNumber);
+          setAccountHolderName(locked.accountHolderName);
+          setBankName(locked.bankName);
+          setIfsc(locked.ifsc);
+          setSavedPreset("0");
+          setStrictAccountLocked(true);
+        } else {
+          setStrictAccountLocked(false);
+        }
       })
       .catch(() => {
-        if (!cancelled) setSavedRows([]);
+        if (cancelled) return;
+        setSavedRows([]);
+        setStrictAccountLocked(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [playerId]);
+  }, [playerId, strictPlayerAccountLock, editingId]);
 
   useEffect(() => {
     if (!platformCurrency) return;
@@ -271,6 +278,22 @@ export function WithdrawalExchangeClient() {
 
     setLoading(true);
     try {
+      if (playerAccountLockEnabled) {
+        try {
+          await validateWithdrawalPlayerAccount({
+            playerId: playerId.trim(),
+            accountNumber: accountNumber.trim(),
+            ifsc: ifsc.trim(),
+            excludeWithdrawalId: editingId || undefined,
+          });
+        } catch (lockError: unknown) {
+          const msg = getApiErrorMessage(lockError, "This bank account cannot be used for this player.");
+          setErrors({ accountNumber: msg });
+          toast.error(msg);
+          return;
+        }
+      }
+
       if (editingId) {
         await updateWithdrawal(editingId, {
           accountNumber: accountNumber.trim(),
@@ -305,6 +328,7 @@ export function WithdrawalExchangeClient() {
       if (wasCreate) {
         setPlayerId("");
         setSavedRows([]);
+        setStrictAccountLocked(false);
       }
       setAccountNumber("");
       setAccountHolderName("");
@@ -318,7 +342,17 @@ export function WithdrawalExchangeClient() {
       setTableKey((k) => k + 1);
       if (wasCreate) afterSuccessfulSave();
     } catch (error: unknown) {
-      toast.error(getApiErrorMessage(error, editingId ? "Failed to update withdrawal" : "Failed to create withdrawal"));
+      const msg = getApiErrorMessage(
+        error,
+        editingId ? "Failed to update withdrawal" : "Failed to create withdrawal",
+      );
+      if (
+        msg.includes("already linked to another player") ||
+        msg.includes("already locked to a different withdrawal account")
+      ) {
+        setErrors({ accountNumber: msg });
+      }
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -356,6 +390,8 @@ export function WithdrawalExchangeClient() {
     setReverseBonus("0");
     setRequestedAt(currentDateTimeLocalValue());
     setSavedPreset("");
+    setSavedRows([]);
+    setStrictAccountLocked(false);
     setEditingId(null);
     setErrors({});
   };
@@ -508,7 +544,7 @@ export function WithdrawalExchangeClient() {
         label: "Due time",
         sortable: false,
         minWidth: 110,
-        render: (row: WithdrawalRow) => formatRelative(row.requestedAt ?? row.createdAt),
+        render: (row: WithdrawalRow) => withdrawalDueTime(row),
       },
       {
         field: "createdAt",
@@ -590,10 +626,15 @@ export function WithdrawalExchangeClient() {
             </div>
             {playerId || editingId ? (
               <div className="md:col-span-2 lg:col-span-1">
-                <FieldLabel>Quick select account (optional)</FieldLabel>
+                <FieldLabel>
+                  {strictAccountLocked && !editingId
+                    ? "Locked withdrawal account"
+                    : "Quick select account (optional)"}
+                </FieldLabel>
                 <Select
                   value={savedPreset}
                   onChange={(e) => {
+                    if (strictAccountLocked && !editingId) return;
                     const v = e.target.value;
                     setSavedPreset(v);
                     if (v === "") return;
@@ -606,9 +647,9 @@ export function WithdrawalExchangeClient() {
                     setIfsc(row.ifsc);
                   }}
                   placeholder="Choose saved account or enter manually below…"
-                  disabled={!!editingId}
+                  disabled={!!editingId || (strictAccountLocked && !editingId)}
                 >
-                  <option value="">Manual entry only</option>
+                  {strictAccountLocked && !editingId ? null : <option value="">Manual entry only</option>}
                   {savedRows.map((r, i) => (
                     <option key={`${r.accountNumber}-${r.ifsc}-${i}`} value={String(i)}>
                       {r.accountNumber} · {r.ifsc}

@@ -20,9 +20,41 @@ function formatCount(value: number) {
   return Number(value ?? 0).toLocaleString("en-IN");
 }
 
-function rowGrossPL(row: { depositVerified: number; withdrawalApproved: number; netBonus: number; grossPL?: number }) {
+function rowInAmount(row: { depositTotal?: number; depositVerified?: number }) {
+  if (typeof row.depositTotal === "number" && Number.isFinite(row.depositTotal)) return Number(row.depositTotal);
+  return Number(row.depositVerified ?? 0);
+}
+
+function rowInCount(row: { depositTotalCount?: number; depositVerifiedCount?: number }) {
+  if (typeof row.depositTotalCount === "number" && Number.isFinite(row.depositTotalCount)) {
+    return Number(row.depositTotalCount);
+  }
+  return Number(row.depositVerifiedCount ?? 0);
+}
+
+function rowOutAmount(row: { withdrawalTotal?: number; withdrawalApproved?: number }) {
+  if (typeof row.withdrawalTotal === "number" && Number.isFinite(row.withdrawalTotal)) return Number(row.withdrawalTotal);
+  return Number(row.withdrawalApproved ?? 0);
+}
+
+function rowOutCount(row: { withdrawalTotalCount?: number; withdrawalApprovedCount?: number }) {
+  if (typeof row.withdrawalTotalCount === "number" && Number.isFinite(row.withdrawalTotalCount)) {
+    return Number(row.withdrawalTotalCount);
+  }
+  return Number(row.withdrawalApprovedCount ?? 0);
+}
+
+/** Prefer API grossPL (total basis); fallback mirrors depositTotal − withdrawalTotal + netBonus. */
+function rowGrossPL(row: {
+  depositTotal?: number;
+  depositVerified?: number;
+  withdrawalTotal?: number;
+  withdrawalApproved?: number;
+  netBonus: number;
+  grossPL?: number;
+}) {
   if (typeof row.grossPL === "number" && Number.isFinite(row.grossPL)) return row.grossPL;
-  return Number(row.depositVerified ?? 0) - Number(row.withdrawalApproved ?? 0) + Number(row.netBonus ?? 0);
+  return rowInAmount(row) - rowOutAmount(row) + Number(row.netBonus ?? 0);
 }
 
 function StripCard({
@@ -70,10 +102,10 @@ export function DashboardExchangeSummary({
   const totals = useMemo(() => {
     return rows.reduce(
       (acc, ex) => ({
-        inAmount: acc.inAmount + Number(ex.depositVerified ?? 0),
-        inCount: acc.inCount + Number(ex.depositVerifiedCount ?? 0),
-        outAmount: acc.outAmount + Number(ex.withdrawalApproved ?? 0),
-        outCount: acc.outCount + Number(ex.withdrawalApprovedCount ?? 0),
+        inAmount: acc.inAmount + rowInAmount(ex),
+        inCount: acc.inCount + rowInCount(ex),
+        outAmount: acc.outAmount + rowOutAmount(ex),
+        outCount: acc.outCount + rowOutCount(ex),
         bonus: acc.bonus + Number(ex.netBonus ?? 0),
         grossPL: acc.grossPL + rowGrossPL(ex),
       }),
@@ -187,16 +219,16 @@ export function DashboardExchangeSummary({
                         </button>
                       </td>
                       <td className="px-3 py-2.5 text-right whitespace-nowrap tabular-nums text-emerald-700">
-                        {fmt(ex.depositVerified)}
+                        {fmt(rowInAmount(ex))}
                       </td>
                       <td className="px-3 py-2.5 text-right whitespace-nowrap tabular-nums text-slate-600">
-                        {formatCount(ex.depositVerifiedCount ?? 0)}
+                        {formatCount(rowInCount(ex))}
                       </td>
                       <td className="px-3 py-2.5 text-right whitespace-nowrap tabular-nums text-rose-700">
-                        {fmt(-Math.abs(ex.withdrawalApproved))}
+                        {fmt(-Math.abs(rowOutAmount(ex)))}
                       </td>
                       <td className="px-3 py-2.5 text-right whitespace-nowrap tabular-nums text-slate-600">
-                        {formatCount(ex.withdrawalApprovedCount ?? 0)}
+                        {formatCount(rowOutCount(ex))}
                       </td>
                       <td className="px-3 py-2.5 text-right whitespace-nowrap tabular-nums text-sky-800">
                         {fmt(ex.netBonus)}
@@ -222,16 +254,16 @@ export function DashboardExchangeSummary({
                                 {sub.name}
                               </td>
                               <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums text-emerald-700">
-                                {fmt(sub.depositVerified)}
+                                {fmt(rowInAmount(sub))}
                               </td>
                               <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums text-slate-600">
-                                {formatCount(sub.depositVerifiedCount ?? 0)}
+                                {formatCount(rowInCount(sub))}
                               </td>
                               <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums text-rose-700">
-                                {fmt(-Math.abs(sub.withdrawalApproved))}
+                                {fmt(-Math.abs(rowOutAmount(sub)))}
                               </td>
                               <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums text-slate-600">
-                                {formatCount(sub.withdrawalApprovedCount ?? 0)}
+                                {formatCount(rowOutCount(sub))}
                               </td>
                               <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums text-sky-800">
                                 {fmt(sub.netBonus)}

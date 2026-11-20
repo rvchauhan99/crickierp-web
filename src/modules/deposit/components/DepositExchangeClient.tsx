@@ -48,6 +48,7 @@ import { REASON_TYPES } from "@/lib/constants/reasonTypes";
 import { useFormatMoney } from "@/hooks/useFormatMoney";
 import { useApprovalQueueAutoRefresh } from "@/hooks/useApprovalQueueAutoRefresh";
 import { formatDateTimeForUser } from "@/lib/userTimezone";
+import { depositDueTime } from "@/lib/formatDueTime";
 
 const COLUMN_FILTER_KEYS = [
   "utr",
@@ -71,20 +72,6 @@ const COLUMN_FILTER_KEYS = [
 function toOptionalFilterValue(value: string): string | undefined {
   const trimmed = value.trim();
   return trimmed === "" ? undefined : trimmed;
-}
-
-function formatRelative(iso?: string): string {
-  if (!iso) return "—";
-  const t = new Date(iso).getTime();
-  if (Number.isNaN(t)) return "—";
-  const sec = Math.floor((Date.now() - t) / 1000);
-  if (sec < 60) return "Just now";
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min} min ago`;
-  const h = Math.floor(min / 60);
-  if (h < 48) return `${h} h ago`;
-  const days = Math.floor(h / 24);
-  return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
 function bonusAmountFromPercent(depositAmount: number, percent: number): string {
@@ -123,6 +110,12 @@ function DepositDetailCard({ deposit }: { deposit: DepositRow }) {
   const { formatWholeMoney } = useFormatMoney();
   const items: DepositDetailItem[] = [
     {
+      icon: <IconUser className="size-4 shrink-0 text-[var(--brand-primary)]" />,
+      label: "Player ID",
+      value: deposit.playerIdLabel || "—",
+      mono: true,
+    },
+    {
       icon: <IconCreditCard className="size-4 shrink-0 text-[var(--brand-primary)]" />,
       label: "Bank holder",
       value: deposit.bankName || "—",
@@ -141,7 +134,7 @@ function DepositDetailCard({ deposit }: { deposit: DepositRow }) {
     {
       icon: <IconClock className="size-4 shrink-0 text-[var(--brand-primary)]" />,
       label: "Due time",
-      value: formatRelative(deposit.entryAt ?? deposit.createdAt),
+      value: depositDueTime(deposit),
     },
     {
       icon: <IconClock className="size-4 shrink-0 text-gray-400" />,
@@ -725,6 +718,18 @@ export function DepositExchangeClient() {
         },
       },
       {
+        field: "player",
+        label: "Player ID",
+        render: (row: DepositRow) =>
+          row.playerIdLabel ? (
+            <span className="font-mono text-xs">{row.playerIdLabel}</span>
+          ) : (
+            "—"
+          ),
+        minWidth: 120,
+        sortable: false,
+      },
+      {
         field: "bankName",
         label: "Bank holder",
         render: (row: DepositRow) => row.bankName,
@@ -784,7 +789,7 @@ export function DepositExchangeClient() {
         sortable: false,
         minWidth: 110,
         render: (row: DepositRow) => (
-          <span className="text-xs text-gray-500">{formatRelative(row.entryAt ?? row.createdAt)}</span>
+          <span className="text-xs text-gray-500">{depositDueTime(row)}</span>
         ),
       },
       {
@@ -1011,6 +1016,7 @@ export function DepositExchangeClient() {
         }
         onClose={closeSidebar}
         width="400px"
+        focusKey={selectedDeposit?.id ?? null}
       >
         {selectedDeposit && (
           <div className="flex flex-col gap-4">
@@ -1093,6 +1099,7 @@ export function DepositExchangeClient() {
                 startIcon={<IconClock size={16} />}
                 disabled={!canMarkNotSettledOnSelection}
                 onClick={() => void onMarkNotSettled()}
+                skipTab
                 className="w-full justify-center"
               >
                 Mark Not Settled
@@ -1113,6 +1120,7 @@ export function DepositExchangeClient() {
                   setRejectReasonId("");
                   setRejectRemark("");
                 }}
+                skipTab
                 className="w-full justify-center"
               >
                 Reject
@@ -1122,6 +1130,7 @@ export function DepositExchangeClient() {
                 variant="secondary"
                 startIcon={<IconRefresh size={16} />}
                 onClick={closeSidebar}
+                skipTab
                 className="w-full justify-center"
               >
                 Clear selection
