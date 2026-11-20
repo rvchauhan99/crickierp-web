@@ -6,9 +6,9 @@ import { IconChartDonut } from "@tabler/icons-react";
 import { useFormatMoney } from "@/hooks/useFormatMoney";
 
 export type PLDonutSummary = {
-  deposit: { verifiedAmount: number };
-  withdrawal: { approvedAmount: number };
-  expense: { approvedAmount: number };
+  deposit: { totalAmount: number; verifiedAmount?: number };
+  withdrawal: { totalAmount: number; approvedAmount?: number };
+  expense: { totalAmount: number; approvedAmount?: number };
 };
 
 interface Props {
@@ -17,7 +17,7 @@ interface Props {
 }
 
 const COLORS = ["#15803d", "#c62828", "#c27803"];
-const SEGMENTS = ["Deposits (Verified)", "Withdrawals (Approved)", "Expenses (Approved)"];
+const SEGMENTS = ["Deposits", "Withdrawals", "Expenses"];
 
 const CustomTooltip = ({
   active,
@@ -44,9 +44,9 @@ const CustomTooltip = ({
 export function DashboardPLDonut({ summary, loading }: Props) {
   const { formatMoney } = useFormatMoney();
   const fmt = (value: number) => formatMoney(value, { includeSign: true });
-  const depositsVal = summary?.deposit?.verifiedAmount ?? 0;
-  const withdrawalsVal = summary?.withdrawal?.approvedAmount ?? 0;
-  const expensesVal = summary?.expense?.approvedAmount ?? 0;
+  const depositsVal = summary?.deposit?.totalAmount ?? 0;
+  const withdrawalsVal = summary?.withdrawal?.totalAmount ?? 0;
+  const expensesVal = summary?.expense?.totalAmount ?? 0;
 
   const pieData = [
     { name: SEGMENTS[0], value: depositsVal, fill: COLORS[0] },
@@ -62,7 +62,7 @@ export function DashboardPLDonut({ summary, loading }: Props) {
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/50 rounded-t-xl">
         <div>
           <h3 className="font-semibold text-slate-800 text-sm">Distribution Breakdown</h3>
-          <p className="text-[11px] text-slate-400 mt-0.5">Settled amounts by category</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Including pending</p>
         </div>
         <div className="p-1.5 bg-slate-100 rounded-lg">
           <IconChartDonut className="w-4 h-4 text-slate-400" />
@@ -88,8 +88,8 @@ export function DashboardPLDonut({ summary, loading }: Props) {
             <div className="w-12 h-12 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center mb-3">
               <IconChartDonut className="w-6 h-6 text-slate-300" />
             </div>
-            <p className="text-sm font-medium text-slate-400">No settled data</p>
-            <p className="text-xs text-slate-300 mt-1">Approved transactions will appear here</p>
+            <p className="text-sm font-medium text-slate-400">No data</p>
+            <p className="text-xs text-slate-300 mt-1">Transactions will appear here</p>
           </div>
         ) : (
           <>

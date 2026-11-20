@@ -45,11 +45,14 @@ import { listLiabilityPersonsNormalized } from "@/services/liabilityService";
 import { userService } from "@/services/userService";
 import type { WithdrawalBankerPayoutInput, WithdrawalBulkApproveJobSummary, WithdrawalRow } from "@/types/withdrawal";
 import { formatDateTimeForUser } from "@/lib/userTimezone";
+import { withdrawalDueTime } from "@/lib/formatDueTime";
 import { useApprovalQueueAutoRefresh } from "@/hooks/useApprovalQueueAutoRefresh";
 import { usePlatformSettings } from "@/context/PlatformSettingsContext";
 import { isImportReadyWithdrawal } from "@/modules/withdrawal/withdrawalImportReady";
 import { WithdrawalBeneficiaryCell } from "./WithdrawalBeneficiaryCell";
 import { WithdrawalBeneficiaryBankBlock } from "./WithdrawalBeneficiaryBankBlock";
+import { WithdrawalBankerUtrUploadDialog } from "./WithdrawalBankerUtrUploadDialog";
+import { Select } from "@/components/ui/Select";
 
 const COLUMN_FILTER_KEYS = [
   "utr",
@@ -83,20 +86,6 @@ function buildUserLabel(row: UserRow): string {
   const un = row.username?.trim();
   if (fn && un) return `${fn} (${un})`;
   return fn || un || "";
-}
-
-function formatRelative(iso?: string): string {
-  if (!iso) return "—";
-  const t = new Date(iso).getTime();
-  if (Number.isNaN(t)) return "—";
-  const sec = Math.floor((Date.now() - t) / 1000);
-  if (sec < 60) return "Just now";
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min} min ago`;
-  const h = Math.floor(min / 60);
-  if (h < 48) return `${h} h ago`;
-  const days = Math.floor(h / 24);
-  return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
 // ─── Detail card for sidebar ──────────────────────────────────────────────
@@ -198,7 +187,12 @@ export function WithdrawalBankerClient() {
     fileName: `withdrawals-banker-${new Date().toISOString().split("T")[0]}.xlsx`,
   });
 
+  const [exportStatus, setExportStatus] = useState<"pending" | "approved" | "rejected" | "all">("pending");
+  const [utrUploadOpen, setUtrUploadOpen] = useState(false);
+
   const onExportClick = useCallback(() => {
+    const statusForApi =
+      exportStatus === "pending" ? "requested" : exportStatus === "all" ? "all" : exportStatus;
     handleExport({
       view: "banker",
       sortBy: sortBy || "createdAt",
@@ -207,7 +201,7 @@ export function WithdrawalBankerClient() {
       utr_op: toOptionalFilterValue(filters.utr_op || ""),
       playerName: toOptionalFilterValue(filters.playerName || ""),
       playerName_op: toOptionalFilterValue(filters.playerName_op || ""),
-      status: toOptionalFilterValue(filters.status || ""),
+      status: statusForApi,
       amount: toOptionalFilterValue(filters.amount || ""),
       amount_to: toOptionalFilterValue(filters.amount_to || ""),
       amount_op: toOptionalFilterValue(filters.amount_op || ""),
@@ -217,7 +211,7 @@ export function WithdrawalBankerClient() {
       createdAt_to: toOptionalFilterValue(filters.createdAt_to || ""),
       createdAt_op: toOptionalFilterValue(filters.createdAt_op || ""),
     });
-  }, [handleExport, filters, sortBy, sortOrder]);
+  }, [handleExport, filters, sortBy, sortOrder, exportStatus]);
 
   const [totalCount, setTotalCount] = useState(0);
   const [tableKey, setTableKey] = useState(0);
@@ -692,7 +686,7 @@ export function WithdrawalBankerClient() {
         sortable: false,
         minWidth: 110,
         render: (row: WithdrawalRow) => (
-          <span className="text-xs text-gray-500">{formatRelative(row.requestedAt ?? row.createdAt)}</span>
+          <span className="text-xs text-gray-500">{withdrawalDueTime(row)}</span>
         ),
       },
       {
@@ -745,10 +739,12 @@ export function WithdrawalBankerClient() {
         exportButtonLabel="Export"
         onExportClick={onExportClick}
         exportDisabled={exporting}
+        importButtonLabel="Upload UTRs"
+        onImportClick={() => setUtrUploadOpen(true)}
       >
         <div className="flex min-h-0 flex-1 flex-col">
-          {/* Auto-refresh toggle */}
-          <div className="mb-3 flex shrink-0 items-center gap-2">
+          {/* Auto-refresh toggle + export status */}
+          <div className="mb-3 flex shrink-0 flex-wrap items-center gap-3">
             <button
               type="button"
               onClick={() => setAutoRefresh(!autoRefresh)}
@@ -759,6 +755,21 @@ export function WithdrawalBankerClient() {
             <span className="text-xs font-medium text-gray-600">
               Auto Refresh {autoRefresh ? <span className="text-green-600">(every 10s)</span> : "(off)"}
             </span>
+            <div className="flex items-center gap-2">
+              <FieldLabel className="mb-0 text-xs text-gray-600">Export status</FieldLabel>
+              <Select
+                value={exportStatus}
+                onChange={(e) =>
+                  setExportStatus(e.target.value as "pending" | "approved" | "rejected" | "all")
+                }
+                className="h-8 w-[140px] text-xs"
+              >
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+                <option value="all">All</option>
+              </Select>
+            </div>
           </div>
 
           {!selectedWithdrawal && (
@@ -848,6 +859,7 @@ export function WithdrawalBankerClient() {
         subtitle={selectedWithdrawal ? `Player: ${selectedWithdrawal.playerName}` : undefined}
         onClose={closeSidebar}
         width="400px"
+        focusKey={selectedWithdrawal?.id ?? null}
       >
         {selectedWithdrawal && (
           <div className="flex flex-col gap-6">
@@ -942,6 +954,7 @@ export function WithdrawalBankerClient() {
                     setRejectRemark("");
                   }}
                   disabled={selectedWithdrawal.status !== "requested" || actionLoading}
+                  skipTab
                   className="w-full justify-center"
                 >
                   Reject
@@ -950,6 +963,7 @@ export function WithdrawalBankerClient() {
                   variant="secondary"
                   startIcon={<IconRefresh size={18} />}
                   onClick={closeSidebar}
+                  skipTab
                   className="w-full justify-center"
                 >
                   Clear Selection
@@ -1057,6 +1071,15 @@ export function WithdrawalBankerClient() {
           </div>
         </div>
       )}
+
+      <WithdrawalBankerUtrUploadDialog
+        open={utrUploadOpen}
+        onClose={() => setUtrUploadOpen(false)}
+        onSuccess={() => {
+          setTableKey((k) => k + 1);
+          setBulkSelection({});
+        }}
+      />
 
       <ConfirmSensitiveActionDialog
         title="Reject withdrawal"

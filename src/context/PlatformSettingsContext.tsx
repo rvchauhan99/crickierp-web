@@ -1,7 +1,11 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { settingsService, type PlatformSettings } from "@/services/settingsService";
+import {
+  settingsService,
+  type PlatformSettings,
+  type WithdrawalPlayerAccountLockMode,
+} from "@/services/settingsService";
 import { useAuth } from "@/context/AuthContext";
 
 type PlatformSettingsContextValue = {
@@ -12,6 +16,8 @@ type PlatformSettingsContextValue = {
   currencyConversionEnabled: boolean;
   /** Default true while loading so liability nav does not flash-hide on enabled deploys. */
   liabilityModuleEnabled: boolean;
+  /** Default off when settings not loaded yet (matches API default). */
+  withdrawalPlayerAccountLockMode: WithdrawalPlayerAccountLockMode;
   refresh: () => Promise<void>;
   setCurrency: (currency: string) => Promise<PlatformSettings>;
 };
@@ -51,18 +57,24 @@ export function PlatformSettingsProvider({ children }: { children: ReactNode }) 
   }, []);
 
   const value = useMemo<PlatformSettingsContextValue>(
-    () => ({
-      settings,
-      isLoading,
-      platformCurrency: settings?.platformCurrency ?? null,
-      isCurrencyLocked: Boolean(settings?.isLocked),
-      // Default false when settings not loaded yet (matches API default).
-      currencyConversionEnabled: settings?.currencyConversionEnabled === true,
-      // Default true until loaded (matches API default) to avoid flash-hiding liability nav.
-      liabilityModuleEnabled: settings == null ? true : settings.liabilityModuleEnabled !== false,
-      refresh,
-      setCurrency,
-    }),
+    () => {
+      const lockMode = settings?.withdrawalPlayerAccountLockMode;
+      const withdrawalPlayerAccountLockMode: WithdrawalPlayerAccountLockMode =
+        lockMode === "account_ownership" || lockMode === "strict_1to1" ? lockMode : "off";
+      return {
+        settings,
+        isLoading,
+        platformCurrency: settings?.platformCurrency ?? null,
+        isCurrencyLocked: Boolean(settings?.isLocked),
+        // Default false when settings not loaded yet (matches API default).
+        currencyConversionEnabled: settings?.currencyConversionEnabled === true,
+        // Default true until loaded (matches API default) to avoid flash-hiding liability nav.
+        liabilityModuleEnabled: settings == null ? true : settings.liabilityModuleEnabled !== false,
+        withdrawalPlayerAccountLockMode,
+        refresh,
+        setCurrency,
+      };
+    },
     [settings, isLoading, refresh, setCurrency],
   );
 

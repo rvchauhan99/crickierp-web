@@ -1,11 +1,13 @@
 import { normalizeDateTimeInputForApi } from "@/lib/userTimezone";
 import { apiClient } from "./apiClient";
 import type {
+  BankerUtrUploadValidationResult,
   BulkBankerApproveResult,
   SavedWithdrawalAccount,
   WithdrawalAmendInput,
   WithdrawalAmendmentEntry,
   WithdrawalBankerPayoutInput,
+  WithdrawalBankerUtrUploadJobSummary,
   WithdrawalCreateInput,
   WithdrawalBulkApproveJobSummary,
   WithdrawalImportJobSummary,
@@ -137,6 +139,8 @@ export function normalizeWithdrawal(row: Record<string, unknown>): WithdrawalRow
     status,
     createdAt: row.createdAt != null ? String(row.createdAt) : undefined,
     updatedAt: row.updatedAt != null ? String(row.updatedAt) : undefined,
+    approvedAt: row.approvedAt != null ? String(row.approvedAt) : undefined,
+    resolvedAt: row.resolvedAt != null ? String(row.resolvedAt) : undefined,
     createdBy: createdByRef.id,
     createdByName:
       row.createdByName != null ? String(row.createdByName) : createdByRef.label,
@@ -173,6 +177,19 @@ export async function createWithdrawal(input: WithdrawalCreateInput): Promise<un
 export async function updateWithdrawal(id: string, input: Partial<WithdrawalCreateInput>): Promise<unknown> {
   const response = await apiClient.patch<{ success: boolean; data: unknown }>(`/withdrawal/${id}`, input);
   return response.data?.data;
+}
+
+export async function validateWithdrawalPlayerAccount(input: {
+  playerId: string;
+  accountNumber: string;
+  ifsc: string;
+  excludeWithdrawalId?: string;
+}): Promise<{ ok: true }> {
+  const response = await apiClient.post<{ success: boolean; data: { ok: true } }>(
+    "/withdrawal/validate-player-account",
+    input,
+  );
+  return response.data?.data ?? { ok: true };
 }
 
 export async function exportWithdrawals(params: Record<string, unknown>): Promise<Blob> {
@@ -581,6 +598,143 @@ export async function streamWithdrawalImportJobEvents(
         const eventData = JSON.parse(dataLine) as {
           jobId: string;
           status: WithdrawalImportJobSummary["status"];
+          totalRows: number;
+          processedRows: number;
+          successRows: number;
+          failedRows: number;
+          skippedRows: number;
+          message?: string;
+        };
+        onProgress({
+          id: eventData.jobId,
+          status: eventData.status,
+          createdBy: "",
+          createdAt: new Date().toISOString(),
+          failureReason: eventData.message,
+          progress: {
+            totalRows: eventData.totalRows,
+            processedRows: eventData.processedRows,
+            successRows: eventData.successRows,
+            failedRows: eventData.failedRows,
+            skippedRows: eventData.skippedRows,
+          },
+          errorSample: [],
+          errorCsvAvailable: false,
+        });
+      } catch {
+        // Ignore malformed events.
+      }
+    }
+  };
+
+  void (async () => {
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        processChunk(decoder.decode(value, { stream: true }));
+      }
+    } catch {
+      // Caller handles fallback polling.
+    }
+  })();
+
+  return () => controller.abort();
+}
+
+export async function downloadBankerUtrUploadSample(format: "csv" | "xlsx" = "xlsx"): Promise<Blob> {
+  const response = await apiClient.get(`/withdrawal/banker-utr-upload/sample?format=${format}`, {
+    responseType: "blob",
+  });
+  return response.data;
+}
+
+export async function validateBankerUtrUpload(file: File): Promise<BankerUtrUploadValidationResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await apiClient.post<{ success: boolean; data: BankerUtrUploadValidationResult }>(
+    "/withdrawal/banker-utr-upload/validate",
+    formData,
+    { headers: { "Content-Type": "multipart/form-data" }, timeout: 120_000 },
+  );
+  return response.data.data;
+}
+
+export async function createBankerUtrUploadJob(
+  rows: Array<{ withdrawalId: string; utr: string; payoutBankId: string }>,
+): Promise<{ jobId: string; status: string }> {
+  const response = await apiClient.post<{ success: boolean; data: { jobId: string; status: string } }>(
+    "/withdrawal/banker-utr-upload/jobs",
+    { rows },
+    { timeout: 60_000 },
+  );
+  return response.data.data;
+}
+
+export async function getBankerUtrUploadJob(jobId: string): Promise<WithdrawalBankerUtrUploadJobSummary> {
+  const response = await apiClient.get<{ success: boolean; data: WithdrawalBankerUtrUploadJobSummary }>(
+    `/withdrawal/banker-utr-upload/jobs/${encodeURIComponent(jobId)}`,
+    { timeout: 30_000 },
+  );
+  return response.data.data;
+}
+
+export async function downloadBankerUtrUploadJobErrorCsv(
+  jobId: string,
+): Promise<{ blob: Blob; fileName: string }> {
+  const response = await apiClient.get<Blob>(
+    `/withdrawal/banker-utr-upload/jobs/${encodeURIComponent(jobId)}/errors.csv`,
+    { responseType: "blob" },
+  );
+  const contentDisposition = String(response.headers["content-disposition"] ?? "");
+  const fileName =
+    parseDispositionFileName(contentDisposition) ?? `withdrawal-banker-utr-upload-errors-${jobId}.csv`;
+  return { blob: response.data, fileName };
+}
+
+export async function streamBankerUtrUploadJobEvents(
+  jobId: string,
+  onProgress: (payload: WithdrawalBankerUtrUploadJobSummary) => void,
+): Promise<() => void> {
+  const token = getAccessToken();
+  if (!token) {
+    throw new Error("Missing access token for realtime updates");
+  }
+
+  const controller = new AbortController();
+  const response = await fetch(
+    `${apiClient.defaults.baseURL}/withdrawal/banker-utr-upload/jobs/${encodeURIComponent(jobId)}/events`,
+    {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+      credentials: "include",
+    },
+  );
+  if (!response.ok || !response.body) {
+    throw new Error("Unable to connect to UTR upload progress stream");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+  const processChunk = (chunk: string) => {
+    buffer += chunk;
+    const parts = buffer.split("\n\n");
+    buffer = parts.pop() ?? "";
+    for (const part of parts) {
+      const lines = part.split("\n");
+      let eventName = "message";
+      let dataLine = "";
+      for (const line of lines) {
+        if (line.startsWith("event:")) eventName = line.slice(6).trim();
+        if (line.startsWith("data:")) dataLine += line.slice(5).trim();
+      }
+      if (eventName !== "progress" || !dataLine) continue;
+      try {
+        const eventData = JSON.parse(dataLine) as {
+          jobId: string;
+          status: WithdrawalBankerUtrUploadJobSummary["status"];
           totalRows: number;
           processedRows: number;
           successRows: number;

@@ -47,6 +47,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useOperatorEntryForm } from "@/hooks/useOperatorEntryForm";
 import { canEditBusinessEntryDateTime } from "@/lib/roles";
 import { currentDateTimeLocalValue, formatDateTimeForUser } from "@/lib/userTimezone";
+import { depositDueTime } from "@/lib/formatDueTime";
 
 const COLUMN_FILTER_KEYS = [
   "utr",
@@ -65,20 +66,6 @@ const COLUMN_FILTER_KEYS = [
 function toOptionalFilterValue(value: string): string | undefined {
   const trimmed = value.trim();
   return trimmed === "" ? undefined : trimmed;
-}
-
-function formatRelative(iso?: string): string {
-  if (!iso) return "—";
-  const t = new Date(iso).getTime();
-  if (Number.isNaN(t)) return "—";
-  const sec = Math.floor((Date.now() - t) / 1000);
-  if (sec < 60) return "Just now";
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min} min ago`;
-  const h = Math.floor(min / 60);
-  if (h < 48) return `${h} h ago`;
-  const days = Math.floor(h / 24);
-  return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
 
@@ -454,7 +441,7 @@ export function DepositBankerClient() {
         label: "Due time",
         sortable: false,
         minWidth: 120,
-        render: (row: DepositRow) => formatRelative(row.entryAt ?? row.createdAt),
+        render: (row: DepositRow) => depositDueTime(row),
       },
       {
         field: "createdAt",

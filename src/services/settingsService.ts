@@ -1,5 +1,7 @@
 import { apiClient } from "./apiClient";
 
+export type WithdrawalPlayerAccountLockMode = "off" | "account_ownership" | "strict_1to1";
+
 export type PlatformSettings = {
   platformCurrency: string | null;
   currencyLockedAt: string | null;
@@ -10,6 +12,11 @@ export type PlatformSettings = {
   supportedCurrencies: string[];
   /** When false, liability module and person settlement are off. */
   liabilityModuleEnabled: boolean;
+  /**
+   * Withdrawal player↔account lock for this deploy.
+   * off | account_ownership | strict_1to1
+   */
+  withdrawalPlayerAccountLockMode?: WithdrawalPlayerAccountLockMode;
 };
 
 export const settingsService = {

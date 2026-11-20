@@ -28,7 +28,14 @@ export function WithdrawalBeneficiaryBankBlock({ row, title = "Beneficiary bank"
     <div className="rounded-lg border border-[var(--border)] bg-slate-50 p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
         <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">{title}</p>
-        <Button type="button" variant="ghost" size="xs" startIcon={<IconCopy size={14} />} onClick={() => void onCopy()}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="xs"
+          startIcon={<IconCopy size={14} />}
+          onClick={() => void onCopy()}
+          skipTab
+        >
           Copy
         </Button>
       </div>
