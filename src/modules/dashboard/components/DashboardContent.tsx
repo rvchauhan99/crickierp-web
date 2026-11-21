@@ -25,6 +25,16 @@ import { formatYyyyMmDdInTimeZone, resolveUserTimeZone } from "@/lib/userTimezon
 import { reportService } from "@/services/reportService";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/Button";
+import { Select } from "@/components/ui/Select";
+
+const AUTO_REFRESH_INTERVALS = [5, 10, 15, 30, 60] as const;
+type AutoRefreshIntervalSec = (typeof AUTO_REFRESH_INTERVALS)[number];
+
+function isAbortError(e: unknown): boolean {
+  if (!e || typeof e !== "object") return false;
+  const err = e as { name?: string; code?: string };
+  return err.name === "AbortError" || err.name === "CanceledError" || err.code === "ERR_CANCELED";
+}
 
 function getInitialFilters(): DashboardFilters {
   const preset = DATE_PRESETS.find((p) => p.label === DEFAULT_PRESET);
@@ -68,7 +78,10 @@ export function DashboardContent() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [trendData, setTrendData] = useState<TrendDataPoint[]>([]);
   const [recentActivity, setRecentActivity] = useState<RecentActivityItem[]>([]);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [refreshIntervalSec, setRefreshIntervalSec] = useState<AutoRefreshIntervalSec>(30);
   const abortRef = useRef<AbortController | null>(null);
+  const inFlightRef = useRef(false);
   const appliedFilterChips = [
     filters.status !== "all" ? `Txn: ${filters.status}` : "",
     filters.bank_status && filters.bank_status !== "active"
@@ -93,10 +106,14 @@ export function DashboardContent() {
   });
   const todayBoth = isToday(filters.date_from) && isToday(filters.date_to);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent === true;
+    if (silent && inFlightRef.current) return;
+
     if (abortRef.current) abortRef.current.abort();
     abortRef.current = new AbortController();
-    setLoading(true);
+    inFlightRef.current = true;
+    if (!silent) setLoading(true);
 
     try {
       const res = await reportService.dashboardSummary({
@@ -152,12 +169,15 @@ export function DashboardContent() {
       setTrendData(Array.isArray(data.trendData) ? data.trendData : []);
       setRecentActivity(Array.isArray(data.recentActivity) ? data.recentActivity : []);
     } catch (err: unknown) {
-      if (err instanceof Error && err.name === "CanceledError") return;
-      setSummary(null);
-      setTrendData([]);
-      setRecentActivity([]);
+      if (isAbortError(err)) return;
+      if (!silent) {
+        setSummary(null);
+        setTrendData([]);
+        setRecentActivity([]);
+      }
     } finally {
-      setLoading(false);
+      inFlightRef.current = false;
+      if (!silent) setLoading(false);
     }
   }, [
     filters.date_from,
@@ -165,6 +185,7 @@ export function DashboardContent() {
     filters.exchange_id,
     filters.sub_exchange_id,
     filters.status,
+    filters.bank_status,
     filters.transaction_type,
     filters.player_id,
     filters.bank_id,
@@ -174,9 +195,17 @@ export function DashboardContent() {
   ]);
 
   useEffect(() => {
-    fetchData();
+    void fetchData();
     return () => abortRef.current?.abort();
   }, [fetchData, refreshToken]);
+
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = setInterval(() => {
+      void fetchData({ silent: true });
+    }, refreshIntervalSec * 1000);
+    return () => clearInterval(interval);
+  }, [autoRefresh, refreshIntervalSec, fetchData]);
 
   const handlePreset = (preset: (typeof DATE_PRESETS)[0]) => {
     const dates = preset.fn();
@@ -243,7 +272,46 @@ export function DashboardContent() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 no-print">
+        <div className="flex flex-wrap items-center gap-3 no-print">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setAutoRefresh((v) => !v)}
+              aria-pressed={autoRefresh}
+              aria-label="Toggle auto refresh"
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${autoRefresh ? "bg-green-500" : "bg-gray-300"}`}
+            >
+              <span
+                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${autoRefresh ? "translate-x-[18px]" : "translate-x-[3px]"}`}
+              />
+            </button>
+            <span className="text-xs font-medium text-gray-600 whitespace-nowrap">
+              Auto Refresh{" "}
+              {autoRefresh ? (
+                <span className="text-green-600">(every {refreshIntervalSec}s)</span>
+              ) : (
+                "(off)"
+              )}
+            </span>
+            <Select
+              aria-label="Auto refresh interval seconds"
+              value={String(refreshIntervalSec)}
+              disabled={!autoRefresh}
+              onChange={(e) => {
+                const next = Number(e.target.value);
+                if ((AUTO_REFRESH_INTERVALS as readonly number[]).includes(next)) {
+                  setRefreshIntervalSec(next as AutoRefreshIntervalSec);
+                }
+              }}
+              className="h-8 w-[4.5rem] px-2 text-xs"
+            >
+              {AUTO_REFRESH_INTERVALS.map((sec) => (
+                <option key={sec} value={sec}>
+                  {sec}s
+                </option>
+              ))}
+            </Select>
+          </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
