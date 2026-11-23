@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   IconCheck,
@@ -52,6 +52,10 @@ import {
   seedBankerRowDraft,
   type BankerRowDraft,
 } from "@/modules/withdrawal/withdrawalBankerRowDraft";
+import {
+  withdrawalStatusApiParam,
+  withdrawalStatusColumnSelectValue,
+} from "@/modules/withdrawal/withdrawalListingStatusFilter";
 import { WithdrawalBeneficiaryBankBlock } from "./WithdrawalBeneficiaryBankBlock";
 import { WithdrawalBankerRowActions } from "./WithdrawalBankerRowActions";
 import { WithdrawalBankerUtrUploadDialog } from "./WithdrawalBankerUtrUploadDialog";
@@ -62,6 +66,7 @@ const COLUMN_FILTER_KEYS = [
   "utr_op",
   "playerName",
   "playerName_op",
+  "status",
   "amount",
   "amount_to",
   "amount_op",
@@ -158,7 +163,13 @@ export function WithdrawalBankerClient() {
   const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setFilter, setSort, clearFilters } =
     listingState;
 
-  const withdrawalTableColumnFilterValues = useMemo(() => ({ ...filters }), [filters]);
+  const withdrawalTableColumnFilterValues = useMemo(
+    () => ({
+      ...filters,
+      status: withdrawalStatusColumnSelectValue(filters.status),
+    }),
+    [filters],
+  );
 
   const withdrawalTableFilterParams = useMemo(
     () => ({
@@ -166,7 +177,7 @@ export function WithdrawalBankerClient() {
       utr_op: toOptionalFilterValue(filters.utr_op || ""),
       playerName: toOptionalFilterValue(filters.playerName || ""),
       playerName_op: toOptionalFilterValue(filters.playerName_op || ""),
-      status: toOptionalFilterValue(filters.status || ""),
+      status: withdrawalStatusApiParam(filters.status),
       amount: toOptionalFilterValue(filters.amount || ""),
       amount_to: toOptionalFilterValue(filters.amount_to || ""),
       amount_op: toOptionalFilterValue(filters.amount_op || ""),
@@ -181,6 +192,10 @@ export function WithdrawalBankerClient() {
 
   const handleWithdrawalColumnFilterChange = useCallback(
     (key: string, value: string) => {
+      if (key === "status" && value === "") {
+        setFilter("status", "all");
+        return;
+      }
       setFilter(key, value);
     },
     [setFilter],
@@ -249,30 +264,18 @@ export function WithdrawalBankerClient() {
   const [bankAutocompleteDefault, setBankAutocompleteDefault] = useState<AutocompleteOption | null>(null);
   const [liabilityPersonId, setLiabilityPersonId] = useState("");
   const [payoutPersonAutocompleteDefault, setPayoutPersonAutocompleteDefault] = useState<AutocompleteOption | null>(null);
-  const [defaultBankHint, setDefaultBankHint] = useState<AutocompleteOption | null>(null);
   const [rowDrafts, setRowDrafts] = useState<Record<string, BankerRowDraft>>({});
-  const hasConsumedInitialListMetaRef = useRef(false);
 
   useEffect(() => {
     if (!liabilityModuleEnabled) setPayoutSettlementType("bank");
   }, [liabilityModuleEnabled]);
 
   const withdrawalBankerFetcher = useCallback(async (params: Record<string, unknown>) => {
-    const res = await listWithdrawalsNormalized("banker", params);
-    if (!hasConsumedInitialListMetaRef.current) {
-      hasConsumedInitialListMetaRef.current = true;
-      const hint = res.meta.lastBankerPayout;
-      if (hint?.bankId) {
-        const opt = { value: hint.bankId, label: hint.bankName };
-        setDefaultBankHint(opt);
-        setBankId((prev) => prev || hint.bankId);
-        setBankAutocompleteDefault((prev) => prev ?? opt);
-      }
-    }
-    return res;
+    return listWithdrawalsNormalized("banker", params);
   }, []);
 
   const [utr, setUtr] = useState("");
+  const [narration, setNarration] = useState("");
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
   const [rejectReasonId, setRejectReasonId] = useState("");
@@ -284,17 +287,17 @@ export function WithdrawalBankerClient() {
     (row: WithdrawalRow): BankerRowDraft => {
       const existing = rowDrafts[row.id];
       if (existing) return existing;
-      return seedBankerRowDraft(row, defaultBankHint);
+      return seedBankerRowDraft(row);
     },
-    [rowDrafts, defaultBankHint],
+    [rowDrafts],
   );
 
   const patchRowDraft = useCallback((rowId: string, row: WithdrawalRow, patch: Partial<BankerRowDraft>) => {
     setRowDrafts((prev) => {
-      const base = prev[rowId] ?? seedBankerRowDraft(row, defaultBankHint);
+      const base = prev[rowId] ?? seedBankerRowDraft(row);
       return { ...prev, [rowId]: { ...base, ...patch } };
     });
-  }, [defaultBankHint]);
+  }, []);
 
   const loadUserOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {
@@ -346,16 +349,22 @@ export function WithdrawalBankerClient() {
   const closeSidebar = useCallback(() => {
     setSelectedWithdrawal(null);
     setPayoutSettlementType("bank");
+    setBankId("");
+    setBankAutocompleteDefault(null);
     setLiabilityPersonId("");
     setPayoutPersonAutocompleteDefault(null);
     setUtr("");
+    setNarration("");
     setErrors({});
   }, []);
 
   const applyDraftToSidebar = useCallback((draft: BankerRowDraft) => {
     setUtr(draft.utr);
+    setNarration(draft.narration);
     setPayoutSettlementType(draft.payoutSettlementType);
     if (draft.payoutSettlementType === "person") {
+      setBankId("");
+      setBankAutocompleteDefault(null);
       setLiabilityPersonId(draft.liabilityPersonId);
       setPayoutPersonAutocompleteDefault(
         draft.liabilityPersonId
@@ -365,13 +374,13 @@ export function WithdrawalBankerClient() {
     } else {
       setBankId(draft.bankId);
       setBankAutocompleteDefault(
-        draft.bankId ? { value: draft.bankId, label: draft.bankLabel || draft.bankId } : defaultBankHint,
+        draft.bankId ? { value: draft.bankId, label: draft.bankLabel || draft.bankId } : null,
       );
       setLiabilityPersonId("");
       setPayoutPersonAutocompleteDefault(null);
     }
     setErrors({});
-  }, [defaultBankHint]);
+  }, []);
 
   const openDetails = useCallback(
     (row: WithdrawalRow) => {
@@ -572,11 +581,17 @@ export function WithdrawalBankerClient() {
 
       const body: WithdrawalBankerPayoutInput =
         draft.payoutSettlementType === "bank"
-          ? { payoutSettlementType: "bank", bankId: draft.bankId.trim(), utr: draft.utr.trim() }
+          ? {
+              payoutSettlementType: "bank",
+              bankId: draft.bankId.trim(),
+              utr: draft.utr.trim(),
+              narration: draft.narration.trim(),
+            }
           : {
               payoutSettlementType: "person",
               liabilityPersonId: draft.liabilityPersonId.trim(),
               utr: draft.utr.trim(),
+              narration: draft.narration.trim(),
             };
 
       setActionLoadingId(row.id);
@@ -603,6 +618,7 @@ export function WithdrawalBankerClient() {
     if (!selectedWithdrawal) return;
     const draft: BankerRowDraft = {
       utr,
+      narration,
       payoutSettlementType,
       bankId,
       bankLabel: bankAutocompleteDefault?.label,
@@ -660,6 +676,30 @@ export function WithdrawalBankerClient() {
       withBankerFilters: true,
       loadUserOptions,
     }).map((col) => {
+      if (col.field === "narration") {
+        return {
+          ...col,
+          minWidth: 160,
+          render: (row: WithdrawalRow) => {
+            if (row.status !== "requested") {
+              return <span className="text-xs">{row.narration?.trim() || "—"}</span>;
+            }
+            const draft = getRowDraft(row);
+            return (
+              <div data-no-row-click onClick={(e) => e.stopPropagation()} className="min-w-[140px]">
+                <Input
+                  className="h-8 text-xs"
+                  value={draft.narration}
+                  placeholder="Narration"
+                  maxLength={500}
+                  onChange={(e) => patchRowDraft(row.id, row, { narration: e.target.value })}
+                  disabled={actionLoadingId === row.id}
+                />
+              </div>
+            );
+          },
+        };
+      }
       if (col.field === "utr") {
         return {
           ...col,
@@ -711,8 +751,8 @@ export function WithdrawalBankerClient() {
                         payoutSettlementType: mode,
                         ...(mode === "bank"
                           ? {
-                              bankId: draft.bankId || defaultBankHint?.value || "",
-                              bankLabel: draft.bankLabel || defaultBankHint?.label,
+                              bankId: draft.bankId || "",
+                              bankLabel: draft.bankLabel,
                             }
                           : {}),
                       });
@@ -754,12 +794,12 @@ export function WithdrawalBankerClient() {
                       })
                     }
                     loadOptions={loadBankOptions}
-                    placeholder="Payout bank..."
+                    placeholder="Search bank (last 4 / name / account)..."
                     emptyText="No banks"
                     defaultOption={
                       draft.bankId
                         ? { value: draft.bankId, label: draft.bankLabel || draft.bankId }
-                        : defaultBankHint
+                        : null
                     }
                     disabled={actionLoadingId === row.id}
                   />
@@ -837,7 +877,6 @@ export function WithdrawalBankerClient() {
     loadLiabilityPersonOptions,
     getRowDraft,
     patchRowDraft,
-    defaultBankHint,
     actionLoadingId,
     bulkSelection,
     toggleBulkSelection,
@@ -1025,6 +1064,25 @@ export function WithdrawalBankerClient() {
                 </div>
               </div>
 
+              <div className="space-y-1">
+                <FieldLabel className="mb-1 text-xs text-muted-foreground">Narration</FieldLabel>
+                <Input
+                  className="h-9 text-sm"
+                  value={narration}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setNarration(value);
+                    patchRowDraft(selectedWithdrawal.id, selectedWithdrawal, { narration: value });
+                  }}
+                  placeholder="Optional note"
+                  maxLength={500}
+                  disabled={
+                    selectedWithdrawal.status !== "requested" ||
+                    actionLoadingId === selectedWithdrawal.id
+                  }
+                />
+              </div>
+
               {payoutSettlementType === "bank" || !liabilityModuleEnabled ? (
                 <div className="space-y-1">
                   <FieldLabel className="mb-1 text-xs text-muted-foreground">Company payout bank *</FieldLabel>
@@ -1039,7 +1097,7 @@ export function WithdrawalBankerClient() {
                       });
                     }}
                     loadOptions={loadBankOptions}
-                    placeholder="Select bank..."
+                    placeholder="Search bank (last 4 / name / account)..."
                     emptyText="No banks found"
                     defaultOption={bankAutocompleteDefault}
                     disabled={

@@ -5,8 +5,8 @@ export type WithdrawalStatus = "requested" | "approved" | "rejected" | "finalize
 export type WithdrawalPayoutSettlementType = "bank" | "person";
 
 export type WithdrawalBankerPayoutInput =
-  | { payoutSettlementType: "bank"; bankId: string; utr: string }
-  | { payoutSettlementType: "person"; liabilityPersonId: string; utr: string };
+  | { payoutSettlementType: "bank"; bankId: string; utr: string; narration?: string }
+  | { payoutSettlementType: "person"; liabilityPersonId: string; utr: string; narration?: string };
 
 export type WithdrawalCreateInput = {
   playerId: string;
@@ -77,6 +77,8 @@ export type WithdrawalRow = {
   /** Company bank account number from populated `payoutBankId` (Excel "Payout Bank"). */
   payoutBankAccountNumber?: string;
   utr?: string;
+  /** Optional free-text note from banker at payout. */
+  narration?: string;
   requestedAt?: string;
   status: WithdrawalStatus;
   createdAt?: string;

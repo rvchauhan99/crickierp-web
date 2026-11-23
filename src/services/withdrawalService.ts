@@ -154,6 +154,7 @@ export function normalizeWithdrawal(row: Record<string, unknown>): WithdrawalRow
     payoutBankName: row.payoutBankName != null ? String(row.payoutBankName) : undefined,
     payoutBankAccountNumber: payoutBankAccountNumber || undefined,
     utr: row.utr != null ? String(row.utr) : undefined,
+    narration: row.narration != null ? String(row.narration) : undefined,
     requestedAt: row.requestedAt != null ? String(row.requestedAt) : undefined,
     status,
     createdAt: row.createdAt != null ? String(row.createdAt) : undefined,
