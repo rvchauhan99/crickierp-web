@@ -26,14 +26,11 @@ export function buildWithdrawalBankerExcelListColumns(
 
   const cols: PaginatedTableReferenceColumn[] = [
     {
-      field: "id",
-      label: "Withdrawal ID",
+      field: "narration",
+      label: "Narration",
       sortable: false,
-      minWidth: 160,
-      maxWidth: 220,
-      render: (row: WithdrawalRow) => (
-        <span className="font-mono text-xs break-all">{row.id || "—"}</span>
-      ),
+      minWidth: 140,
+      render: (row: WithdrawalRow) => row.narration?.trim() || "—",
     },
     {
       field: "playerId",
