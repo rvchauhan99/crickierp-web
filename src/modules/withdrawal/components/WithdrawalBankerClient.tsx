@@ -26,7 +26,6 @@ import PaginationControlsReference from "@/components/common/PaginationControlsR
 import { TableStatusBadge } from "@/components/common/TableStatusBadge";
 import { DetailsSidebar } from "@/components/common/DetailsSidebar";
 import { useListingQueryStateReference } from "@/hooks/useListingQueryStateReference";
-import { tableColumnPresets } from "@/lib/tableStylePresets";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { REASON_TYPES } from "@/lib/constants/reasonTypes";
 import { useFormatMoney } from "@/hooks/useFormatMoney";
@@ -45,12 +44,16 @@ import { listLiabilityPersonsNormalized } from "@/services/liabilityService";
 import { userService } from "@/services/userService";
 import type { WithdrawalBankerPayoutInput, WithdrawalBulkApproveJobSummary, WithdrawalRow } from "@/types/withdrawal";
 import { formatDateTimeForUser } from "@/lib/userTimezone";
-import { withdrawalDueTime } from "@/lib/formatDueTime";
 import { useApprovalQueueAutoRefresh } from "@/hooks/useApprovalQueueAutoRefresh";
 import { usePlatformSettings } from "@/context/PlatformSettingsContext";
 import { isImportReadyWithdrawal } from "@/modules/withdrawal/withdrawalImportReady";
-import { WithdrawalBeneficiaryCell } from "./WithdrawalBeneficiaryCell";
+import { buildWithdrawalBankerExcelListColumns } from "@/modules/withdrawal/withdrawalBankerExcelListColumns";
+import {
+  seedBankerRowDraft,
+  type BankerRowDraft,
+} from "@/modules/withdrawal/withdrawalBankerRowDraft";
 import { WithdrawalBeneficiaryBankBlock } from "./WithdrawalBeneficiaryBankBlock";
+import { WithdrawalBankerRowActions } from "./WithdrawalBankerRowActions";
 import { WithdrawalBankerUtrUploadDialog } from "./WithdrawalBankerUtrUploadDialog";
 import { Select } from "@/components/ui/Select";
 
@@ -246,12 +249,9 @@ export function WithdrawalBankerClient() {
   const [bankAutocompleteDefault, setBankAutocompleteDefault] = useState<AutocompleteOption | null>(null);
   const [liabilityPersonId, setLiabilityPersonId] = useState("");
   const [payoutPersonAutocompleteDefault, setPayoutPersonAutocompleteDefault] = useState<AutocompleteOption | null>(null);
-  const bankIdRef = useRef("");
+  const [defaultBankHint, setDefaultBankHint] = useState<AutocompleteOption | null>(null);
+  const [rowDrafts, setRowDrafts] = useState<Record<string, BankerRowDraft>>({});
   const hasConsumedInitialListMetaRef = useRef(false);
-
-  useEffect(() => {
-    bankIdRef.current = bankId;
-  }, [bankId]);
 
   useEffect(() => {
     if (!liabilityModuleEnabled) setPayoutSettlementType("bank");
@@ -262,9 +262,11 @@ export function WithdrawalBankerClient() {
     if (!hasConsumedInitialListMetaRef.current) {
       hasConsumedInitialListMetaRef.current = true;
       const hint = res.meta.lastBankerPayout;
-      if (hint?.bankId && bankIdRef.current === "") {
-        setBankId(hint.bankId);
-        setBankAutocompleteDefault({ value: hint.bankId, label: hint.bankName });
+      if (hint?.bankId) {
+        const opt = { value: hint.bankId, label: hint.bankName };
+        setDefaultBankHint(opt);
+        setBankId((prev) => prev || hint.bankId);
+        setBankAutocompleteDefault((prev) => prev ?? opt);
       }
     }
     return res;
@@ -272,10 +274,27 @@ export function WithdrawalBankerClient() {
 
   const [utr, setUtr] = useState("");
   const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
   const [rejectReasonId, setRejectReasonId] = useState("");
   const [rejectRemark, setRejectRemark] = useState("");
-  const [actionLoading, setActionLoading] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [errors, setErrors] = useState<{ bankId?: string; liabilityPersonId?: string; utr?: string }>({});
+
+  const getRowDraft = useCallback(
+    (row: WithdrawalRow): BankerRowDraft => {
+      const existing = rowDrafts[row.id];
+      if (existing) return existing;
+      return seedBankerRowDraft(row, defaultBankHint);
+    },
+    [rowDrafts, defaultBankHint],
+  );
+
+  const patchRowDraft = useCallback((rowId: string, row: WithdrawalRow, patch: Partial<BankerRowDraft>) => {
+    setRowDrafts((prev) => {
+      const base = prev[rowId] ?? seedBankerRowDraft(row, defaultBankHint);
+      return { ...prev, [rowId]: { ...base, ...patch } };
+    });
+  }, [defaultBankHint]);
 
   const loadUserOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
     try {
@@ -330,38 +349,39 @@ export function WithdrawalBankerClient() {
     setLiabilityPersonId("");
     setPayoutPersonAutocompleteDefault(null);
     setUtr("");
-    setRejectOpen(false);
-    setRejectReasonId("");
-    setRejectRemark("");
     setErrors({});
   }, []);
 
-  const handleRowClick = useCallback((row: unknown) => {
-    const r = row as WithdrawalRow;
-    setSelectedWithdrawal(r);
-    if (isImportReadyWithdrawal(r)) {
-      setUtr(r.utr?.trim() || "");
-      const mode = r.payoutSettlementType === "person" ? "person" : "bank";
-      setPayoutSettlementType(mode);
-      if (mode === "bank" && r.payoutBankId?.trim()) {
-        setBankId(r.payoutBankId.trim());
-        setBankAutocompleteDefault({
-          value: r.payoutBankId.trim(),
-          label: r.payoutBankName?.trim() || r.payoutBankId.trim(),
-        });
-        setLiabilityPersonId("");
-        setPayoutPersonAutocompleteDefault(null);
-      } else if (mode === "person" && r.payoutLiabilityPersonId?.trim()) {
-        setLiabilityPersonId(r.payoutLiabilityPersonId.trim());
-        setPayoutPersonAutocompleteDefault({
-          value: r.payoutLiabilityPersonId.trim(),
-          label: r.payoutLiabilityPersonName?.trim() || r.payoutLiabilityPersonId.trim(),
-        });
-      }
+  const applyDraftToSidebar = useCallback((draft: BankerRowDraft) => {
+    setUtr(draft.utr);
+    setPayoutSettlementType(draft.payoutSettlementType);
+    if (draft.payoutSettlementType === "person") {
+      setLiabilityPersonId(draft.liabilityPersonId);
+      setPayoutPersonAutocompleteDefault(
+        draft.liabilityPersonId
+          ? { value: draft.liabilityPersonId, label: draft.liabilityPersonLabel || draft.liabilityPersonId }
+          : null,
+      );
     } else {
-      setUtr("");
+      setBankId(draft.bankId);
+      setBankAutocompleteDefault(
+        draft.bankId ? { value: draft.bankId, label: draft.bankLabel || draft.bankId } : defaultBankHint,
+      );
+      setLiabilityPersonId("");
+      setPayoutPersonAutocompleteDefault(null);
     }
-  }, []);
+    setErrors({});
+  }, [defaultBankHint]);
+
+  const openDetails = useCallback(
+    (row: WithdrawalRow) => {
+      const draft = getRowDraft(row);
+      setRowDrafts((prev) => (prev[row.id] ? prev : { ...prev, [row.id]: draft }));
+      setSelectedWithdrawal(row);
+      applyDraftToSidebar(draft);
+    },
+    [getRowDraft, applyDraftToSidebar],
+  );
 
   const handleVisibleRowsChange = useCallback((rows: unknown[]) => {
     setVisibleRows(rows as WithdrawalRow[]);
@@ -530,63 +550,247 @@ export function WithdrawalBankerClient() {
     return isImportReadyWithdrawal(row as WithdrawalRow) ? "bg-green-50/90" : undefined;
   }, []);
 
+  const approveFromDraft = useCallback(
+    async (row: WithdrawalRow, draft: BankerRowDraft, opts?: { fromSidebar?: boolean }) => {
+      const next: typeof errors = {};
+      if (draft.payoutSettlementType === "bank" && !draft.bankId.trim()) {
+        next.bankId = "Payout bank is required.";
+      }
+      if (draft.payoutSettlementType === "person" && !draft.liabilityPersonId.trim()) {
+        next.liabilityPersonId = "Liability person is required.";
+      }
+      if (!draft.utr.trim()) next.utr = "UTR reference is required.";
+
+      if (Object.keys(next).length > 0) {
+        if (opts?.fromSidebar) setErrors(next);
+        else {
+          const msg = next.utr || next.bankId || next.liabilityPersonId || "Missing payout fields.";
+          toast.error(msg);
+        }
+        return;
+      }
+
+      const body: WithdrawalBankerPayoutInput =
+        draft.payoutSettlementType === "bank"
+          ? { payoutSettlementType: "bank", bankId: draft.bankId.trim(), utr: draft.utr.trim() }
+          : {
+              payoutSettlementType: "person",
+              liabilityPersonId: draft.liabilityPersonId.trim(),
+              utr: draft.utr.trim(),
+            };
+
+      setActionLoadingId(row.id);
+      try {
+        await updateWithdrawalBankerPayout(row.id, body);
+        toast.success("Payout recorded successfully.");
+        setRowDrafts((prev) => {
+          const nextDrafts = { ...prev };
+          delete nextDrafts[row.id];
+          return nextDrafts;
+        });
+        if (selectedWithdrawal?.id === row.id) closeSidebar();
+        setTableKey((k) => k + 1);
+      } catch (error: unknown) {
+        toast.error(getApiErrorMessage(error, "Failed to record payout"));
+      } finally {
+        setActionLoadingId(null);
+      }
+    },
+    [closeSidebar, selectedWithdrawal?.id],
+  );
+
   const onPayoutSubmit = async () => {
     if (!selectedWithdrawal) return;
-    const next: typeof errors = {};
-    if (payoutSettlementType === "bank" && !bankId.trim()) next.bankId = "Payout bank is required.";
-    if (payoutSettlementType === "person" && !liabilityPersonId.trim()) {
-      next.liabilityPersonId = "Liability person is required.";
-    }
-    if (!utr.trim()) next.utr = "UTR reference is required.";
-    setErrors(next);
-    if (Object.keys(next).length > 0) return;
-
-    const body: WithdrawalBankerPayoutInput =
-      payoutSettlementType === "bank"
-        ? { payoutSettlementType: "bank", bankId: bankId.trim(), utr: utr.trim() }
-        : { payoutSettlementType: "person", liabilityPersonId: liabilityPersonId.trim(), utr: utr.trim() };
-
-    setActionLoading(true);
-    try {
-      await updateWithdrawalBankerPayout(selectedWithdrawal.id, body);
-      toast.success("Payout recorded successfully.");
-      closeSidebar();
-      setTableKey((k) => k + 1);
-    } catch (error: unknown) {
-      toast.error(getApiErrorMessage(error, "Failed to record payout"));
-    } finally {
-      setActionLoading(false);
-    }
+    const draft: BankerRowDraft = {
+      utr,
+      payoutSettlementType,
+      bankId,
+      bankLabel: bankAutocompleteDefault?.label,
+      liabilityPersonId,
+      liabilityPersonLabel: payoutPersonAutocompleteDefault?.label,
+    };
+    setRowDrafts((prev) => ({ ...prev, [selectedWithdrawal.id]: draft }));
+    await approveFromDraft(selectedWithdrawal, draft, { fromSidebar: true });
   };
 
+  const openRejectForRow = useCallback((rowId: string) => {
+    setRejectTargetId(rowId);
+    setRejectOpen(true);
+    setRejectReasonId("");
+    setRejectRemark("");
+  }, []);
+
   const onRejectSubmit = async () => {
-    if (!selectedWithdrawal) return;
+    const targetId = rejectTargetId || selectedWithdrawal?.id;
+    if (!targetId) return;
     if (!rejectReasonId.trim()) {
       toast.error("Select a rejection reason.");
       return;
     }
-    setActionLoading(true);
+    setActionLoadingId(targetId);
     try {
-      await patchWithdrawalStatus(selectedWithdrawal.id, {
+      await patchWithdrawalStatus(targetId, {
         status: "rejected",
         reasonId: rejectReasonId.trim(),
         remark: rejectRemark.trim() || undefined,
       });
       toast.success("Withdrawal rejected.");
       setRejectOpen(false);
+      setRejectTargetId(null);
       setRejectReasonId("");
       setRejectRemark("");
-      closeSidebar();
+      setRowDrafts((prev) => {
+        const nextDrafts = { ...prev };
+        delete nextDrafts[targetId];
+        return nextDrafts;
+      });
+      if (selectedWithdrawal?.id === targetId) closeSidebar();
       setTableKey((k) => k + 1);
     } catch (error: unknown) {
       toast.error(getApiErrorMessage(error, "Failed to reject withdrawal"));
     } finally {
-      setActionLoading(false);
+      setActionLoadingId(null);
     }
   };
 
-  const columns = useMemo<PaginatedTableReferenceColumn[]>(
-    () => [
+  const columns = useMemo<PaginatedTableReferenceColumn[]>(() => {
+    const base = buildWithdrawalBankerExcelListColumns({
+      liabilityModuleEnabled,
+      formatWholeMoney,
+      withBankerFilters: true,
+      loadUserOptions,
+    }).map((col) => {
+      if (col.field === "utr") {
+        return {
+          ...col,
+          minWidth: 160,
+          render: (row: WithdrawalRow) => {
+            if (row.status !== "requested") {
+              return <span className="font-mono text-xs">{row.utr?.trim() || "—"}</span>;
+            }
+            const draft = getRowDraft(row);
+            return (
+              <div data-no-row-click onClick={(e) => e.stopPropagation()} className="min-w-[140px]">
+                <Input
+                  className="h-8 font-mono text-xs"
+                  value={draft.utr}
+                  placeholder="UTR"
+                  onChange={(e) => patchRowDraft(row.id, row, { utr: e.target.value })}
+                  disabled={actionLoadingId === row.id}
+                />
+              </div>
+            );
+          },
+        };
+      }
+      if (col.field === "payoutBankAccountNumber") {
+        return {
+          ...col,
+          minWidth: liabilityModuleEnabled ? 220 : 180,
+          render: (row: WithdrawalRow) => {
+            if (row.status !== "requested") {
+              return (
+                <span className="font-mono text-xs">{row.payoutBankAccountNumber?.trim() || "—"}</span>
+              );
+            }
+            const draft = getRowDraft(row);
+            return (
+              <div
+                data-no-row-click
+                onClick={(e) => e.stopPropagation()}
+                className="flex min-w-[160px] flex-col gap-1"
+              >
+                {liabilityModuleEnabled ? (
+                  <select
+                    className="h-7 rounded-md border border-[var(--border)] bg-white px-2 text-xs"
+                    value={draft.payoutSettlementType}
+                    disabled={actionLoadingId === row.id}
+                    onChange={(e) => {
+                      const mode = e.target.value === "person" ? "person" : "bank";
+                      patchRowDraft(row.id, row, {
+                        payoutSettlementType: mode,
+                        ...(mode === "bank"
+                          ? {
+                              bankId: draft.bankId || defaultBankHint?.value || "",
+                              bankLabel: draft.bankLabel || defaultBankHint?.label,
+                            }
+                          : {}),
+                      });
+                    }}
+                  >
+                    <option value="bank">Bank</option>
+                    <option value="person">Liability person</option>
+                  </select>
+                ) : null}
+                {draft.payoutSettlementType === "person" && liabilityModuleEnabled ? (
+                  <AutocompleteField
+                    value={draft.liabilityPersonId}
+                    onChange={(id) =>
+                      patchRowDraft(row.id, row, {
+                        liabilityPersonId: id,
+                        liabilityPersonLabel: undefined,
+                      })
+                    }
+                    loadOptions={loadLiabilityPersonOptions}
+                    placeholder="Liable person..."
+                    emptyText="No persons"
+                    defaultOption={
+                      draft.liabilityPersonId
+                        ? {
+                            value: draft.liabilityPersonId,
+                            label: draft.liabilityPersonLabel || draft.liabilityPersonId,
+                          }
+                        : null
+                    }
+                    disabled={actionLoadingId === row.id}
+                  />
+                ) : (
+                  <AutocompleteField
+                    value={draft.bankId}
+                    onChange={(id) =>
+                      patchRowDraft(row.id, row, {
+                        bankId: id,
+                        bankLabel: undefined,
+                      })
+                    }
+                    loadOptions={loadBankOptions}
+                    placeholder="Payout bank..."
+                    emptyText="No banks"
+                    defaultOption={
+                      draft.bankId
+                        ? { value: draft.bankId, label: draft.bankLabel || draft.bankId }
+                        : defaultBankHint
+                    }
+                    disabled={actionLoadingId === row.id}
+                  />
+                )}
+              </div>
+            );
+          },
+        };
+      }
+      if (col.field === "payoutSettlementType" || col.field === "payoutLiabilityPersonName") {
+        return {
+          ...col,
+          render: (row: WithdrawalRow) => {
+            if (row.status === "requested") {
+              const draft = getRowDraft(row);
+              if (col.field === "payoutSettlementType") {
+                return draft.payoutSettlementType === "person" ? "Liability person" : "Bank";
+              }
+              return draft.liabilityPersonLabel?.trim() || draft.liabilityPersonId || "—";
+            }
+            if (col.field === "payoutSettlementType") {
+              return row.payoutSettlementType === "person" ? "Liability person" : "Bank";
+            }
+            return row.payoutLiabilityPersonName?.trim() || "—";
+          },
+        };
+      }
+      return col;
+    });
+
+    return [
       {
         field: "_bulkSelect",
         label: "",
@@ -605,133 +809,48 @@ export function WithdrawalBankerClient() {
           );
         },
       },
-      {
-        field: "playerName",
-        label: "Player",
-        render: (row: WithdrawalRow) => row.playerName,
-        ...tableColumnPresets.nameCol,
-        sortable: true,
-        filterType: "text" as const,
-        filterKey: "playerName",
-        operatorKey: "playerName_op",
-      },
-      {
-        field: "beneficiary",
-        label: "Dest. account",
-        minWidth: 220,
-        sortable: false,
-        render: (row: WithdrawalRow) => <WithdrawalBeneficiaryCell row={row} />,
-      },
-      {
-        field: "payableAmount",
-        label: "Payable",
-        render: (row: WithdrawalRow) => (row.payableAmount != null ? formatWholeMoney(row.payableAmount) : "—"),
-        sortable: true,
-        minWidth: 100,
-        filterType: "number" as const,
-        filterKey: "amount",
-        filterKeyTo: "amount_to",
-        operatorKey: "amount_op",
-      },
-      {
-        field: "status",
-        label: "Status",
-        ...tableColumnPresets.statusCol,
-        render: (row: WithdrawalRow) => <TableStatusBadge status={row.status} />,
-        sortable: true,
-        filterType: "select" as const,
-        filterKey: "status",
-        filterOptions: [
-          { value: "requested", label: "Requested" },
-          { value: "approved", label: "Approved" },
-          { value: "rejected", label: "Rejected" },
-          { value: "finalized", label: "Finalized" },
-        ],
-      },
-      {
-        field: "payoutSource",
-        label: "Payout via",
-        sortable: false,
-        minWidth: 140,
-        render: (row: WithdrawalRow) =>
-          row.payoutSettlementType === "person" && row.payoutLiabilityPersonName?.trim()
-            ? `LP: ${row.payoutLiabilityPersonName.trim()}`
-            : row.payoutBankName?.trim()
-              ? row.payoutBankName.trim()
-              : "—",
-      },
-      {
-        field: "createdBy",
-        label: "Created By",
-        render: (row: WithdrawalRow) => row.createdByName || "—",
-        minWidth: 150,
-        sortable: false,
-        filterType: "autocomplete" as const,
-        filterKey: "createdBy",
-        filterLoadOptions: loadUserOptions,
-      },
-      {
-        field: "approvedBy",
-        label: "Approved By",
-        render: (row: WithdrawalRow) => row.approvedByName || "—",
-        minWidth: 150,
-        sortable: false,
-        filterType: "autocomplete" as const,
-        filterKey: "approvedBy",
-        filterLoadOptions: loadUserOptions,
-      },
-      {
-        field: "due",
-        label: "Due time",
-        sortable: false,
-        minWidth: 110,
-        render: (row: WithdrawalRow) => (
-          <span className="text-xs text-gray-500">{withdrawalDueTime(row)}</span>
-        ),
-      },
-      {
-        field: "createdAt",
-        label: "Requested At",
-        sortable: true,
-        filterType: "date" as const,
-        filterKey: "createdAt_from",
-        filterKeyTo: "createdAt_to",
-        operatorKey: "createdAt_op",
-        ...tableColumnPresets.dateCol,
-        render: (row: WithdrawalRow) =>
-          formatDateTimeForUser(row.requestedAt ?? row.createdAt),
-      },
+      ...base,
       {
         field: "actions",
         label: "Actions",
         sortable: false,
-        minWidth: 96,
-        render: (row: WithdrawalRow) => {
-          if (row.status !== "requested") return <span className="text-xs text-gray-400">—</span>;
-          if (selectedWithdrawal?.id === row.id) {
-            return (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">
-                <IconCheck size={12} className="shrink-0" />
-                Selected
-              </span>
-            );
-          }
-          return (
-            <span className="text-xs text-[var(--brand-primary)] underline-offset-2 hover:underline cursor-pointer">
-              Click row
-            </span>
-          );
-        },
+        isActionColumn: true,
+        minWidth: 260,
+        width: 280,
+        maxWidth: 340,
+        render: (row: WithdrawalRow) => (
+          <WithdrawalBankerRowActions
+            row={row}
+            loading={actionLoadingId === row.id}
+            onApprove={() => void approveFromDraft(row, getRowDraft(row))}
+            onReject={() => openRejectForRow(row.id)}
+            onDetails={() => openDetails(row)}
+          />
+        ),
       },
-    ],
-    [selectedWithdrawal, loadUserOptions, bulkSelection, toggleBulkSelection],
-  );
+    ];
+  }, [
+    liabilityModuleEnabled,
+    formatWholeMoney,
+    loadUserOptions,
+    loadBankOptions,
+    loadLiabilityPersonOptions,
+    getRowDraft,
+    patchRowDraft,
+    defaultBankHint,
+    actionLoadingId,
+    bulkSelection,
+    toggleBulkSelection,
+    approveFromDraft,
+    openRejectForRow,
+    openDetails,
+  ]);
 
   return (
     <>
       <ListingPageContainer
         title="Withdrawal / Banker"
-        description="Pending exchange withdrawals awaiting payout bank and UTR. Click a row to open the sidebar for payout action."
+        description="Enter UTR and payout bank on each requested row, then Approve or Reject. Use Details for full beneficiary info."
         density="compact"
         fullWidth
         secondaryButtonLabel="Reset filters"
@@ -771,15 +890,6 @@ export function WithdrawalBankerClient() {
               </Select>
             </div>
           </div>
-
-          {!selectedWithdrawal && (
-            <div className="mb-3 flex shrink-0 items-center gap-2.5 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-700">
-              <IconUser className="size-4 shrink-0" />
-              <span>
-                <strong>Tip:</strong> Click any <strong>requested</strong> row to open the sidebar.
-              </span>
-            </div>
-          )}
 
           {showBulkToolbar && (
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-green-200 bg-green-50/60 px-3 py-2">
@@ -835,7 +945,6 @@ export function WithdrawalBankerClient() {
             onPageChange={(zeroBased) => setPage(zeroBased + 1)}
             onRowsPerPageChange={setLimit}
             onSortChange={(field, order) => setSort(field, order)}
-            onRowClick={handleRowClick}
             onRowsChange={handleVisibleRowsChange}
             getRowClassName={getRowClassName}
             selectedRowKey={selectedWithdrawal?.id ?? null}
@@ -876,6 +985,9 @@ export function WithdrawalBankerClient() {
                       onChange={(e) => {
                         const v = e.target.value === "person" ? "person" : "bank";
                         setPayoutSettlementType(v);
+                        patchRowDraft(selectedWithdrawal.id, selectedWithdrawal, {
+                          payoutSettlementType: v,
+                        });
                         setErrors((prev) => {
                           const n = { ...prev };
                           delete n.bankId;
@@ -883,7 +995,10 @@ export function WithdrawalBankerClient() {
                           return n;
                         });
                       }}
-                      disabled={selectedWithdrawal.status !== "requested" || actionLoading}
+                      disabled={
+                        selectedWithdrawal.status !== "requested" ||
+                        actionLoadingId === selectedWithdrawal.id
+                      }
                     >
                       <option value="bank">Bank</option>
                       <option value="person">Liability person</option>
@@ -895,9 +1010,16 @@ export function WithdrawalBankerClient() {
                   <Input
                     className="h-9 text-sm"
                     value={utr}
-                    onChange={(e) => setUtr(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setUtr(value);
+                      patchRowDraft(selectedWithdrawal.id, selectedWithdrawal, { utr: value });
+                    }}
                     placeholder="Enter UTR"
-                    disabled={selectedWithdrawal.status !== "requested" || actionLoading}
+                    disabled={
+                      selectedWithdrawal.status !== "requested" ||
+                      actionLoadingId === selectedWithdrawal.id
+                    }
                   />
                   <FieldError message={errors.utr} />
                 </div>
@@ -908,12 +1030,22 @@ export function WithdrawalBankerClient() {
                   <FieldLabel className="mb-1 text-xs text-muted-foreground">Company payout bank *</FieldLabel>
                   <AutocompleteField
                     value={bankId}
-                    onChange={setBankId}
+                    onChange={(id) => {
+                      setBankId(id);
+                      patchRowDraft(selectedWithdrawal.id, selectedWithdrawal, {
+                        bankId: id,
+                        bankLabel: undefined,
+                        payoutSettlementType: "bank",
+                      });
+                    }}
                     loadOptions={loadBankOptions}
                     placeholder="Select bank..."
                     emptyText="No banks found"
                     defaultOption={bankAutocompleteDefault}
-                    disabled={selectedWithdrawal.status !== "requested" || actionLoading}
+                    disabled={
+                      selectedWithdrawal.status !== "requested" ||
+                      actionLoadingId === selectedWithdrawal.id
+                    }
                   />
                   <FieldError message={errors.bankId} />
                 </div>
@@ -922,38 +1054,48 @@ export function WithdrawalBankerClient() {
                   <FieldLabel className="mb-1 text-xs text-muted-foreground">Liability person paying out *</FieldLabel>
                   <AutocompleteField
                     value={liabilityPersonId}
-                    onChange={setLiabilityPersonId}
+                    onChange={(id) => {
+                      setLiabilityPersonId(id);
+                      patchRowDraft(selectedWithdrawal.id, selectedWithdrawal, {
+                        liabilityPersonId: id,
+                        liabilityPersonLabel: undefined,
+                        payoutSettlementType: "person",
+                      });
+                    }}
                     loadOptions={loadLiabilityPersonOptions}
                     placeholder="Search liability person..."
                     emptyText="No persons found"
                     defaultOption={payoutPersonAutocompleteDefault}
-                    disabled={selectedWithdrawal.status !== "requested" || actionLoading}
+                    disabled={
+                      selectedWithdrawal.status !== "requested" ||
+                      actionLoadingId === selectedWithdrawal.id
+                    }
                   />
                   <FieldError message={errors.liabilityPersonId} />
                 </div>
               )}
-
-
 
               <div className="flex flex-col gap-2 pt-2 border-t border-[var(--border)]">
                 <Button
                   variant="success"
                   startIcon={<IconCheck size={18} />}
                   onClick={() => void onPayoutSubmit()}
-                  disabled={selectedWithdrawal.status !== "requested" || actionLoading}
+                  disabled={
+                    selectedWithdrawal.status !== "requested" ||
+                    actionLoadingId === selectedWithdrawal.id
+                  }
                   className="w-full justify-center"
                 >
-                  {actionLoading ? "Processing…" : "Record Payout"}
+                  {actionLoadingId === selectedWithdrawal.id ? "Processing…" : "Record Payout"}
                 </Button>
                 <Button
                   variant="danger"
                   startIcon={<IconX size={18} />}
-                  onClick={() => {
-                    setRejectOpen(true);
-                    setRejectReasonId("");
-                    setRejectRemark("");
-                  }}
-                  disabled={selectedWithdrawal.status !== "requested" || actionLoading}
+                  onClick={() => openRejectForRow(selectedWithdrawal.id)}
+                  disabled={
+                    selectedWithdrawal.status !== "requested" ||
+                    actionLoadingId === selectedWithdrawal.id
+                  }
                   skipTab
                   className="w-full justify-center"
                 >
@@ -966,7 +1108,7 @@ export function WithdrawalBankerClient() {
                   skipTab
                   className="w-full justify-center"
                 >
-                  Clear Selection
+                  Close
                 </Button>
               </div>
             </div>
@@ -1091,6 +1233,7 @@ export function WithdrawalBankerClient() {
         onRemarkChange={setRejectRemark}
         onCancel={() => {
           setRejectOpen(false);
+          setRejectTargetId(null);
           setRejectReasonId("");
           setRejectRemark("");
         }}

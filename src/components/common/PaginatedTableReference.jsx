@@ -860,7 +860,13 @@ export default function PaginatedTable({
                       onClick={
                         onRowClick
                           ? (e) => {
-                            if (e.target.closest?.("button, [role='button'], a")) return;
+                            if (
+                              e.target.closest?.(
+                                "button, [role='button'], a, input, textarea, select, [data-no-row-click]",
+                              )
+                            ) {
+                              return;
+                            }
                             onRowClick(row);
                           }
                           : undefined
