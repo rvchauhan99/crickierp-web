@@ -20,8 +20,8 @@ import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/shadcn/textarea";
 import { useListingQueryStateReference } from "@/hooks/useListingQueryStateReference";
 import { useExport } from "@/hooks/useExport";
-import { tableColumnPresets } from "@/lib/tableStylePresets";
 import { useAuth } from "@/context/AuthContext";
+import { usePlatformSettings } from "@/context/PlatformSettingsContext";
 import { NAV_PERMISSIONS } from "@/lib/constants/navPermissions";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { useFormatMoney } from "@/hooks/useFormatMoney";
@@ -39,7 +39,10 @@ import type { WithdrawalRow } from "@/types/withdrawal";
 import { withdrawalStatusApiParam } from "@/modules/withdrawal/withdrawalListingStatusFilter";
 import { WITHDRAWAL_FINAL_FILTER_KEYS } from "@/modules/withdrawal/withdrawalFinalListConstants";
 import { WithdrawalFinalListFilterPanel } from "@/modules/withdrawal/components/WithdrawalFinalListFilterPanel";
-import { WithdrawalBeneficiaryCell } from "@/modules/withdrawal/components/WithdrawalBeneficiaryCell";
+import {
+  buildWithdrawalBankerExcelListColumns,
+  buildWithdrawalFinalExtraListColumns,
+} from "@/modules/withdrawal/withdrawalBankerExcelListColumns";
 import { WithdrawalBeneficiaryBankBlock } from "@/modules/withdrawal/components/WithdrawalBeneficiaryBankBlock";
 import { canEditBusinessEntryDateTime } from "@/lib/roles";
 import {
@@ -55,6 +58,7 @@ function toOptionalFilterValue(value: string): string | undefined {
 
 export function WithdrawalFinalListClient() {
   const { formatWholeMoney } = useFormatMoney();
+  const { liabilityModuleEnabled } = usePlatformSettings();
   const { user } = useAuth();
   const listingState = useListingQueryStateReference({
     defaultLimit: 50,
@@ -291,93 +295,13 @@ export function WithdrawalFinalListClient() {
 
   const columns = useMemo<PaginatedTableReferenceColumn[]>(
     () => [
-      {
-        field: "playerName",
-        label: "Player",
-        render: (row: WithdrawalRow) => row.playerName,
-        ...tableColumnPresets.nameCol,
-        sortable: true,
-      },
-      {
-        field: "beneficiary",
-        label: "Beneficiary",
-        minWidth: 220,
-        sortable: false,
-        render: (row: WithdrawalRow) => <WithdrawalBeneficiaryCell row={row} />,
-      },
-      {
-        field: "payoutBankOrLp",
-        label: "Payout bank / Liable person",
-        minWidth: 180,
-        sortable: false,
-        render: (row: WithdrawalRow) =>
-          row.payoutSettlementType === "person"
-            ? row.payoutLiabilityPersonName != null && row.payoutLiabilityPersonName !== ""
-              ? `LP: ${row.payoutLiabilityPersonName}`
-              : "LP: —"
-            : row.payoutBankName || "—",
-      },
-      {
-        field: "utr",
-        label: "UTR",
-        sortable: true,
-        render: (row: WithdrawalRow) => row.utr || "—",
-      },
-      {
-        field: "amount",
-        label: "Requested",
-        render: (row: WithdrawalRow) => formatWholeMoney(row.amount),
-        sortable: true,
-      },
-      {
-        field: "reverseBonus",
-        label: "Reverse Bonus",
-        render: (row: WithdrawalRow) => (row.reverseBonus != null ? formatWholeMoney(row.reverseBonus) : "—"),
-        sortable: true,
-      },
-      {
-        field: "payableAmount",
-        label: "Payable",
-        render: (row: WithdrawalRow) => (row.payableAmount != null ? formatWholeMoney(row.payableAmount) : "—"),
-        sortable: true,
-        minWidth: 100,
-      },
-      {
-        field: "amendmentCount",
-        label: "Amend.",
-        render: (row: WithdrawalRow) =>
-          row.amendmentCount != null && row.amendmentCount > 0 ? String(row.amendmentCount) : "—",
-        minWidth: 72,
-        sortable: false,
-      },
-      {
-        field: "status",
-        label: "Status",
-        ...tableColumnPresets.statusCol,
-        render: (row: WithdrawalRow) => <TableStatusBadge status={row.status} />,
-      },
-      {
-        field: "createdByName",
-        label: "Created By",
-        render: (row: WithdrawalRow) => row.createdByName || "—",
-        minWidth: 150,
-      },
-      {
-        field: "approvedByName",
-        label: "Approved By",
-        render: (row: WithdrawalRow) => row.approvedByName || "—",
-        minWidth: 150,
-      },
-      {
-        field: "createdAt",
-        label: "Transaction at",
-        sortable: true,
-        ...tableColumnPresets.dateCol,
-        render: (row: WithdrawalRow) =>
-          formatDateTimeForUser(row.requestedAt ?? row.createdAt),
-      },
+      ...buildWithdrawalBankerExcelListColumns({
+        liabilityModuleEnabled,
+        formatWholeMoney,
+      }),
+      ...buildWithdrawalFinalExtraListColumns(formatWholeMoney),
     ],
-    [],
+    [liabilityModuleEnabled, formatWholeMoney],
   );
 
   const historyRows = useMemo(() => {

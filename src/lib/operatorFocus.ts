@@ -16,8 +16,15 @@ function isDisabled(el: HTMLElement): boolean {
   return false;
 }
 
+function isReadOnlyControl(el: HTMLElement): boolean {
+  if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+    return Boolean(el.readOnly);
+  }
+  return el.getAttribute("readonly") != null;
+}
+
 function isTabbable(el: HTMLElement): boolean {
-  if (!isVisible(el) || isDisabled(el)) return false;
+  if (!isVisible(el) || isDisabled(el) || isReadOnlyControl(el)) return false;
   const tabIndexAttr = el.getAttribute("tabindex");
   if (tabIndexAttr != null) {
     const n = Number(tabIndexAttr);

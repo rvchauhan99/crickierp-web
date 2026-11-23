@@ -2,6 +2,7 @@ import { normalizeDateTimeInputForApi } from "@/lib/userTimezone";
 import { apiClient } from "./apiClient";
 import type {
   BankerUtrUploadValidationResult,
+  BeneficiaryAccountLookupMatch,
   BulkBankerApproveResult,
   SavedWithdrawalAccount,
   WithdrawalAmendInput,
@@ -112,10 +113,27 @@ export function normalizeWithdrawal(row: Record<string, unknown>): WithdrawalRow
     });
   }
 
+  const playerPop = row.player as { playerId?: unknown } | string | null | undefined;
+  const playerId =
+    playerPop && typeof playerPop === "object" && playerPop.playerId != null
+      ? String(playerPop.playerId).trim()
+      : undefined;
+
+  const payoutBankPop = row.payoutBankId as
+    | { _id?: unknown; accountNumber?: unknown }
+    | string
+    | null
+    | undefined;
+  const payoutBankAccountNumber =
+    payoutBankPop && typeof payoutBankPop === "object" && payoutBankPop.accountNumber != null
+      ? String(payoutBankPop.accountNumber).trim()
+      : undefined;
+
   return {
     _id: id,
     id,
     playerName: String(row.playerName ?? ""),
+    playerId: playerId || undefined,
     player: row.player,
     accountNumber: row.accountNumber != null ? String(row.accountNumber) : undefined,
     accountHolderName: row.accountHolderName != null ? String(row.accountHolderName) : undefined,
@@ -134,6 +152,7 @@ export function normalizeWithdrawal(row: Record<string, unknown>): WithdrawalRow
           ? row.payoutBankId
           : undefined,
     payoutBankName: row.payoutBankName != null ? String(row.payoutBankName) : undefined,
+    payoutBankAccountNumber: payoutBankAccountNumber || undefined,
     utr: row.utr != null ? String(row.utr) : undefined,
     requestedAt: row.requestedAt != null ? String(row.requestedAt) : undefined,
     status,
@@ -305,6 +324,23 @@ export async function listSavedAccountsForPlayer(playerId: string): Promise<Save
   const response = await apiClient.get<{ success: boolean; data: SavedWithdrawalAccount[] }>(
     `/withdrawal/player/${playerId}/saved-accounts`,
   );
+  const data = response.data?.data;
+  return Array.isArray(data) ? data : [];
+}
+
+export async function lookupBeneficiaryAccounts(params?: {
+  q?: string;
+  limit?: number;
+}): Promise<BeneficiaryAccountLookupMatch[]> {
+  const response = await apiClient.get<{
+    success: boolean;
+    data: BeneficiaryAccountLookupMatch[];
+  }>("/withdrawal/beneficiary-accounts/lookup", {
+    params: {
+      q: params?.q?.trim() || undefined,
+      limit: params?.limit ?? 25,
+    },
+  });
   const data = response.data?.data;
   return Array.isArray(data) ? data : [];
 }

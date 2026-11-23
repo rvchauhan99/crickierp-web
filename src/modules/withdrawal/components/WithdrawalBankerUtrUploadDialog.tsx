@@ -342,8 +342,8 @@ function UploadStep({
           <div>
             <p className="text-sm font-medium text-blue-800">Use the banker export file</p>
             <p className="mt-0.5 text-xs text-blue-600">
-              Export pending rows, fill <strong>UTR</strong> and <strong>Payout Bank</strong> (company bank account
-              number or holder name), then upload here.
+              Export pending rows, fill <strong>UTR</strong> and <strong>Payout Bank</strong> (last 4 digits of the
+              active company bank account; full account number or holder name still accepted), then upload here.
             </p>
           </div>
           <div className="flex flex-wrap gap-2 shrink-0">
@@ -392,7 +392,8 @@ function UploadStep({
           <span className="font-medium">UTR</span> — required for pending rows
         </p>
         <p>
-          <span className="font-medium">Payout Bank</span> — active company bank account number or holder name
+          <span className="font-medium">Payout Bank</span> — last 4 digits of an active company bank account
+          (full account number or holder name also accepted)
         </p>
         <p>Already approved / rejected rows are skipped automatically.</p>
       </div>

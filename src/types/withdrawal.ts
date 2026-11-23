@@ -56,6 +56,8 @@ export type WithdrawalRow = {
   _id: string;
   id: string;
   playerName: string;
+  /** Platform player id from populated `player.playerId` (Excel "Player ID"). */
+  playerId?: string;
   player?: unknown;
   accountNumber?: string;
   accountHolderName?: string;
@@ -72,6 +74,8 @@ export type WithdrawalRow = {
   payoutLiabilityPersonName?: string;
   payoutBankId?: string;
   payoutBankName?: string;
+  /** Company bank account number from populated `payoutBankId` (Excel "Payout Bank"). */
+  payoutBankAccountNumber?: string;
   utr?: string;
   requestedAt?: string;
   status: WithdrawalStatus;
@@ -93,6 +97,16 @@ export type WithdrawalRow = {
 };
 
 export type SavedWithdrawalAccount = {
+  accountNumber: string;
+  accountHolderName: string;
+  bankName: string;
+  ifsc: string;
+};
+
+/** Global beneficiary account match (account → player autofill on exchange create). */
+export type BeneficiaryAccountLookupMatch = {
+  playerId: string;
+  playerLabel: string;
   accountNumber: string;
   accountHolderName: string;
   bankName: string;

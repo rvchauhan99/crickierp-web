@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { IconCheck, IconX, IconPencil } from "@tabler/icons-react";
 import { AutocompleteField, type AutocompleteOption } from "@/components/common/AutocompleteField";
@@ -9,7 +9,6 @@ import { FormGrid } from "@/components/common/FormGrid";
 import { FieldLabel } from "@/components/common/FieldLabel";
 import { FieldError } from "@/components/common/FieldError";
 import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import {
   OperatedMoneyFields,
@@ -30,6 +29,7 @@ import {
   createWithdrawal,
   listSavedAccountsForPlayer,
   listWithdrawalsNormalized,
+  lookupBeneficiaryAccounts,
   updateWithdrawal,
   exportWithdrawals,
   validateWithdrawalPlayerAccount,
@@ -37,7 +37,7 @@ import {
 import { useExport } from "@/hooks/useExport";
 import { listPlayerLookupOptions } from "@/services/lookupService";
 import { userService } from "@/services/userService";
-import type { SavedWithdrawalAccount, WithdrawalRow } from "@/types/withdrawal";
+import type { BeneficiaryAccountLookupMatch, WithdrawalRow } from "@/types/withdrawal";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { cn } from "@/lib/cn";
 import { useFormatMoney } from "@/hooks/useFormatMoney";
@@ -109,6 +109,16 @@ function buildUserLabel(row: UserRow): string {
   return name || "";
 }
 
+function beneficiaryMatchKey(match: Pick<BeneficiaryAccountLookupMatch, "playerId" | "accountNumber" | "ifsc">): string {
+  return `${match.playerId}|${match.accountNumber.trim()}|${match.ifsc.trim().toUpperCase()}`;
+}
+
+function beneficiaryMatchLabel(match: Pick<BeneficiaryAccountLookupMatch, "accountNumber" | "ifsc" | "playerLabel">): string {
+  const ifsc = match.ifsc.trim();
+  const player = match.playerLabel.trim();
+  return [match.accountNumber.trim(), ifsc || "—", player || "—"].join(" · ");
+}
+
 export function WithdrawalExchangeClient() {
   const { formatWholeMoney } = useFormatMoney();
   const listingState = useListingQueryStateReference({
@@ -125,6 +135,7 @@ export function WithdrawalExchangeClient() {
   const playerAccountLockEnabled = withdrawalPlayerAccountLockMode !== "off";
 
   const [playerId, setPlayerId] = useState("");
+  const [playerDefaultOption, setPlayerDefaultOption] = useState<AutocompleteOption | null>(null);
   const [accountNumber, setAccountNumber] = useState("");
   const [accountHolderName, setAccountHolderName] = useState("");
   const [bankName, setBankName] = useState("");
@@ -133,7 +144,8 @@ export function WithdrawalExchangeClient() {
   const [reverseBonus, setReverseBonus] = useState("0");
   const [requestedAt, setRequestedAt] = useState(currentDateTimeLocalValue());
   const [savedPreset, setSavedPreset] = useState("");
-  const [savedRows, setSavedRows] = useState<SavedWithdrawalAccount[]>([]);
+  const [accountPick, setAccountPick] = useState("");
+  const [accountPickOption, setAccountPickOption] = useState<AutocompleteOption | null>(null);
   /** Strict 1:1 — player already has a locked non-rejected account. */
   const [strictAccountLocked, setStrictAccountLocked] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -145,6 +157,9 @@ export function WithdrawalExchangeClient() {
   const [tableKey, setTableKey] = useState(0);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [cachedUsers, setCachedUsers] = useState<Record<string, string>>({});
+  const beneficiaryMatchCacheRef = useRef<Map<string, BeneficiaryAccountLookupMatch>>(new Map());
+  /** Skip clearing account pick when playerId was set by account autofill. */
+  const skipPlayerAccountResetRef = useRef(false);
 
   useApprovalQueueAutoRefresh({
     module: "withdrawal",
@@ -194,25 +209,68 @@ export function WithdrawalExchangeClient() {
     }
   }, []);
 
+  const applyBeneficiaryMatch = useCallback((match: BeneficiaryAccountLookupMatch) => {
+    const key = beneficiaryMatchKey(match);
+    const option = { value: key, label: beneficiaryMatchLabel(match) };
+    beneficiaryMatchCacheRef.current.set(key, match);
+    skipPlayerAccountResetRef.current = true;
+    setPlayerId(match.playerId);
+    setPlayerDefaultOption({ value: match.playerId, label: match.playerLabel });
+    setAccountNumber(match.accountNumber);
+    setAccountHolderName(match.accountHolderName);
+    setBankName(match.bankName.trim() || "—");
+    setIfsc(match.ifsc);
+    setSavedPreset(key);
+    setAccountPick(key);
+    setAccountPickOption(option);
+  }, []);
+
+  const loadBeneficiaryAccountOptions = useCallback(async (query: string): Promise<AutocompleteOption[]> => {
+    try {
+      const rows = await lookupBeneficiaryAccounts({ q: query || undefined, limit: 25 });
+      return rows.map((row) => {
+        const value = beneficiaryMatchKey(row);
+        beneficiaryMatchCacheRef.current.set(value, row);
+        return { value, label: beneficiaryMatchLabel(row) };
+      });
+    } catch {
+      return [];
+    }
+  }, []);
+
   useEffect(() => {
     if (!playerId) {
-      setSavedRows([]);
       setSavedPreset("");
       setStrictAccountLocked(false);
+      if (!skipPlayerAccountResetRef.current) {
+        setAccountPick("");
+        setAccountPickOption(null);
+      }
+      skipPlayerAccountResetRef.current = false;
       return;
     }
     let cancelled = false;
     listSavedAccountsForPlayer(playerId)
       .then((rows) => {
         if (cancelled) return;
-        setSavedRows(rows);
         if (strictPlayerAccountLock && rows.length > 0 && !editingId) {
           const locked = rows[0];
+          const match: BeneficiaryAccountLookupMatch = {
+            playerId,
+            playerLabel: playerDefaultOption?.label || "",
+            accountNumber: locked.accountNumber,
+            accountHolderName: locked.accountHolderName,
+            bankName: locked.bankName,
+            ifsc: locked.ifsc,
+          };
+          const key = beneficiaryMatchKey(match);
           setAccountNumber(locked.accountNumber);
           setAccountHolderName(locked.accountHolderName);
           setBankName(locked.bankName);
           setIfsc(locked.ifsc);
-          setSavedPreset("0");
+          setSavedPreset(key);
+          setAccountPick(key);
+          setAccountPickOption({ value: key, label: beneficiaryMatchLabel(match) });
           setStrictAccountLocked(true);
         } else {
           setStrictAccountLocked(false);
@@ -220,12 +278,13 @@ export function WithdrawalExchangeClient() {
       })
       .catch(() => {
         if (cancelled) return;
-        setSavedRows([]);
         setStrictAccountLocked(false);
       });
     return () => {
       cancelled = true;
     };
+    // playerDefaultOption label is read for display only when locking; do not re-run on label sync.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- lock corpus depends on playerId / mode / edit
   }, [playerId, strictPlayerAccountLock, editingId]);
 
   useEffect(() => {
@@ -327,7 +386,9 @@ export function WithdrawalExchangeClient() {
       setEditingId(null);
       if (wasCreate) {
         setPlayerId("");
-        setSavedRows([]);
+        setPlayerDefaultOption(null);
+        setAccountPick("");
+        setAccountPickOption(null);
         setStrictAccountLocked(false);
       }
       setAccountNumber("");
@@ -359,12 +420,35 @@ export function WithdrawalExchangeClient() {
   };
 
   const handleEdit = (row: WithdrawalRow) => {
+    const resolvedPlayerId = resolveWithdrawalPlayerId(row);
+    const playerLabel = String(row.playerName || "").trim();
     setEditingId(row.id);
-    setPlayerId(resolveWithdrawalPlayerId(row));
+    setPlayerId(resolvedPlayerId);
+    setPlayerDefaultOption(
+      resolvedPlayerId ? { value: resolvedPlayerId, label: playerLabel || resolvedPlayerId } : null,
+    );
     setAccountNumber(row.accountNumber || "");
     setAccountHolderName(row.accountHolderName || "");
     setBankName(row.bankName || "");
     setIfsc(row.ifsc || "");
+    setSavedPreset("");
+    setStrictAccountLocked(false);
+    if (resolvedPlayerId && row.accountNumber) {
+      const match: BeneficiaryAccountLookupMatch = {
+        playerId: resolvedPlayerId,
+        playerLabel: playerLabel || resolvedPlayerId,
+        accountNumber: row.accountNumber || "",
+        accountHolderName: row.accountHolderName || "",
+        bankName: row.bankName || "",
+        ifsc: row.ifsc || "",
+      };
+      const key = beneficiaryMatchKey(match);
+      setAccountPick(key);
+      setAccountPickOption({ value: key, label: beneficiaryMatchLabel(match) });
+    } else {
+      setAccountPick("");
+      setAccountPickOption(null);
+    }
     setMoney({
       amount: String(row.operatedAmount ?? row.amount),
       operatedCurrency: row.operatedCurrency || platformCurrency || "",
@@ -382,6 +466,7 @@ export function WithdrawalExchangeClient() {
 
   const reset = () => {
     setPlayerId("");
+    setPlayerDefaultOption(null);
     setAccountNumber("");
     setAccountHolderName("");
     setBankName("");
@@ -390,10 +475,12 @@ export function WithdrawalExchangeClient() {
     setReverseBonus("0");
     setRequestedAt(currentDateTimeLocalValue());
     setSavedPreset("");
-    setSavedRows([]);
+    setAccountPick("");
+    setAccountPickOption(null);
     setStrictAccountLocked(false);
     setEditingId(null);
     setErrors({});
+    skipPlayerAccountResetRef.current = false;
   };
 
   const columnFilterValues = useMemo(
@@ -589,7 +676,7 @@ export function WithdrawalExchangeClient() {
           description={
             editingId
               ? "Updating an existing withdrawal request."
-              : "Create a withdrawal request for a player. Saved bank accounts from past withdrawals appear in the quick-select list."
+              : "Create a withdrawal request. Search a past account number to auto-select the linked player and bank details, or pick the player first and enter details manually."
           }
         >
           <FormGrid cols={4} compact>
@@ -603,61 +690,54 @@ export function WithdrawalExchangeClient() {
                 tabIndex={canEditRequestedAt ? undefined : -1}
               />
             </div>
-            <div
-              className={cn(
-                "md:col-span-2",
-                playerId || editingId ? "lg:col-span-2" : "lg:col-span-3",
-              )}
-            >
+            <div className="md:col-span-2 lg:col-span-1">
               <FieldLabel>Player *</FieldLabel>
               <AutocompleteField
                 value={playerId}
                 onChange={(v) => {
                   setPlayerId(v);
+                  if (!v) setPlayerDefaultOption(null);
                   setSavedPreset("");
+                  setAccountPick("");
+                  setAccountPickOption(null);
                 }}
                 loadOptions={loadPlayerOptions}
-              autoSelectSingleOption
+                autoSelectSingleOption
+                defaultOption={playerDefaultOption}
                 placeholder="Search player…"
                 emptyText="No players found"
-                disabled={!!editingId} // lock player on edit
+                disabled={!!editingId}
               />
               <FieldError message={errors.playerId} />
             </div>
-            {playerId || editingId ? (
-              <div className="md:col-span-2 lg:col-span-1">
-                <FieldLabel>
-                  {strictAccountLocked && !editingId
-                    ? "Locked withdrawal account"
-                    : "Quick select account (optional)"}
-                </FieldLabel>
-                <Select
-                  value={savedPreset}
-                  onChange={(e) => {
-                    if (strictAccountLocked && !editingId) return;
-                    const v = e.target.value;
-                    setSavedPreset(v);
-                    if (v === "") return;
-                    const idx = Number.parseInt(v, 10);
-                    if (Number.isNaN(idx) || !savedRows[idx]) return;
-                    const row = savedRows[idx];
-                    setAccountNumber(row.accountNumber);
-                    setAccountHolderName(row.accountHolderName);
-                    setBankName(row.bankName);
-                    setIfsc(row.ifsc);
-                  }}
-                  placeholder="Choose saved account or enter manually below…"
-                  disabled={!!editingId || (strictAccountLocked && !editingId)}
-                >
-                  {strictAccountLocked && !editingId ? null : <option value="">Manual entry only</option>}
-                  {savedRows.map((r, i) => (
-                    <option key={`${r.accountNumber}-${r.ifsc}-${i}`} value={String(i)}>
-                      {r.accountNumber} · {r.ifsc}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-            ) : null}
+            <div className="md:col-span-2 lg:col-span-2">
+              <FieldLabel>
+                {strictAccountLocked && !editingId
+                  ? "Locked withdrawal account"
+                  : "Search player bank account (optional)"}
+              </FieldLabel>
+              <AutocompleteField
+                value={accountPick}
+                onChange={(v) => {
+                  if (strictAccountLocked && !editingId) return;
+                  if (!v) {
+                    setAccountPick("");
+                    setAccountPickOption(null);
+                    setSavedPreset("");
+                    return;
+                  }
+                  const match = beneficiaryMatchCacheRef.current.get(v);
+                  if (!match) return;
+                  applyBeneficiaryMatch(match);
+                }}
+                loadOptions={loadBeneficiaryAccountOptions}
+                autoSelectSingleOption
+                defaultOption={accountPickOption}
+                placeholder="Search account number…"
+                emptyText="No matching accounts"
+                disabled={!!editingId || (strictAccountLocked && !editingId)}
+              />
+            </div>
             <div>
               <FieldLabel>Account holder name *</FieldLabel>
               <Input
@@ -665,6 +745,7 @@ export function WithdrawalExchangeClient() {
                 onChange={(e) => setAccountHolderName(e.target.value)}
                 placeholder="Holder name"
                 readOnly={bankFieldsLocked}
+                tabIndex={bankFieldsLocked ? -1 : undefined}
                 className={bankFieldsLocked ? "bg-slate-50" : undefined}
               />
               <FieldError message={errors.accountHolderName} />
@@ -676,6 +757,7 @@ export function WithdrawalExchangeClient() {
                 onChange={(e) => setAccountNumber(e.target.value)}
                 placeholder="Account number"
                 readOnly={bankFieldsLocked}
+                tabIndex={bankFieldsLocked ? -1 : undefined}
                 className={bankFieldsLocked ? "bg-slate-50" : undefined}
               />
               <FieldError message={errors.accountNumber} />
@@ -687,6 +769,7 @@ export function WithdrawalExchangeClient() {
                 onChange={(e) => setIfsc(e.target.value)}
                 placeholder="IFSC"
                 readOnly={bankFieldsLocked}
+                tabIndex={bankFieldsLocked ? -1 : undefined}
                 className={bankFieldsLocked ? "bg-slate-50" : undefined}
               />
               <FieldError message={errors.ifsc} />
@@ -719,7 +802,12 @@ export function WithdrawalExchangeClient() {
             </div>
             <div>
               <FieldLabel>Payable amount</FieldLabel>
-              <Input readOnly value={formatWholeMoney(payablePreview)} className="bg-slate-50" />
+              <Input
+                readOnly
+                tabIndex={-1}
+                value={formatWholeMoney(payablePreview)}
+                className="bg-slate-50"
+              />
             </div>
           </FormGrid>
           <FormActions className={cn("px-5 py-4", editingId ? "justify-between" : "justify-start")}>
