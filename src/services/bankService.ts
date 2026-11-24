@@ -214,6 +214,26 @@ export type BankLedgerRow = {
   status?: string;
 };
 
+export type BankTransferAmendmentSnapshot = {
+  fromBankId?: string;
+  toBankId?: string;
+  amount?: number;
+  operatedCurrency?: string;
+  operatedAmount?: number;
+  exchangeRate?: number;
+  entryDate?: string;
+  referenceNo?: string;
+  remark?: string;
+};
+
+export type BankTransferAmendmentEntry = {
+  at: string;
+  by?: unknown;
+  reason: string;
+  old: BankTransferAmendmentSnapshot;
+  new: BankTransferAmendmentSnapshot;
+};
+
 export type BankTransferRow = {
   id: string;
   _id?: string;
@@ -226,6 +246,13 @@ export type BankTransferRow = {
   referenceNo?: string;
   remark?: string;
   createdAt?: string;
+  operatedCurrency?: string;
+  operatedAmount?: number;
+  exchangeRate?: number;
+  amendmentCount?: number;
+  lastAmendedAt?: string;
+  lastAmendedBy?: unknown;
+  amendmentHistory?: BankTransferAmendmentEntry[];
 };
 
 export type BankTransferCreateInput = {
@@ -238,6 +265,11 @@ export type BankTransferCreateInput = {
   operatedCurrency?: string;
   operatedAmount?: number;
   exchangeRate?: number;
+};
+
+export type BankTransferAmendInput = BankTransferCreateInput & {
+  reasonId: string;
+  amendRemark?: string;
 };
 
 export type BankLedgerResponse = {
@@ -393,6 +425,14 @@ export async function createBankTransfer(input: BankTransferCreateInput): Promis
   return res.data?.data;
 }
 
+export async function amendBankTransfer(id: string, input: BankTransferAmendInput): Promise<unknown> {
+  const res = await apiClient.patch<{ success: boolean; data: unknown }>(
+    `/bank/transfers/${id}/amend`,
+    input,
+  );
+  return res.data?.data;
+}
+
 export async function listBankTransfersNormalized(params: Record<string, unknown>): Promise<{
   data: BankTransferRow[];
   meta: { total: number; page: number; pageSize: number };
@@ -421,6 +461,7 @@ export async function listBankTransfersNormalized(params: Record<string, unknown
   return {
     data: rows.map((row) => {
       const id = String(row._id ?? row.id ?? "");
+      const historyRaw = Array.isArray(row.amendmentHistory) ? row.amendmentHistory : [];
       return {
         id,
         _id: id,
@@ -433,6 +474,38 @@ export async function listBankTransfersNormalized(params: Record<string, unknown
         referenceNo: toOptionalParam(row.referenceNo),
         remark: toOptionalParam(row.remark),
         createdAt: row.createdAt != null ? String(row.createdAt) : undefined,
+        operatedCurrency: row.operatedCurrency != null ? String(row.operatedCurrency) : undefined,
+        operatedAmount: row.operatedAmount != null ? Number(row.operatedAmount) : undefined,
+        exchangeRate: row.exchangeRate != null ? Number(row.exchangeRate) : undefined,
+        amendmentCount: Number(row.amendmentCount ?? 0),
+        lastAmendedAt: row.lastAmendedAt != null ? String(row.lastAmendedAt) : undefined,
+        lastAmendedBy: row.lastAmendedBy,
+        amendmentHistory: historyRaw.map((h) => {
+          const entry = h as Record<string, unknown>;
+          const old = (entry.old ?? {}) as Record<string, unknown>;
+          const neu = (entry.new ?? {}) as Record<string, unknown>;
+          return {
+            at: String(entry.at ?? ""),
+            by: entry.by,
+            reason: String(entry.reason ?? ""),
+            old: {
+              fromBankId: old.fromBankId != null ? String(old.fromBankId) : undefined,
+              toBankId: old.toBankId != null ? String(old.toBankId) : undefined,
+              amount: old.amount != null ? Number(old.amount) : undefined,
+              entryDate: old.entryDate != null ? String(old.entryDate) : undefined,
+              referenceNo: old.referenceNo != null ? String(old.referenceNo) : undefined,
+              remark: old.remark != null ? String(old.remark) : undefined,
+            },
+            new: {
+              fromBankId: neu.fromBankId != null ? String(neu.fromBankId) : undefined,
+              toBankId: neu.toBankId != null ? String(neu.toBankId) : undefined,
+              amount: neu.amount != null ? Number(neu.amount) : undefined,
+              entryDate: neu.entryDate != null ? String(neu.entryDate) : undefined,
+              referenceNo: neu.referenceNo != null ? String(neu.referenceNo) : undefined,
+              remark: neu.remark != null ? String(neu.remark) : undefined,
+            },
+          };
+        }),
       };
     }),
     meta: res.data.meta ?? { total: rows.length, page, pageSize: limit },
